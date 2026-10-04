@@ -94,6 +94,17 @@ const container = z.strictObject({
   items: z.array(z.strictObject({ key: itemKey, count })).max(5_000),
 });
 
+// Temps de jeu relevé par l'addon Allemano Ledger (facultatif : absent si l'addon n'est pas installé).
+const level = z.int().min(0).max(32_767);
+const playtime = z.strictObject({
+  totalSeconds: count.optional(),
+  measuredAt: unixSeconds.optional(),
+  current: z.strictObject({ level, startTotalSeconds: count.optional(), startedAt: unixSeconds.optional() }).optional(),
+  levels: z
+    .array(z.strictObject({ level, playedSeconds: count.optional(), wallSeconds: count.optional(), reachedAt: unixSeconds.optional(), zone: name.optional() }))
+    .max(200),
+});
+
 const character = z.strictObject({
   guid: z.string().regex(/^[A-Za-z0-9-]{1,64}$/),
   name,
@@ -119,6 +130,7 @@ const character = z.strictObject({
   currencies: z.array(currency).max(1_000),
   bags: container.optional(),
   bank: container.optional(),
+  playtime: playtime.optional(),
 });
 
 const item = z.strictObject({

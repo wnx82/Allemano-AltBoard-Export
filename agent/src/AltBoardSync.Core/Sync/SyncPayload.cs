@@ -56,6 +56,9 @@ public sealed record CharacterPayload
     public IReadOnlyList<CurrencyPayload> Currencies { get; init; } = [];
     public ContainerPayload? Bags { get; init; }
     public ContainerPayload? Bank { get; init; }
+
+    /// <summary>Temps de jeu relevé par l'addon Allemano Ledger ; absent si l'addon n'est pas installé.</summary>
+    public PlaytimePayload? Playtime { get; init; }
 }
 
 public sealed record StatsPayload
@@ -100,6 +103,14 @@ public sealed record CurrencyPayload(string Name, int Quantity, int? Max, int? I
 public sealed record ContainerPayload(long At, int? SlotsUsed, int? SlotsTotal, IReadOnlyList<ItemCountPayload> Items);
 
 public sealed record ItemCountPayload(string Key, int Count);
+
+/// <summary>Dernier /played connu, début du niveau en cours et niveaux terminés.</summary>
+public sealed record PlaytimePayload(int? TotalSeconds, long? MeasuredAt, CurrentLevelPayload? Current, IReadOnlyList<LevelTimePayload> Levels);
+
+public sealed record CurrentLevelPayload(int Level, int? StartTotalSeconds, long? StartedAt);
+
+/// <summary>Un niveau terminé. PlayedSeconds est absent quand plusieurs niveaux ont été gagnés d'un coup.</summary>
+public sealed record LevelTimePayload(int Level, int? PlayedSeconds, int? WallSeconds, long? ReachedAt, string? Zone);
 
 public sealed record ItemPayload(string Key, int ItemId, int? SuffixId, string? Name, int? Quality, int? Icon, string? Link);
 

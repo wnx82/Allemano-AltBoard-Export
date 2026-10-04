@@ -30,7 +30,7 @@ export default async function DashboardLayout({ children }: LayoutProps<"/">) {
       <main className="mx-auto w-full max-w-[1500px] flex-1 px-4 py-8 sm:px-6">{children}</main>
       <footer className="mx-auto w-full max-w-[1500px] px-4 pb-8 text-xs text-faint sm:px-6">
         Données issues de l&apos;addon AltBoard, telles qu&apos;écrites par le jeu à la dernière déconnexion ou au dernier /reload. Ce
-        n&apos;est pas du temps réel.
+        n&apos;est pas du temps réel. World of Warcraft et ses icônes sont la propriété de Blizzard Entertainment.
       </footer>
     </div>
   );

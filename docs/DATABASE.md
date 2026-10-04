@@ -1,7 +1,8 @@
 # Base de données
 
 > Source unique du schéma : `web/src/db/schema.ts` (Drizzle). Migrations générées dans
-> `web/drizzle/`. Structure des données d'origine : [ALTBOARD-DATA-MODEL](ALTBOARD-DATA-MODEL.md).
+> `web/drizzle/`. Structure des données d'origine : [ALTBOARD-DATA-MODEL](ALTBOARD-DATA-MODEL.md),
+> [LEDGER-DATA-MODEL](LEDGER-DATA-MODEL.md) pour le temps de jeu.
 
 ## État
 
@@ -23,7 +24,7 @@
 - Variables `WOW_DATABASE_URL`, `WOW_DATABASE_URL_DIRECT`, `WOW_TEST_DATABASE_URL` : jamais de nom
   générique, qui pourrait exister dans l'environnement pour un autre projet.
 
-## Tables (19)
+## Tables (21)
 
 Conventions : clés `bigint` générées, dates en `timestamptz`, argent en pièces de cuivre.
 
@@ -50,6 +51,8 @@ Conventions : clés `bigint` générées, dates en `timestamptz`, argent en piè
 | `character_reputations` | `(character_id, faction_id)` | Palier et valeurs |
 | `character_currencies` | `(character_id, name)` | Quantité (la clé est le nom : l'addon ne fournit pas d'identifiant) |
 | `character_items` | `(character_id, location, item_key)` | Contenu des sacs (`bags`) et de la banque (`bank`) |
+| `character_playtime` | `character_id` | Dernier `/played` connu, date de la mesure, début du niveau en cours (addon Allemano Ledger) |
+| `character_level_times` | `(character_id, level)` | Un niveau terminé : temps de jeu, temps réel, date, zone (addon Allemano Ledger) |
 
 Colonnes volontairement absentes, faute de donnée dans AltBoard : genre, région, quêtes, recettes.
 
@@ -70,8 +73,8 @@ Colonnes volontairement absentes, faute de donnée dans AltBoard : genre, régio
 
 ## Contraintes
 
-19 clés primaires, 19 clés étrangères, 8 contraintes d'unicité, 5 contraintes de validation
-(`slot` entre 1 et 19, `location` ∈ `bags`/`bank`, quantités et or positifs, statut de synchronisation).
+21 clés primaires, 21 clés étrangères, 8 contraintes d'unicité, 6 contraintes de validation
+(`slot` entre 1 et 19, `location` ∈ `bags`/`bank`, quantités, or et durées positifs, statut de synchronisation).
 
 Suppression d'un personnage : ses tables filles et ses snapshots suivent (`ON DELETE CASCADE`).
 Un compte, un royaume ou une machine référencé ne peut pas être supprimé.
@@ -90,6 +93,8 @@ En cas d'erreur, tout est annulé, puis l'échec est journalisé à part (`sync_
 | Bloc daté (`bank`, `bags`, `stats`) absent ou plus ancien que celui stocké | Bloc conservé : un PC qui n'a jamais ouvert la banque n'efface pas celle relevée ailleurs |
 | Personnage absent du fichier | Jamais supprimé : l'absence ne prouve pas la suppression en jeu |
 | Même compte depuis deux PC | Un seul `wow_accounts`, deux `machine_accounts` |
+| Niveau terminé (`playtime.levels`) | Ajouté, jamais retiré ; une valeur connue n'est jamais remplacée par une absence. Appliqué même quand `lastSeen` est plus ancien : chaque PC ne connaît que les niveaux gagnés chez lui |
+| Total `/played` et niveau en cours | Remplacés seulement par une mesure au moins aussi récente (`measured_at`) |
 
 Tous les hash sont calculés sur un JSON **canonique** (clés triées) : le client WoW réécrit ses
 tables dans un ordre différent à chaque sauvegarde.
@@ -100,7 +105,7 @@ Un snapshot est créé quand le **hash de progression** diffère de celui du der
 personnage. Entrent dans ce hash : niveau, expérience, or, niveau d'objet, guilde, métiers (niveau,
 maximum), équipement (objet, enchantement), réputations (palier, valeur), monnaies.
 
-N'y entrent pas : zone, expérience reposée, statistiques, horodatages, contenu des sacs. Une
+N'y entrent pas : zone, expérience reposée, statistiques, horodatages, contenu des sacs, temps de jeu. Une
 connexion sans progression met donc le personnage à jour sans créer d'historique.
 
 La comparaison se fait avec le **dernier** snapshot seulement : un retour à un état antérieur
@@ -128,6 +133,11 @@ Ne jamais passer de `statement_timeout` (ni aucun autre paramètre de session) d
 pool : PgBouncer refuse les paramètres de démarrage hors de sa liste. Un test le vérifie.
 Les migrations passent en connexion directe, jamais par PgBouncer. Le suivi est tenu dans
 `drizzle.__drizzle_migrations`.
+
+| Migration | Contenu |
+|---|---|
+| `0000_init` | les 19 tables d'origine |
+| `0001_playtime` | `character_playtime`, `character_level_times` (ajouts seuls) |
 
 ## Checkpoint B
 

@@ -14,7 +14,7 @@ Dernière mise à jour : 2026-10-04.
 | Chaîne complète PC → agent → HTTPS → PostgreSQL → tableau de bord | ✅ sur les fichiers réels (2 comptes, 6 personnages) |
 | Recette après une vraie modification en jeu | ⬜ à faire par le joueur : jouer, `/reload`, `AltBoardSync.exe sync` |
 | Compte personnel d'accès au tableau de bord | ⬜ à créer par le joueur (mot de passe saisi sur le serveur) |
-| Tests automatisés | 111 (agent) + 54 (web), tous verts |
+| Tests automatisés | 117 (agent) + 64 (web), tous verts |
 
 Le critère de réussite de la V1 est rempli jusqu'à l'étape 5 (personnage vérifié dans le fichier, la
 base et la page). Les étapes 6 à 10 — modifier une donnée en jeu, resynchroniser, constater la mise
@@ -105,6 +105,7 @@ synchronisés deux fois de suite : 6 créés puis 6 inchangés, 6 GUID distincts
 | Tri | ✅ |
 | Vue cartes / tableau mémorisée | ✅ |
 | Adaptation aux écrans (390 à 1920 px) | ✅ |
+| Icônes de classe et de métier (CDN de Blizzard, servies par ce site) | ✅ |
 
 Essais d'interface faits en local sur une base de test : 0, 1, 5, 20 et 50 personnages ; noms court,
 très long, accentué, à apostrophes, hors alphabet latin ; base injoignable.
@@ -120,6 +121,7 @@ très long, accentué, à apostrophes, hors alphabet latin ; base injoignable.
 | Réputations | ✅ | |
 | Inventaire (sacs, banque, recherche) | ✅ | |
 | Historique | 🟡 | courbes et changements vérifiés sur un personnage de démonstration en local ; en production chaque personnage n'a encore qu'un relevé |
+| Temps par niveau (graphique, tableau, temps de jeu total) | 🟡 | source : addon Allemano Ledger ([LEDGER-DATA-MODEL](LEDGER-DATA-MODEL.md)). Vérifié en local sur des données d'essai ; aucun fichier réel n'existe encore (l'addon n'a rien écrit sur ce PC au 2026-10-04) |
 
 **Checkpoint E** ✅ — en production : `AltBoard.lua` ↔ base (138 comparaisons) ↔ pages servies par
 `wow.ekreativ.be` (122 comparaisons), 0 écart sur les 6 personnages réels.
@@ -189,6 +191,7 @@ Rien n'est implémenté ni activé : la commande `watch` répond qu'elle n'est p
 |---|---|
 | Créer son compte d'accès (voir [DEPLOYMENT § Comptes et jetons](DEPLOYMENT.md)) | joueur |
 | Recette après une vraie modification en jeu | joueur |
+| Temps par niveau sur données réelles : se connecter avec Allemano Ledger actif, `/reload`, puis `AltBoardSync.exe sync` avec l'agent à jour | joueur |
 | Agent sur les autres PC : copier `AltBoardSync.exe`, créer un jeton par PC | joueur |
 | Pousser le dépôt vers un dépôt distant et déclarer la pile dans Komodo | à décider |
 | Fusionner `feat/v1-pipeline` dans `main` | à décider |

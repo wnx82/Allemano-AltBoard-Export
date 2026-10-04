@@ -22,7 +22,7 @@ public static partial class AltBoardReader
     public const string GlobalName = "AltBoardDB";
     public const int SupportedSchema = 2;
 
-    private const int MaxName = 120;
+    internal const int MaxName = 120;
     private const int MaxLink = 600;
     private const int MaxWarnings = 50;
     private const int MaxWarningLength = 300;
@@ -342,7 +342,7 @@ public static partial class AltBoardReader
         return (itemId, enchantId > 0 ? enchantId : null);
     }
 
-    private static string? Text(LuaValue? value, int maxLength)
+    internal static string? Text(LuaValue? value, int maxLength)
     {
         // PostgreSQL refuse l'octet nul dans un texte.
         var text = value?.AsString()?.Replace(" ", "");
@@ -358,18 +358,18 @@ public static partial class AltBoardReader
         return text[..length];
     }
 
-    private static int? NonNegative(int? value) => value is >= 0 ? value : null;
+    internal static int? NonNegative(int? value) => value is >= 0 ? value : null;
 
     // Bornes identiques à celles du serveur (web/src/lib/sync/schema.ts) : une valeur aberrante est
     // écartée ici plutôt que de faire refuser tout le document.
     private const long MaxTimestamp = 32_503_680_000; // an 3000
     private const long MaxSafeInteger = 9_007_199_254_740_991;
 
-    private static long? Timestamp(LuaValue? value) => value?.AsInt64() is > 0 and <= MaxTimestamp and var seconds ? seconds : null;
+    internal static long? Timestamp(LuaValue? value) => value?.AsInt64() is > 0 and <= MaxTimestamp and var seconds ? seconds : null;
 
     private static long? Money(LuaValue? value) => value?.AsInt64() is >= 0 and <= MaxSafeInteger and var copper ? copper : null;
 
-    private static int? Small(LuaValue? value) => value?.AsInt32() is >= 0 and <= short.MaxValue and var small ? small : null;
+    internal static int? Small(LuaValue? value) => value?.AsInt32() is >= 0 and <= short.MaxValue and var small ? small : null;
 
     private sealed class Warnings
     {

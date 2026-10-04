@@ -294,12 +294,15 @@ async function applyAccount(tx: Transaction, account: AccountPayload, scope: Sco
         .returning({ id: t.characters.id });
       characterId = created.id;
       await replaceDetails(tx, characterId, character, { stats: true, bags: true, bank: true });
+      await applyPlaytime(tx, characterId, character);
       counters.created++;
       counters.snapshots += await addSnapshot(tx, characterId, character, scope);
     } else {
       characterId = known.id;
       if (lastSeen.getTime() < known.sourceLastSeenAt.getTime()) {
         // Ce PC détient un fichier plus ancien que l'état déjà connu : on ne régresse pas.
+        // Ses temps par niveau restent utiles : ils ont pu être relevés sur ce PC seulement.
+        await applyPlaytime(tx, characterId, character);
         counters.stale++;
       } else if (hash === known.contentHash) {
         counters.unchanged++;
@@ -325,6 +328,7 @@ async function applyAccount(tx: Transaction, account: AccountPayload, scope: Sco
           })
           .where(eq(t.characters.id, characterId));
         await replaceDetails(tx, characterId, character, blocks);
+        await applyPlaytime(tx, characterId, character);
         counters.updated++;
         if (lastSnapshotHash.get(characterId) !== snapshotHash(character)) {
           counters.snapshots += await addSnapshot(tx, characterId, character, scope);
@@ -488,6 +492,60 @@ async function replaceDetails(tx: Transaction, characterId: number, character: C
     for (const batch of chunks(uniqueBy(container.items, (item) => item.key), BATCH)) {
       await tx.insert(t.characterItems).values(batch.map((item) => ({ characterId, location, itemKey: item.key, quantity: item.count })));
     }
+  }
+}
+
+/**
+ * Temps de jeu (Allemano Ledger). Les niveaux terminés sont des faits acquis : ils s'ajoutent et ne
+ * sont jamais retirés, chaque PC ne connaissant que les niveaux gagnés chez lui. Le total et le
+ * niveau en cours ne sont remplacés que par une mesure au moins aussi récente.
+ */
+async function applyPlaytime(tx: Transaction, characterId: number, character: CharacterPayload): Promise<void> {
+  const playtime = character.playtime;
+  if (!playtime) return;
+
+  if (playtime.totalSeconds !== undefined || playtime.current) {
+    const values = {
+      totalSeconds: playtime.totalSeconds ?? null,
+      measuredAt: playtime.measuredAt === undefined ? null : fromUnix(playtime.measuredAt),
+      currentLevel: playtime.current?.level ?? null,
+      currentLevelStartSeconds: playtime.current?.startTotalSeconds ?? null,
+      currentLevelStartedAt: playtime.current?.startedAt === undefined ? null : fromUnix(playtime.current.startedAt),
+    };
+    await tx
+      .insert(t.characterPlaytime)
+      .values({ characterId, ...values })
+      .onConflictDoUpdate({
+        target: t.characterPlaytime.characterId,
+        set: values,
+        setWhere: sql`${t.characterPlaytime.measuredAt} is null or excluded.measured_at >= ${t.characterPlaytime.measuredAt}`,
+      });
+  }
+
+  const levels = uniqueBy(playtime.levels, (entry) => entry.level);
+  if (levels.length > 0) {
+    await tx
+      .insert(t.characterLevelTimes)
+      .values(
+        levels.map((entry) => ({
+          characterId,
+          level: entry.level,
+          playedSeconds: entry.playedSeconds ?? null,
+          wallSeconds: entry.wallSeconds ?? null,
+          reachedAt: entry.reachedAt === undefined ? null : fromUnix(entry.reachedAt),
+          zone: entry.zone ?? null,
+        })),
+      )
+      .onConflictDoUpdate({
+        target: [t.characterLevelTimes.characterId, t.characterLevelTimes.level],
+        // Une valeur connue n'est jamais remplacée par une absence.
+        set: {
+          playedSeconds: sql`coalesce(excluded.played_seconds, ${t.characterLevelTimes.playedSeconds})`,
+          wallSeconds: sql`coalesce(excluded.wall_seconds, ${t.characterLevelTimes.wallSeconds})`,
+          reachedAt: sql`coalesce(excluded.reached_at, ${t.characterLevelTimes.reachedAt})`,
+          zone: sql`coalesce(excluded.zone, ${t.characterLevelTimes.zone})`,
+        },
+      });
   }
 }
 

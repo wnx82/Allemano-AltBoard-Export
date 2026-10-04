@@ -513,6 +513,118 @@ describe("plusieurs PC", () => {
   });
 });
 
+describe("temps de jeu (Allemano Ledger)", () => {
+  const ledgerOf = async (guid: string) => {
+    const stored = await character(guid);
+    const [playtime] = await database.db.select().from(t.characterPlaytime).where(eq(t.characterPlaytime.characterId, stored.id));
+    const levels = await database.db
+      .select({ level: t.characterLevelTimes.level, played: t.characterLevelTimes.playedSeconds, wall: t.characterLevelTimes.wallSeconds, zone: t.characterLevelTimes.zone })
+      .from(t.characterLevelTimes)
+      .where(eq(t.characterLevelTimes.characterId, stored.id))
+      .orderBy(asc(t.characterLevelTimes.level));
+    return { playtime, levels };
+  };
+  const withPlaytime = (payload: SyncPayload, playtime: NonNullable<CharacterPayload["playtime"]>, lastSeenOffset = 0): SyncPayload => {
+    const mage = mageOf(payload);
+    mage.playtime = playtime;
+    mage.lastSeen += lastSeenOffset;
+    return payload;
+  };
+
+  test("un document sans temps de jeu reste accepté et ne crée rien", async () => {
+    await ok(clone());
+
+    assert.equal(await count(t.characterPlaytime), 0);
+    assert.equal(await count(t.characterLevelTimes), 0);
+  });
+
+  test("le total, le niveau en cours et les niveaux terminés sont enregistrés", async () => {
+    await ok(
+      withPlaytime(clone(), {
+        totalSeconds: 100_000,
+        measuredAt: 1791118000,
+        current: { level: 25, startTotalSeconds: 97_000, startedAt: 1791110000 },
+        levels: [
+          { level: 23, playedSeconds: 3600, wallSeconds: 86_400, reachedAt: 1791000000, zone: "Forêt d'Elwynn" },
+          { level: 24, playedSeconds: 5400, reachedAt: 1791110000 },
+        ],
+      }),
+    );
+
+    const { playtime, levels } = await ledgerOf(MAGE);
+    assert.deepEqual(
+      [playtime.totalSeconds, playtime.currentLevel, playtime.currentLevelStartSeconds, playtime.measuredAt?.getTime(), playtime.currentLevelStartedAt?.getTime()],
+      [100_000, 25, 97_000, 1791118000_000, 1791110000_000],
+    );
+    assert.deepEqual(levels, [
+      { level: 23, played: 3600, wall: 86_400, zone: "Forêt d'Elwynn" },
+      { level: 24, played: 5400, wall: null, zone: null },
+    ]);
+  });
+
+  test("renvoyer le même document ne duplique aucun niveau", async () => {
+    const payload = withPlaytime(clone(), { totalSeconds: 100, measuredAt: 1791118000, levels: [{ level: 24, playedSeconds: 60 }] });
+    await ok(payload);
+
+    const result = await ok(structuredClone(payload));
+
+    assert.equal(result.charactersUnchanged, 6);
+    assert.equal(await count(t.characterLevelTimes), 1);
+    assert.equal(await count(t.characterPlaytime), 1);
+  });
+
+  test("les niveaux relevés sur deux PC s'additionnent, sans perte ni écrasement", async () => {
+    const token2 = (await createAgentToken(database.db, "PC 2")).token;
+    await ok(
+      withPlaytime(onlyAccount(0), {
+        totalSeconds: 100_000,
+        measuredAt: 1791118000,
+        current: { level: 25, startTotalSeconds: 97_000 },
+        levels: [{ level: 23, playedSeconds: 3600, zone: "Forêt d'Elwynn" }, { level: 24 }],
+      }),
+    );
+
+    // PC 2 : fichier AltBoard plus ancien (personnage « stale »), mais son Ledger connaît d'autres niveaux.
+    const older = withPlaytime(
+      fromMachine(onlyAccount(0), PC2, "PC-2"),
+      { totalSeconds: 50_000, measuredAt: 1791000000, current: { level: 22, startTotalSeconds: 49_000 }, levels: [{ level: 21, playedSeconds: 1800 }, { level: 23 }, { level: 24, playedSeconds: 5400 }] },
+      -86_400,
+    );
+    const result = await ok(older, { token: token2 });
+
+    assert.equal(result.charactersStale, 1);
+    const { playtime, levels } = await ledgerOf(MAGE);
+    // Le total le plus récent est conservé.
+    assert.deepEqual([playtime.totalSeconds, playtime.currentLevel], [100_000, 25]);
+    assert.deepEqual(levels, [
+      { level: 21, played: 1800, wall: null, zone: null },
+      // Valeur connue jamais remplacée par une absence.
+      { level: 23, played: 3600, wall: null, zone: "Forêt d'Elwynn" },
+      // Valeur absente complétée par l'autre PC.
+      { level: 24, played: 5400, wall: null, zone: null },
+    ]);
+  });
+
+  test("une mesure plus récente remplace le total, sans créer de snapshot", async () => {
+    await ok(withPlaytime(clone(), { totalSeconds: 100_000, measuredAt: 1791118000, current: { level: 25, startTotalSeconds: 97_000 }, levels: [] }));
+    const next = withPlaytime(clone(), { totalSeconds: 103_600, measuredAt: 1791121600, current: { level: 25, startTotalSeconds: 97_000 }, levels: [] }, 3600);
+
+    const result = await ok(next);
+
+    assert.deepEqual([result.charactersUpdated, result.snapshotsCreated], [1, 0]);
+    assert.equal((await ledgerOf(MAGE)).playtime.totalSeconds, 103_600);
+  });
+
+  test("un temps de jeu mal formé fait refuser le document", async () => {
+    for (const playtime of [{ levels: [{ level: 24, playedSeconds: -1 }] }, { levels: [{ level: 24, inconnu: 1 }] }, { totalSeconds: "beaucoup", levels: [] }, { levels: "aucun" }]) {
+      const payload = clone();
+      (mageOf(payload) as { playtime: unknown }).playtime = playtime;
+      assert.equal((await send(payload)).status, 422, JSON.stringify(playtime));
+    }
+    assert.equal(await count(t.characters), 0);
+  });
+});
+
 describe("transactions et contraintes", () => {
   test("une erreur en cours de traitement annule toute la synchronisation", async () => {
     const broken = clone();

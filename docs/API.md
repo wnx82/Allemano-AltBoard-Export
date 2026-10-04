@@ -54,7 +54,12 @@ Reçoit l'état AltBoard d'une machine.
           "reputations": [{ "factionId": 47, "name": "Ironforge", "group": "Alliance", "reaction": 5, "current": 4715, "min": 3000, "max": 9000 }],
           "currencies": [{ "name": "Faveur marchande", "quantity": 60, "max": 0 }],
           "bags": { "at": 1791117999, "slotsUsed": 57, "slotsTotal": 58, "items": [{ "key": "1114", "count": 7 }] },
-          "bank": { "at": 1791111262, "slotsUsed": 52, "slotsTotal": 54, "items": [] }
+          "bank": { "at": 1791111262, "slotsUsed": 52, "slotsTotal": 54, "items": [] },
+          "playtime": {
+            "totalSeconds": 171000, "measuredAt": 1791118113,
+            "current": { "level": 25, "startTotalSeconds": 162400, "startedAt": 1791031713 },
+            "levels": [{ "level": 24, "playedSeconds": 18300, "wallSeconds": 58320, "reachedAt": 1791031713, "zone": "Les Paluns" }]
+          }
         }
       ]
     }
@@ -68,7 +73,14 @@ Règles :
 - un champ sans valeur est **omis**, jamais envoyé à `null` ;
 - les horodatages issus d'AltBoard (`lastSeen`, `statsAt`, `bags.at`, `bank.at`) restent des
   secondes Unix, telles qu'écrites par l'addon ;
-- `bank` et `bags` sont absents tant que l'addon ne les a jamais datés.
+- `bank` et `bags` sont absents tant que l'addon ne les a jamais datés ;
+- `playtime` est absent sans l'addon Allemano Ledger ([LEDGER-DATA-MODEL](LEDGER-DATA-MODEL.md)).
+  `levels[].level` est le niveau quitté ; `playedSeconds` est omis quand plusieurs niveaux ont été
+  gagnés d'un coup. Au plus 200 niveaux par personnage.
+
+Compatibilité : `playtime` est un ajout facultatif à la version 1. Les objets étant stricts, un
+serveur antérieur refuserait un document qui le contient : **le serveur se met à jour avant les
+agents**. Un agent antérieur reste accepté par le nouveau serveur.
 
 Le schéma complet, avec ses bornes, est `web/src/lib/sync/schema.ts` ; son miroir côté agent est
 `agent/src/AltBoardSync.Core/Sync/SyncPayload.cs`. Le fichier

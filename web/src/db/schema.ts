@@ -282,6 +282,36 @@ export const characterItems = pgTable(
   ],
 );
 
+// Temps de jeu, issu de l'addon Allemano Ledger (voir docs/LEDGER-DATA-MODEL.md).
+// Dernier /played connu et début du niveau en cours.
+export const characterPlaytime = pgTable("character_playtime", {
+  characterId: characterId().primaryKey(),
+  totalSeconds: integer("total_seconds"),
+  measuredAt: ts("measured_at"),
+  currentLevel: smallint("current_level"),
+  // /played total au moment où le niveau en cours a commencé.
+  currentLevelStartSeconds: integer("current_level_start_seconds"),
+  currentLevelStartedAt: ts("current_level_started_at"),
+});
+
+// Un niveau terminé : temps de jeu et temps réel passés pour aller de level à level + 1.
+// played_seconds est absent quand plusieurs niveaux ont été gagnés d'un coup.
+export const characterLevelTimes = pgTable(
+  "character_level_times",
+  {
+    characterId: characterId(),
+    level: smallint("level").notNull(),
+    playedSeconds: integer("played_seconds"),
+    wallSeconds: integer("wall_seconds"),
+    reachedAt: ts("reached_at"),
+    zone: text("zone"),
+  },
+  (t) => [
+    primaryKey({ columns: [t.characterId, t.level] }),
+    check("character_level_times_seconds_check", sql`${t.playedSeconds} >= 0 and ${t.wallSeconds} >= 0`),
+  ],
+);
+
 // ---------------------------------------------------------------------------
 // Journal des synchronisations
 // ---------------------------------------------------------------------------

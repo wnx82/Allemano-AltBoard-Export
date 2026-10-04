@@ -279,6 +279,7 @@ Table à clé `itemKey`, partagée par tous les personnages du compte (357 et 14
 | Identité du compte | absente du fichier — uniquement le nom du dossier |
 | Version de l'addon | absente du fichier — à lire dans le `.toc` |
 | Historique | absent — l'addon ne garde que l'état courant |
+| Temps de jeu, temps par niveau | absents — fournis par l'addon Allemano Ledger, voir [LEDGER-DATA-MODEL](LEDGER-DATA-MODEL.md) |
 
 ## 9. Checkpoint A
 

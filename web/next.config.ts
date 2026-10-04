@@ -11,6 +11,12 @@ const nextConfig: NextConfig = {
   // La compression (brotli) est faite par le reverse proxy.
   compress: false,
   reactStrictMode: true,
+  images: {
+    // Seules les icônes du CDN officiel de Blizzard passent par l'optimiseur.
+    remotePatterns: [new URL("https://render.worldofwarcraft.com/eu/icons/56/**")],
+    // Une icône ne change jamais : cache d'un mois.
+    minimumCacheTTL: 2_678_400,
+  },
   async headers() {
     return [
       {

@@ -1,7 +1,11 @@
 namespace AltBoardSync.Core.Discovery;
 
 /// <summary>Un fichier AltBoard.lua trouvé pour un compte WoW.</summary>
-public sealed record AccountSource(string AccountFolder, string Flavor, string FlavorPath, string FilePath);
+public sealed record AccountSource(string AccountFolder, string Flavor, string FlavorPath, string FilePath)
+{
+    /// <summary>Fichier de l'addon Allemano Ledger du même compte, s'il existe (temps de jeu par niveau).</summary>
+    public string? LedgerFilePath { get; init; }
+}
 
 /// <summary>
 /// Découvre les comptes sous <c>WTF\Account\</c>. Lecture seule : rien n'est créé, modifié ni
@@ -11,6 +15,7 @@ public static class AccountScanner
 {
     public const string DefaultWowPath = @"C:\Program Files (x86)\World of Warcraft\_classic_beta_";
     public const string SavedVariablesFile = "AltBoard.lua";
+    public const string LedgerFile = "AllemanoLedger.lua";
 
     /// <param name="wowPath">Dossier d'un client (<c>…\_classic_beta_</c>) ou racine World of Warcraft contenant plusieurs clients.</param>
     public static IReadOnlyList<AccountSource> Scan(string wowPath)
@@ -27,7 +32,9 @@ public static class AccountScanner
                 // Seule la présence du fichier désigne un compte : WTF\Account contient aussi des
                 // dossiers techniques, et un compte peut ne pas utiliser AltBoard.
                 var file = Path.Combine(accountPath, "SavedVariables", SavedVariablesFile);
-                if (File.Exists(file)) sources.Add(new AccountSource(Path.GetFileName(accountPath), flavor, flavorPath, file));
+                if (!File.Exists(file)) continue;
+                var ledger = Path.Combine(accountPath, "SavedVariables", LedgerFile);
+                sources.Add(new AccountSource(Path.GetFileName(accountPath), flavor, flavorPath, file) { LedgerFilePath = File.Exists(ledger) ? ledger : null });
             }
         }
 

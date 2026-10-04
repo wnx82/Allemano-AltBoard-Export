@@ -176,6 +176,17 @@ body {
     box-shadow: 0 0 0 3px rgb(0 0 0 / 0.25);
   }
 
+  .avatar { position: relative; overflow: hidden; }
+  .avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+
+  .profession-icon {
+    flex: none;
+    display: inline-block;
+    vertical-align: -0.3em;
+    border-radius: 0.3rem;
+    border: 1px solid var(--line-strong);
+  }
+
   .badge {
     display: inline-flex;
     align-items: center;
@@ -287,6 +298,13 @@ body {
   .trend-marker { fill: var(--series); stroke: #131b2c; stroke-width: 2; outline: none; }
   .trend-marker:focus-visible { stroke: var(--gold); }
   .trend-value { fill: var(--text); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .trend-baseline { stroke: rgb(255 255 255 / 0.22); stroke-width: 1; }
+  .level-bar { fill: var(--series); }
+  .level-bar[data-current] { fill-opacity: 0.45; }
+  .level-bar[data-active] { fill: color-mix(in srgb, var(--series) 75%, white); fill-opacity: 1; }
+  .level-unknown { fill: none; stroke: var(--muted); stroke-width: 1.5; }
+  .trend-chart rect[tabindex] { outline: none; }
+  .trend-chart rect[tabindex]:focus-visible { stroke: var(--gold); stroke-width: 1.5; }
   .trend-crosshair { stroke: rgb(255 255 255 / 0.28); stroke-width: 1; }
   .trend-tooltip rect { fill: #0a0f1b; stroke: var(--line-strong); }
   .trend-tooltip-value { fill: var(--text); font-size: 12.5px; font-weight: 600; }

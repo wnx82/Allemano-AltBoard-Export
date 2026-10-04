@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import type { CharacterListItem } from "@/lib/dashboard/queries";
 import { classKey, classLabel, formatDateTime, formatItemLevel, formatRelative, progressPercent } from "@/lib/wow/format";
-import { ClassAvatar, EmptyState, FactionBadge, Meter, Money } from "./ui";
+import { ClassAvatar, EmptyState, FactionBadge, Meter, Money, ProfessionIcon } from "./ui";
 
 type SortKey = "name" | "level" | "itemLevel" | "money" | "activity" | "progress";
 type View = "cards" | "table";
@@ -349,9 +349,11 @@ function CharacterCard({ character, now }: { character: CharacterListItem; now: 
       {professions.length > 0 && (
         <ul className="mt-4 space-y-2.5">
           {professions.map((profession) => (
-            <li key={profession.name}>
+            <li key={profession.skillLine}>
               <div className="mb-1 flex items-baseline justify-between gap-2 text-xs">
-                <span className="truncate text-text">{profession.name}</span>
+                <span className="truncate text-text">
+                  <ProfessionIcon skillLine={profession.skillLine} size={18} /> {profession.name}
+                </span>
                 <span className="tabular-nums text-muted">
                   {profession.rank ?? "—"} / {profession.maxRank ?? "—"}
                 </span>
@@ -426,7 +428,11 @@ function CharacterTable({ characters, now }: { characters: CharacterListItem[]; 
               <td className="text-xs text-muted">
                 {character.professions.length === 0
                   ? "—"
-                  : character.professions.map((p) => `${p.name} ${p.rank ?? "—"}/${p.maxRank ?? "—"}`).join(" · ")}
+                  : character.professions.map((p) => (
+                      <span key={p.skillLine} className="mr-3 inline-block whitespace-nowrap">
+                        <ProfessionIcon skillLine={p.skillLine} size={16} /> {p.name} {p.rank ?? "—"}/{p.maxRank ?? "—"}
+                      </span>
+                    ))}
               </td>
               <td>
                 {character.realm}

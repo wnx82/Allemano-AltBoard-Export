@@ -2,14 +2,16 @@
 
 ## Ce qui n'est jamais collecté
 
-L'agent ne lit qu'un fichier : `SavedVariables\AltBoard.lua`. Il ne lit ni identifiants
-Battle.net, ni mot de passe, ni jeton de session du jeu, et n'envoie aucun chemin de fichier.
+L'agent ne lit que deux fichiers par compte : `SavedVariables\AltBoard.lua` et, s'il existe,
+`SavedVariables\AllemanoLedger.lua` (temps de jeu seulement : ni or, ni sessions, ni historique).
+Il ne lit ni identifiants Battle.net, ni mot de passe, ni jeton de session du jeu, et n'envoie
+aucun chemin de fichier.
 
 | Donnée | Traitement |
 |---|---|
 | Nom du dossier de compte (`WTF\Account\<COMPTE>`) | jamais transmis : empreinte SHA-256 + libellé masqué (`12…#1`) |
 | Nom d'hôte du PC | transmis, informatif |
-| Noms de personnage, guildes, or, équipement | transmis : c'est l'objet du tableau de bord |
+| Noms de personnage, guildes, or, équipement, temps de jeu | transmis : c'est l'objet du tableau de bord |
 
 L'empreinte du compte est une **pseudonymisation**, pas un secret : elle évite d'afficher ou de
 stocker l'identifiant réel, mais resterait retrouvable par force brute par quiconque lirait la base.
@@ -63,6 +65,13 @@ base-uri 'self'; form-action 'self'; frame-ancestors 'none'
 Les pages n'utilisent aucun style en ligne : couleurs de classe et de qualité passent par des
 attributs `data-*`, les jauges par l'élément `<progress>`, les graphiques par des attributs SVG.
 
+Icônes de classe et de métier : elles viennent du CDN de Blizzard (`render.worldofwarcraft.com`),
+mais c'est **le serveur** qui les récupère, par l'optimiseur d'images de Next.js (`/_next/image`).
+Le navigateur ne contacte que ce site : la CSP reste à `img-src 'self'` et Blizzard ne voit ni
+l'adresse ni la navigation des visiteurs. L'optimiseur n'accepte qu'un hôte et un chemin
+(`remotePatterns` : `/eu/icons/56/**`) : il ne peut pas servir de relais vers une autre adresse.
+Les images ne sont pas copiées dans le dépôt ; le cache est en mémoire (`tmpfs`), perdu au redémarrage.
+
 Aussi : `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: same-origin`,
 `Permissions-Policy`, `Cross-Origin-Opener-Policy`, `Cross-Origin-Resource-Policy`,
 `Strict-Transport-Security`, `Cache-Control: private, no-store` sur les pages. Pas de CORS : l'API
@@ -89,7 +98,8 @@ pas versionné.
 ## Conteneur
 
 Utilisateur non privilégié, système de fichiers en lecture seule, toutes capacités retirées,
-`no-new-privileges`, port publié sur `127.0.0.1` uniquement.
+`no-new-privileges`, port publié sur `127.0.0.1` uniquement. Seule connexion sortante hors base :
+le CDN d'icônes de Blizzard.
 
 ## Limites assumées
 

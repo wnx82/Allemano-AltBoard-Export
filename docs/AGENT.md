@@ -29,7 +29,7 @@ Le jeton se lie à la première machine qui l'utilise ; il est refusé ailleurs.
 
 | Commande | Effet |
 |---|---|
-| `sync` | lit tous les `AltBoard.lua` et envoie le document |
+| `sync` | lit tous les `AltBoard.lua` (et `AllemanoLedger.lua` voisins) et envoie le document |
 | `scan` | lit et affiche, **sans rien envoyer** (équivaut à `sync --dry-run`) |
 | `config` | affiche la configuration |
 | `config set <wowPath\|serverUrl\|machineName> <valeur>` | modifie la configuration |
@@ -86,6 +86,11 @@ La variable `ALTBOARDSYNC_TOKEN` prime sur `token.dat` (tests, exécution ponctu
 plusieurs clients (`_retail_`, `_classic_`…). Chaque `WTF\Account\<COMPTE>\SavedVariables\AltBoard.lua`
 est un compte. Un compte sans AltBoard, le dossier technique `WTF\Account\SavedVariables` et les
 fichiers `.bak` sont ignorés. Zéro compte n'est pas une erreur.
+
+Si le même dossier contient `AllemanoLedger.lua` (addon Allemano Ledger), l'agent y lit le temps
+de jeu des personnages connus d'AltBoard : dernier `/played`, début du niveau en cours, niveaux
+terminés ([LEDGER-DATA-MODEL](LEDGER-DATA-MODEL.md)). Fichier facultatif : absent, rien ne change ;
+illisible, un avertissement est joint au document et la synchronisation continue.
 
 ## Lecture pendant que le jeu écrit
 

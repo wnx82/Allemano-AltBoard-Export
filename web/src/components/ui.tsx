@@ -1,8 +1,29 @@
+import { getImageProps } from "next/image";
 import { classKey, formatMoney, progressPercent, splitMoney } from "@/lib/wow/format";
+import { classIconUrl, professionIconUrl } from "@/lib/wow/icons";
 
 // Briques d'affichage sans état, utilisables côté serveur comme côté client.
 
-/** Initiales du personnage : tient lieu d'avatar, sans aucune image du jeu. */
+/**
+ * Icône du jeu, servie par l'optimiseur d'images (même origine). L'attribut style que pose
+ * next/image est retiré : la CSP interdit les styles en ligne. Texte alternatif vide : l'icône
+ * double toujours un libellé écrit, et une image indisponible ne laisse aucune trace visible.
+ */
+export function GameIcon({ src, size, className }: { src: string; size: number; className?: string }) {
+  const { props } = getImageProps({ src, alt: "", width: size, height: size });
+  // eslint-disable-next-line @next/next/no-img-element -- getImageProps fournit déjà src et srcSet optimisés
+  return <img {...props} alt="" style={undefined} className={className} />;
+}
+
+export function ProfessionIcon({ skillLine, size = 20 }: { skillLine: number | null; size?: number }) {
+  const src = professionIconUrl(skillLine);
+  return src ? <GameIcon src={src} size={size} className="profession-icon" /> : null;
+}
+
+/**
+ * Avatar : icône de classe posée sur les initiales du personnage. Classe inconnue ou image
+ * indisponible : les initiales restent visibles.
+ */
 export function ClassAvatar({ name, classToken, size = "md" }: { name: string; classToken: string | null; size?: "sm" | "md" | "lg" }) {
   const initials = name
     .split(/[\s-]+/)
@@ -10,10 +31,12 @@ export function ClassAvatar({ name, classToken, size = "md" }: { name: string; c
     .slice(0, 2)
     .map((part) => [...part][0]!.toUpperCase())
     .join("");
-  const dimensions = { sm: "size-9 text-xs", md: "size-12 text-base", lg: "size-20 text-3xl" }[size];
+  const dimensions = { sm: "size-9 text-xs", md: "size-12 text-base", lg: "size-16 text-2xl" }[size];
+  const icon = classIconUrl(classToken);
   return (
     <span className={`avatar ${dimensions}`} data-class={classKey(classToken)} aria-hidden="true">
       {initials}
+      {icon && <GameIcon src={icon} size={{ sm: 36, md: 48, lg: 64 }[size]} />}
     </span>
   );
 }

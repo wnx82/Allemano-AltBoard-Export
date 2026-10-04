@@ -3,10 +3,12 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 import { InventoryList } from "@/components/inventory-list";
+import { LevelTimeChart } from "@/components/level-time-chart";
 import { TrendChart, type TrendPoint } from "@/components/trend-chart";
-import { ClassAvatar, FactionBadge, Meter, Money, SectionTitle, StatTile } from "@/components/ui";
+import { ClassAvatar, FactionBadge, Meter, Money, ProfessionIcon, SectionTitle, StatTile } from "@/components/ui";
 import { getDatabase } from "@/db/client";
 import { buildHistory } from "@/lib/dashboard/history";
+import { buildLevelTimes, formatDuration } from "@/lib/dashboard/level-times";
 import { getCharacterDetail, type CharacterDetail } from "@/lib/dashboard/queries";
 import {
   classKey,
@@ -48,6 +50,8 @@ export default async function CharacterPage({ params }: PageProps<"/characters/[
   const now = new Date();
   const stats = character.stats;
   const history = buildHistory(character.snapshots);
+  const levelTimes = buildLevelTimes(character.levelTimes, character.playtime, character.level);
+  const totalPlayed = character.playtime?.totalSeconds ?? null;
   const levelPoints: TrendPoint[] = character.snapshots
     .filter((snapshot) => snapshot.level !== null)
     .map((snapshot) => ({
@@ -137,7 +141,10 @@ export default async function CharacterPage({ params }: PageProps<"/characters/[
         </dl>
       </header>
 
-      <section aria-label="Vue générale" className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <section
+        aria-label="Vue générale"
+        className={`mt-6 grid grid-cols-2 gap-3 md:grid-cols-3 ${totalPlayed === null ? "xl:grid-cols-6" : "xl:grid-cols-7"}`}
+      >
         <StatTile
           label="Niveau"
           value={character.level ?? "—"}
@@ -155,6 +162,13 @@ export default async function CharacterPage({ params }: PageProps<"/characters/[
         <StatTile label="Niveau d'objet" value={formatItemLevel(character.itemLevel)} />
         <StatTile label="Or" value={<Money copper={character.moneyCopper} />} />
         <StatTile label="XP reposée" value={formatInteger(character.restedXp)} />
+        {totalPlayed !== null && (
+          <StatTile
+            label="Temps de jeu"
+            value={formatDuration(totalPlayed)}
+            hint={character.playtime?.measuredAt ? `Relevé ${formatRelative(character.playtime.measuredAt, now)}` : undefined}
+          />
+        )}
         <StatTile
           label="Sacs"
           value={character.bagSlotsUsed === null ? "—" : `${character.bagSlotsUsed} / ${character.bagSlotsTotal ?? "—"}`}
@@ -181,7 +195,7 @@ export default async function CharacterPage({ params }: PageProps<"/characters/[
                   <li key={profession.skillLine}>
                     <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-2 text-sm">
                       <span className="font-medium">
-                        {profession.name}
+                        <ProfessionIcon skillLine={profession.skillLine} size={22} /> {profession.name}
                         {profession.isPrimary && <span className="badge ml-2">Principal</span>}
                       </span>
                       <span className="tabular-nums text-muted">
@@ -347,6 +361,56 @@ export default async function CharacterPage({ params }: PageProps<"/characters/[
             )}
           </div>
         </div>
+      </section>
+
+      <section aria-labelledby="level-times" className="mt-8">
+        <SectionTitle aside="Source : addon Allemano Ledger">
+          <span id="level-times">Temps par niveau</span>
+        </SectionTitle>
+        {levelTimes.length === 0 ? (
+          <div className="panel p-5 text-sm text-muted">
+            Aucun temps relevé pour ce personnage. L&apos;addon Allemano Ledger mesure le temps de jeu de chaque niveau à partir de son
+            installation : connectez ce personnage, faites <code className="text-text">/reload</code>, puis synchronisez. Les niveaux gagnés
+            avant l&apos;installation ne peuvent pas être reconstitués : le jeu ne donne que le total et le niveau en cours.
+          </div>
+        ) : (
+          <>
+            <LevelTimeChart levels={levelTimes} />
+            <details className="panel mt-4 overflow-hidden">
+              <summary className="cursor-pointer px-5 py-3 text-sm text-muted hover:text-text">Tableau des temps par niveau</summary>
+              <div className="overflow-x-auto">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Niveau</th>
+                      <th scope="col" className="num">
+                        Temps de jeu
+                      </th>
+                      <th scope="col" className="num">
+                        Temps réel
+                      </th>
+                      <th scope="col">Terminé le</th>
+                      <th scope="col">Zone</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...levelTimes].reverse().map((entry) => (
+                      <tr key={entry.level}>
+                        <td className="whitespace-nowrap">
+                          {entry.current ? `${entry.level} (en cours)` : `${entry.level} → ${entry.level + 1}`}
+                        </td>
+                        <td className="num">{entry.playedSeconds === null ? "non mesuré" : formatDuration(entry.playedSeconds)}</td>
+                        <td className="num">{formatDuration(entry.wallSeconds)}</td>
+                        <td className="whitespace-nowrap">{formatDateTime(entry.reachedAt)}</td>
+                        <td>{entry.zone ?? "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          </>
+        )}
       </section>
 
       <section aria-labelledby="history" className="mt-8">

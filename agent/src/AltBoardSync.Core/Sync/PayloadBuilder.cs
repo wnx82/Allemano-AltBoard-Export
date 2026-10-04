@@ -21,6 +21,7 @@ public sealed class PayloadBuilder(StableFileReader reader)
         {
             var snapshot = await reader.ReadAsync(source.FilePath, cancellationToken).ConfigureAwait(false);
             var document = AltBoardReader.Read(SavedVariablesParser.Parse(snapshot.Content));
+            var (characters, ledgerWarnings) = await AttachPlaytimeAsync(source, document.Characters, cancellationToken).ConfigureAwait(false);
             var payload = new AccountPayload(
                 AccountKey.Compute(source.AccountFolder),
                 AccountKey.Hint(source.AccountFolder),
@@ -28,14 +29,37 @@ public sealed class PayloadBuilder(StableFileReader reader)
                 document.Schema,
                 AccountScanner.ReadAddonVersion(source.FlavorPath),
                 new SourceFilePayload(Convert.ToHexStringLower(SHA256.HashData(snapshot.Content)), snapshot.ModifiedAt, snapshot.Content.LongLength),
-                document.Characters,
+                characters,
                 document.Items,
-                document.Warnings);
+                [.. document.Warnings, .. ledgerWarnings]);
             return new AccountReadResult(source, payload, null);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException or LuaParseException or AltBoardFormatException)
         {
             return new AccountReadResult(source, null, e.Message);
+        }
+    }
+
+    /// <summary>
+    /// Complète les personnages avec le temps de jeu d'Allemano Ledger, quand son fichier existe.
+    /// Source facultative : illisible ou absente, elle ne fait jamais échouer la synchronisation.
+    /// </summary>
+    private async Task<(IReadOnlyList<CharacterPayload> Characters, IReadOnlyList<string> Warnings)> AttachPlaytimeAsync(
+        AccountSource source, IReadOnlyList<CharacterPayload> characters, CancellationToken cancellationToken)
+    {
+        if (source.LedgerFilePath is null) return (characters, []);
+        try
+        {
+            var snapshot = await reader.ReadAsync(source.LedgerFilePath, cancellationToken).ConfigureAwait(false);
+            var warnings = new List<string>();
+            var playtimes = LedgerReader.Read(SavedVariablesParser.Parse(snapshot.Content), warnings);
+            var completed = characters.Select(c => playtimes.TryGetValue(c.Guid, out var playtime) ? c with { Playtime = playtime } : c).ToList();
+            return (completed, warnings);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException or LuaParseException)
+        {
+            var message = $"Allemano Ledger illisible, temps de jeu non transmis : {e.Message}";
+            return (characters, [message.Length > 300 ? message[..300] : message]);
         }
     }
 

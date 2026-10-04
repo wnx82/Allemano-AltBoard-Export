@@ -29,7 +29,7 @@ export type CharacterListItem = {
   hidden: boolean;
   account: Named;
   machines: Named[];
-  professions: { name: string; rank: number | null; maxRank: number | null; isPrimary: boolean }[];
+  professions: { skillLine: number; name: string; rank: number | null; maxRank: number | null; isPrimary: boolean }[];
   /** Dernière collecte par l'addon (lastSeen) : la donnée n'est jamais du temps réel. */
   sourceLastSeenAt: string;
   lastSyncAt: string;
@@ -69,6 +69,7 @@ export async function listCharacters(db: Database): Promise<CharacterListItem[]>
     db
       .select({
         characterId: t.characterProfessions.characterId,
+        skillLine: t.characterProfessions.skillLine,
         name: t.characterProfessions.name,
         rank: t.characterProfessions.rank,
         maxRank: t.characterProfessions.maxRank,
@@ -110,7 +111,7 @@ export async function listCharacters(db: Database): Promise<CharacterListItem[]>
     hidden: row.hidden,
     account: { id: row.accountId, label: accountLabel({ displayName: row.accountDisplayName, folderHint: row.accountFolderHint }) },
     machines: (machinesBy.get(row.id) ?? []).map((machine) => ({ id: machine.id, label: machineLabel(machine) })),
-    professions: (professionsBy.get(row.id) ?? []).map(({ name, rank, maxRank, isPrimary }) => ({ name, rank, maxRank, isPrimary })),
+    professions: (professionsBy.get(row.id) ?? []).map(({ skillLine, name, rank, maxRank, isPrimary }) => ({ skillLine, name, rank, maxRank, isPrimary })),
     sourceLastSeenAt: row.sourceLastSeenAt.toISOString(),
     lastSyncAt: row.lastSyncAt.toISOString(),
   }));
@@ -162,7 +163,7 @@ export async function getCharacterDetail(db: Database, id: number) {
     .where(eq(t.characters.id, id));
   if (!character) return null;
 
-  const [stats, professions, equipment, reputations, currencies, items, snapshots] = await Promise.all([
+  const [stats, professions, equipment, reputations, currencies, items, snapshots, playtime, levelTimes] = await Promise.all([
     db.select().from(t.characterStats).where(eq(t.characterStats.characterId, id)),
     db.select().from(t.characterProfessions).where(eq(t.characterProfessions.characterId, id)).orderBy(asc(t.characterProfessions.position)),
     db.select().from(t.characterEquipment).where(eq(t.characterEquipment.characterId, id)).orderBy(asc(t.characterEquipment.slot)),
@@ -190,6 +191,8 @@ export async function getCharacterDetail(db: Database, id: number) {
       .where(eq(t.characterSnapshots.characterId, id))
       .orderBy(desc(t.characterSnapshots.capturedAt))
       .limit(200),
+    db.select().from(t.characterPlaytime).where(eq(t.characterPlaytime.characterId, id)),
+    db.select().from(t.characterLevelTimes).where(eq(t.characterLevelTimes.characterId, id)).orderBy(asc(t.characterLevelTimes.level)),
   ]);
 
   return {
@@ -208,6 +211,8 @@ export async function getCharacterDetail(db: Database, id: number) {
     bank: items.filter((item) => item.location === "bank"),
     // Du plus ancien au plus récent, pour les courbes et le calcul des changements.
     snapshots: snapshots.reverse(),
+    playtime: playtime[0] ?? null,
+    levelTimes,
   };
 }
 
