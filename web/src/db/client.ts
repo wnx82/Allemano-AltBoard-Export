@@ -12,7 +12,10 @@ export function createPool(connectionString: string): Pool {
     connectionString,
     max: 5,
     connectionTimeoutMillis: 5_000,
-    statement_timeout: 15_000,
+    // Délai côté client. Surtout pas statement_timeout : node-postgres l'envoie comme paramètre de
+    // démarrage, que PgBouncer refuse (« unsupported startup parameter »). Le serveur applique
+    // déjà son propre statement_timeout.
+    query_timeout: 15_000,
   });
 }
 

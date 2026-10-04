@@ -1,0 +1,20 @@
+# AltBoard — wow.ekreativ.be
+# Tableau de bord privé + API de synchronisation de l'agent AltBoardSync.
+#   /*  -> web (127.0.0.1:3016)
+# Traefik est en network_mode:host -> service joignable en 127.0.0.1.
+# Copie de référence de /etc/traefik/dynamic/wow-altboard.yml (hôte contabo).
+http:
+  routers:
+    wow-altboard:
+      rule: "Host(`wow.ekreativ.be`)"
+      entryPoints: [websecure]
+      service: wow-altboard
+      middlewares: [default-chain, compress-br]
+      tls:
+        certResolver: letsencrypt
+        domains: []
+  services:
+    wow-altboard:
+      loadBalancer:
+        servers: [{url: "http://127.0.0.1:3016"}]
+        passHostHeader: true
