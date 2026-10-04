@@ -1,0 +1,77 @@
+# WoW AltBoard — synchronisation et tableau de bord
+
+Centralise dans PostgreSQL les données de l'addon World of Warcraft **AltBoard** et les présente
+dans un tableau de bord web privé : tous les personnages de tous les comptes, depuis tous les PC.
+
+```text
+PC Windows ── AltBoardSync.exe sync ──► POST /api/sync ──► PostgreSQL ──► tableau de bord
+   (WTF\Account\*\SavedVariables\AltBoard.lua)   HTTPS + jeton        base dédiée      wow.ekreativ.be
+```
+
+La synchronisation est **manuelle** : rien n'est lu ni envoyé tant que la commande n'est pas lancée.
+
+## Contenu du dépôt
+
+| Dossier | Rôle | Technologies |
+|---|---|---|
+| `agent/` | Agent Windows : découverte des comptes, lecture stable, parser Lua, envoi | .NET 10, C#, xUnit |
+| `web/` | API de synchronisation, tableau de bord, export Excel | Next.js 16, React 19, TypeScript, Drizzle, PostgreSQL |
+| `deploy/` | Composition Docker de production | Docker Compose |
+| `tests/fixtures/` | Fichiers AltBoard réels anonymisés et cas limites, partagés par les deux projets | |
+| `tools/` | Anonymisation de fichiers AltBoard.lua | Node.js |
+| `docs/` | Documentation | |
+
+## Démarrage local
+
+Prérequis : .NET SDK 10, Node.js 24, Docker.
+
+```bash
+# 1. PostgreSQL 17 local (port 54329, bases wow_altboard et wow_altboard_test)
+docker compose -f docker-compose.dev.yml up -d
+
+# 2. Application web
+cd web
+cp .env.example .env.local
+npm install
+npm run db:migrate
+npm run admin:create -- vous@exemple.test      # compte d'accès au tableau de bord
+npm run token:create -- "Mon PC"               # jeton d'agent, affiché une seule fois
+npm run dev                                    # http://localhost:3000
+
+# 3. Agent
+cd ../agent
+dotnet run --project src/AltBoardSync -- config set serverUrl http://localhost:3000/api/sync
+dotnet run --project src/AltBoardSync -- token set
+dotnet run --project src/AltBoardSync -- sync
+```
+
+## Vérifications
+
+```bash
+cd agent && dotnet test                               # 111 tests
+cd web && npm run typecheck && npm run lint && npm test && npm run build   # 53 tests
+```
+
+Les tests web vident la base `wow_altboard_test`. Le code refuse toute base dont le nom ne commence
+pas par `wow_altboard` : voir `web/src/db/env.ts`.
+
+## Documentation
+
+| Document | Sujet |
+|---|---|
+| [ROADMAP](docs/ROADMAP.md) | État d'avancement, phase par phase |
+| [ARCHITECTURE](docs/ARCHITECTURE.md) | Composants, flux, décisions |
+| [ALTBOARD-DATA-MODEL](docs/ALTBOARD-DATA-MODEL.md) | Structure réellement observée de `AltBoardDB` |
+| [DATABASE](docs/DATABASE.md) | Schéma PostgreSQL, identifiants, snapshots |
+| [API](docs/API.md) | Contrat de `POST /api/sync` et des autres routes |
+| [AGENT](docs/AGENT.md) | Installation, commandes, automatisation future |
+| [SECURITY](docs/SECURITY.md) | Authentification, validation, confidentialité |
+| [DEPLOYMENT](docs/DEPLOYMENT.md) | Mise en production, domaine, migrations |
+| [ARCHITECTURE-CURRENT](docs/ARCHITECTURE-CURRENT.md) | Audit initial de l'existant |
+
+## Limites connues
+
+- AltBoard n'écrit ses données qu'au `/reload`, à la déconnexion ou à la fermeture du jeu, et
+  seulement pour le personnage connecté. Le tableau de bord montre la **dernière donnée connue**,
+  jamais du temps réel.
+- Le source de l'addon (tous droits réservés) n'est pas versionné ici.

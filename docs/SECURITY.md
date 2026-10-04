@@ -1,0 +1,101 @@
+# Sécurité et confidentialité
+
+## Ce qui n'est jamais collecté
+
+L'agent ne lit qu'un fichier : `SavedVariables\AltBoard.lua`. Il ne lit ni identifiants
+Battle.net, ni mot de passe, ni jeton de session du jeu, et n'envoie aucun chemin de fichier.
+
+| Donnée | Traitement |
+|---|---|
+| Nom du dossier de compte (`WTF\Account\<COMPTE>`) | jamais transmis : empreinte SHA-256 + libellé masqué (`12…#1`) |
+| Nom d'hôte du PC | transmis, informatif |
+| Noms de personnage, guildes, or, équipement | transmis : c'est l'objet du tableau de bord |
+
+L'empreinte du compte est une **pseudonymisation**, pas un secret : elle évite d'afficher ou de
+stocker l'identifiant réel, mais resterait retrouvable par force brute par quiconque lirait la base.
+
+## Agent → API
+
+| Mesure | Détail |
+|---|---|
+| Transport | HTTPS obligatoire ; l'agent refuse HTTP hors `localhost` |
+| Authentification | jeton `wab_` + 256 bits aléatoires, en-tête `Authorization: Bearer` |
+| Stockage serveur | SHA-256 du jeton uniquement ; le jeton en clair n'est affiché qu'à sa création |
+| Stockage agent | chiffré par DPAPI pour l'utilisateur Windows courant ; jamais dans `config.json` ni dans les journaux |
+| Liaison | un jeton appartient à la première machine (`machine_uuid`) qui l'utilise ; refusé ailleurs (403) |
+| Révocation | immédiate, depuis la page Machines |
+| Limitation de débit | 60 requêtes / 5 min par client ; 10 échecs d'authentification / 15 min |
+| Taille | corps limité à 8 Mio, que `Content-Length` soit présent, absent ou faux |
+| Validation | schéma Zod strict : champs inconnus, types, bornes, longueurs, octet nul |
+| Version | `schemaVersion` inconnu refusé |
+| Réponses et journaux | jamais de valeur reçue, jamais de jeton, jamais de détail technique |
+
+Les données d'un fichier `AltBoard.lua` sont traitées comme **non fiables** de bout en bout : le
+fichier n'est jamais exécuté, le parser borne sa profondeur et sa taille, l'agent écarte les valeurs
+hors limites, le serveur revalide tout.
+
+## Tableau de bord
+
+| Mesure | Détail |
+|---|---|
+| Accès | toutes les pages exigent une session ; seuls `/login`, `/api/sync` et `/api/health` répondent sans |
+| Double vérification | `src/proxy.ts` (présence du cookie) puis layout, actions et routes (session lue en base) |
+| Mot de passe | scrypt (N=32768, r=8, p=1), sel aléatoire, comparaison à temps constant, 12 caractères minimum |
+| Session | identifiant aléatoire de 256 bits ; seule son empreinte est en base ; 30 jours ; supprimée à la déconnexion |
+| Cookie | `HttpOnly`, `SameSite=Lax`, `Secure` et préfixe `__Host-` en HTTPS (aucun `Domain`) |
+| Connexion | 5 tentatives / 15 min par client et par adresse ; message identique quel que soit le motif ; un hachage est calculé même pour un compte inexistant, pour que la durée de réponse ne le révèle pas |
+| Redirection après connexion | chemin interne uniquement (pas de redirection ouverte) |
+| CSRF | les actions serveur de Next.js vérifient l'origine ; cookie `SameSite=Lax` ; aucune mutation par `GET` |
+| XSS | échappement de React ; aucune insertion de HTML brut ; CSP à nonce |
+| Injection SQL | requêtes paramétrées (Drizzle) ; identifiants d'URL validés avant usage |
+| Indexation | `X-Robots-Tag: noindex, nofollow`, `robots.txt` |
+
+### En-têtes
+
+`Content-Security-Policy` (à nonce, par requête) :
+
+```text
+default-src 'self'; script-src 'self' 'nonce-…' 'strict-dynamic'; style-src 'self' 'nonce-…';
+img-src 'self' data: blob:; font-src 'self'; connect-src 'self'; object-src 'none';
+base-uri 'self'; form-action 'self'; frame-ancestors 'none'
+```
+
+Les pages n'utilisent aucun style en ligne : couleurs de classe et de qualité passent par des
+attributs `data-*`, les jauges par l'élément `<progress>`, les graphiques par des attributs SVG.
+
+Aussi : `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: same-origin`,
+`Permissions-Policy`, `Cross-Origin-Opener-Policy`, `Cross-Origin-Resource-Policy`,
+`Strict-Transport-Security`, `Cache-Control: private, no-store` sur les pages. Pas de CORS : l'API
+n'est pas appelée depuis un navigateur tiers.
+
+## Base de données
+
+- Base et rôles dédiés ; le rôle applicatif n'a aucun droit hors de `wow_altboard`.
+- Le code refuse toute connexion vers une base étrangère au projet (`web/src/db/env.ts`).
+- Les tests ne tournent que sur `wow_altboard*_test`.
+
+## Secrets
+
+| Secret | Où |
+|---|---|
+| Chaînes de connexion | `deploy/.env` sur le serveur, `web/.env.local` en développement — jamais versionnés |
+| Jeton d'agent | `token.dat` (DPAPI) sur le PC ; empreinte en base |
+| Mot de passe du tableau de bord | hash scrypt en base |
+
+Le dépôt ne contient que des identifiants de développement locaux (`dev-only-password`, base Docker
+liée à `127.0.0.1`) et des fixtures anonymisées. Le source de l'addon, sous droits réservés, n'est
+pas versionné.
+
+## Conteneur
+
+Utilisateur non privilégié, système de fichiers en lecture seule, toutes capacités retirées,
+`no-new-privileges`, port publié sur `127.0.0.1` uniquement.
+
+## Limites assumées
+
+| Limite | Conséquence | Évolution |
+|---|---|---|
+| Limitation de débit en mémoire | remise à zéro au redémarrage ; non partagée entre instances | Redis partagé si l'application passe à plusieurs instances |
+| Un seul niveau d'accès | tout compte du tableau de bord voit tout et gère les jetons | rôles, si d'autres personnes y accèdent |
+| Pas de second facteur | la protection repose sur le mot de passe et la limitation des tentatives | accès restreint en amont (Cloudflare Access) ou TOTP |
+| Identité du client derrière le proxy | dépend de `WOW_TRUSTED_IP_HEADER` ; sans lui, tous les clients partagent le même compteur | à régler au déploiement |

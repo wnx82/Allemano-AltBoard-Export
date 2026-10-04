@@ -28,3 +28,6 @@ logs/
 # Gabarit Visual Studio C++ vide, hors projet
 /Allemano AltBoard Export.slnx
 /Allemano AltBoard Export.vcxproj*
+
+# Exécutable publié de l'agent
+/dist/

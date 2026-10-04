@@ -1,0 +1,134 @@
+# API
+
+Trois versions évoluent séparément :
+
+| Version | Où | Valeur actuelle |
+|---|---|---|
+| `agentVersion` | version de l'exécutable (`agent/Directory.Build.props`) | `0.1.0` |
+| `schemaVersion` | format du document envoyé par l'agent | `1` |
+| schéma AltBoard | `AltBoardDB.schema`, transmis dans `addonSchema` | `2` |
+
+Le serveur refuse tout `schemaVersion` qu'il ne connaît pas. Une évolution incompatible du document
+passe par une nouvelle valeur, les anciennes restant acceptées le temps de mettre les agents à jour.
+
+## `POST /api/sync`
+
+Reçoit l'état AltBoard d'une machine.
+
+| En-tête | Valeur |
+|---|---|
+| `Authorization` | `Bearer wab_…` (jeton d'agent) |
+| `Content-Type` | `application/json` |
+
+### Document (version 1)
+
+```json
+{
+  "schemaVersion": 1,
+  "agentVersion": "0.1.0",
+  "generatedAt": "2026-10-04T13:10:05.78+00:00",
+  "machine": { "uuid": "00000000-0000-4000-8000-000000000001", "hostname": "PC-GAMING", "displayName": "PC du salon" },
+  "accounts": [
+    {
+      "accountKey": "<SHA-256 du nom de dossier, 64 hexadécimaux>",
+      "folderHint": "12…#1",
+      "flavor": "_classic_beta_",
+      "addonSchema": 2,
+      "addonVersion": "0.8.3",
+      "file": { "hash": "<SHA-256 du fichier>", "modifiedAt": "2026-10-04T13:10:03.26+00:00", "size": 90253 },
+      "warnings": [],
+      "items": [{ "key": "36", "itemId": 36, "name": "Vieille masse", "quality": 1, "icon": 133478, "link": "|cnIQ1:|Hitem:36:…" }],
+      "characters": [
+        {
+          "guid": "Player-9999-00000001",
+          "name": "Élodie Brisefer",
+          "realm": "ClassicBetaPvE2",
+          "lastSeen": 1791118113,
+          "class": "MAGE", "race": "Éolide de l’Ordre suprême", "faction": "Alliance",
+          "level": 25, "xp": 29426, "xpMax": 34000, "moneyCopper": 80964, "itemLevel": 16.25,
+          "guild": "Les Sans-Souci", "zone": "Taverne du Corbeau écarlate", "hidden": false,
+          "stats": { "strength": 24, "intellect": 116, "crit": 0.896 },
+          "statsAt": 1791116901,
+          "gear": [{ "slot": 5, "itemId": 2969, "enchantId": 24, "name": "Gilet de lieur de sort", "quality": 2, "itemLevel": 17 }],
+          "professions": [{ "skillLine": 197, "name": "Couture", "rank": 88, "max": 150, "primary": true }],
+          "reputations": [{ "factionId": 47, "name": "Ironforge", "group": "Alliance", "reaction": 5, "current": 4715, "min": 3000, "max": 9000 }],
+          "currencies": [{ "name": "Faveur marchande", "quantity": 60, "max": 0 }],
+          "bags": { "at": 1791117999, "slotsUsed": 57, "slotsTotal": 58, "items": [{ "key": "1114", "count": 7 }] },
+          "bank": { "at": 1791111262, "slotsUsed": 52, "slotsTotal": 54, "items": [] }
+        }
+      ]
+    }
+  ]
+}
+```
+
+Règles :
+
+- les objets sont **stricts** : un champ inconnu fait refuser le document ;
+- un champ sans valeur est **omis**, jamais envoyé à `null` ;
+- les horodatages issus d'AltBoard (`lastSeen`, `statsAt`, `bags.at`, `bank.at`) restent des
+  secondes Unix, telles qu'écrites par l'addon ;
+- `bank` et `bags` sont absents tant que l'addon ne les a jamais datés.
+
+Le schéma complet, avec ses bornes, est `web/src/lib/sync/schema.ts` ; son miroir côté agent est
+`agent/src/AltBoardSync.Core/Sync/SyncPayload.cs`. Le fichier
+`tests/fixtures/payloads/two-accounts.json`, produit par l'agent réel, sert de contrat aux tests de l'API.
+
+### Réponse `200`
+
+```json
+{
+  "runId": 42,
+  "status": "success",
+  "accountsReceived": 2,
+  "charactersReceived": 6,
+  "charactersCreated": 0,
+  "charactersUpdated": 1,
+  "charactersUnchanged": 5,
+  "charactersStale": 0,
+  "snapshotsCreated": 1,
+  "errors": [],
+  "requestId": "c6ed9755-d086-4437-a6f1-66dcc97bfe0c"
+}
+```
+
+`charactersStale` : personnages dont ce PC détient un fichier plus ancien que l'état déjà connu.
+
+### Refus
+
+| Code HTTP | `code` | Cause |
+|---|---|---|
+| 400 | `invalid_json` | corps illisible |
+| 401 | `unauthorized` | jeton absent, mal formé, inconnu ou révoqué |
+| 403 | `token_machine_mismatch` | jeton déjà lié à une autre machine |
+| 413 | `payload_too_large` | corps de plus de 8 Mio |
+| 415 | `unsupported_media_type` | corps non JSON |
+| 422 | `unsupported_schema_version` | `schemaVersion` inconnu (`supported` liste les versions acceptées) |
+| 422 | `invalid_payload` | schéma non respecté (`issues` : chemins et codes, jamais les valeurs) |
+| 429 | `rate_limited` | plus de 60 requêtes en 5 minutes, ou 10 échecs d'authentification en 15 minutes |
+| 500 | `internal_error` | erreur de traitement : la synchronisation entière est annulée |
+| 503 | `service_unavailable` | base injoignable : réessayer plus tard |
+
+Toutes les réponses portent `requestId`, `X-Request-ID` et `Cache-Control: no-store`.
+Une synchronisation est **tout ou rien** et **idempotente** : la renvoyer ne change rien.
+
+## `GET /api/export/xlsx`
+
+Session du tableau de bord requise (401 sinon). Renvoie `AltBoard-export-AAAA-MM-JJ.xlsx` :
+feuilles Résumé, Personnages, Métiers, Équipement, Monnaies, Réputations, Comptes, Machines.
+Le classeur est une photographie : la base reste la source.
+
+## `GET /api/health`
+
+Publique. `200 {"status":"ok"}` si la base répond, `503 {"status":"unavailable"}` sinon. Aucun détail.
+
+## Journal du serveur
+
+Une ligne JSON par requête de synchronisation, sans jamais de jeton ni de contenu du document :
+
+```json
+{"event":"sync.received","requestId":"…","machine":"<uuid>","agentVersion":"0.1.0","accounts":2,"characters":6,"durationMs":84,"result":{"status":"success","charactersUpdated":1}}
+```
+
+Autres événements : `sync.rejected` (statut, code), `sync.failed`, `sync.unavailable`,
+`auth.login.succeeded`, `auth.login.failed`, `agent_token.created`, `agent_token.revoked`, `export.xlsx`.

@@ -6,7 +6,7 @@ import { sessionCookieName } from "@/lib/auth/cookie";
 // 2. renvoyer vers /login quand aucun cookie de session n'est présent. Ce n'est qu'un premier
 //    filtre : la session est réellement vérifiée en base par le layout du tableau de bord.
 
-const PUBLIC_PATHS = new Set(["/login"]);
+const PUBLIC_PATHS = new Set(["/login", "/robots.txt"]);
 
 export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
