@@ -1,0 +1,76 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using AltBoardSync.Core.Discovery;
+
+namespace AltBoardSync.Core.Config;
+
+public sealed record AgentConfig
+{
+    public const string DefaultServerUrl = "https://wow.ekreativ.be/api/sync";
+
+    /// <summary>Identité de l'installation, générée au premier lancement. Le nom d'hôte n'en tient jamais lieu : un PC peut être renommé.</summary>
+    public Guid MachineUuid { get; init; }
+
+    public string? MachineName { get; init; }
+
+    public string WowPath { get; init; } = AccountScanner.DefaultWowPath;
+
+    public string ServerUrl { get; init; } = DefaultServerUrl;
+}
+
+[JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, WriteIndented = true)]
+[JsonSerializable(typeof(AgentConfig))]
+public sealed partial class AgentJsonContext : JsonSerializerContext;
+
+/// <summary>Configuration locale (<c>%APPDATA%\AltBoardSync\config.json</c>). Ne contient aucun secret.</summary>
+public sealed class AgentConfigStore(string directory)
+{
+    public const string HomeEnvironmentVariable = "ALTBOARDSYNC_HOME";
+
+    public string Directory { get; } = directory;
+
+    public string ConfigPath => Path.Combine(Directory, "config.json");
+
+    public static string DefaultDirectory =>
+        Environment.GetEnvironmentVariable(HomeEnvironmentVariable) is { Length: > 0 } home
+            ? home
+            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "AltBoardSync");
+
+    public AgentConfig LoadOrCreate()
+    {
+        if (!File.Exists(ConfigPath))
+        {
+            var created = new AgentConfig { MachineUuid = Guid.NewGuid() };
+            Save(created);
+            return created;
+        }
+
+        AgentConfig? config;
+        try
+        {
+            config = JsonSerializer.Deserialize(File.ReadAllText(ConfigPath), AgentJsonContext.Default.AgentConfig);
+        }
+        catch (JsonException e)
+        {
+            // Ne jamais régénérer en silence : un nouvel UUID créerait une seconde machine côté serveur.
+            throw new InvalidDataException($"Configuration illisible ({ConfigPath}) : {e.Message}", e);
+        }
+
+        if (config is null) throw new InvalidDataException($"Configuration vide ({ConfigPath})");
+        if (config.MachineUuid == Guid.Empty)
+        {
+            config = config with { MachineUuid = Guid.NewGuid() };
+            Save(config);
+        }
+
+        return config;
+    }
+
+    public void Save(AgentConfig config)
+    {
+        System.IO.Directory.CreateDirectory(Directory);
+        var temporary = ConfigPath + ".tmp";
+        File.WriteAllText(temporary, JsonSerializer.Serialize(config, AgentJsonContext.Default.AgentConfig));
+        File.Move(temporary, ConfigPath, overwrite: true);
+    }
+}
