@@ -123,7 +123,7 @@ npm run db:migrate           # applique sur WOW_DATABASE_URL_DIRECT, sinon WOW_D
 npm run db:migrate:test      # applique sur la base de test
 ```
 
-En production, depuis l'image : `docker compose run --rm web node migrate.mjs`.
+En production, depuis l'image : `docker compose run --rm tools node migrate.mjs`.
 Ne jamais passer de `statement_timeout` (ni aucun autre paramètre de session) dans les options du
 pool : PgBouncer refuse les paramètres de démarrage hors de sa liste. Un test le vérifie.
 Les migrations passent en connexion directe, jamais par PgBouncer. Le suivi est tenu dans

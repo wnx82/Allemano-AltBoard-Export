@@ -53,7 +53,7 @@ echo <commit> > REVISION
 cd deploy
 sed -i 's/^WOW_IMAGE_TAG=.*/WOW_IMAGE_TAG=<commit>/' .env
 docker compose build
-docker compose run --rm web node migrate.mjs     # sans effet s'il n'y a pas de nouvelle migration
+docker compose run --rm tools node migrate.mjs     # sans effet s'il n'y a pas de nouvelle migration
 docker compose up -d
 docker compose ps                                # healthy attendu
 ```
@@ -79,11 +79,15 @@ sauvegarde préalable de `wow_altboard`.
 ```bash
 # Compte d'accès au tableau de bord : mot de passe saisi sur le serveur, sans écho
 cd /etc/komodo/repos/wow-altboard/deploy
-docker compose run --rm -it web node create-admin.mjs vous@exemple.test
+docker compose run --rm -it tools node create-admin.mjs vous@exemple.test
 ```
 
 Relancer la même commande change le mot de passe. Les jetons d'agent se créent et se révoquent
 dans l'interface, page **Machines**.
+
+Les commandes ponctuelles passent par le service `tools`, jamais par `web` : lancée depuis `web`,
+une commande hériterait de la sonde de santé et de l'étiquette autoheal, serait jugée en mauvaise
+santé (aucun serveur n'écoute) et redémarrée au milieu de la saisie.
 
 ## Sauvegarde
 

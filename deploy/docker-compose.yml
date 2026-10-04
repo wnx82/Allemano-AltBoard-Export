@@ -2,42 +2,56 @@
 # jamais versionné : voir deploy/.env.example et docs/DEPLOYMENT.md.
 name: wow-altboard
 
+x-app: &app
+  image: wow-altboard-web:${WOW_IMAGE_TAG:-latest}
+  environment:
+    # Connexion applicative, par PgBouncer.
+    WOW_DATABASE_URL: ${WOW_DATABASE_URL:?connexion applicative manquante}
+    # Connexion directe, utilisée uniquement par « node migrate.mjs ».
+    WOW_DATABASE_URL_DIRECT: ${WOW_DATABASE_URL_DIRECT:-}
+    WOW_APP_ORIGIN: ${WOW_APP_ORIGIN:-https://wow.ekreativ.be}
+    WOW_BASE_PATH: ${WOW_BASE_PATH:-}
+    # En-tête posé par le proxy de confiance (Traefik), pour la limitation de débit par client.
+    WOW_TRUSTED_IP_HEADER: ${WOW_TRUSTED_IP_HEADER:-x-real-ip}
+    # Exigé par PgBouncer sur cette instance (voir le README de shared-postgres).
+    PGMAXPROTOCOLVERSION: "3.0"
+  networks:
+    - shared-db
+  read_only: true
+  tmpfs:
+    - /tmp
+    - /app/.next/cache
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  mem_limit: 512m
+
 services:
   web:
-    image: wow-altboard-web:${WOW_IMAGE_TAG:-latest}
+    <<: *app
     build:
       context: ../web
       args:
         WOW_BASE_PATH: ${WOW_BASE_PATH:-}
     container_name: wow-altboard-web
     restart: unless-stopped
-    environment:
-      # Connexion applicative, par PgBouncer.
-      WOW_DATABASE_URL: ${WOW_DATABASE_URL:?connexion applicative manquante}
-      # Connexion directe, utilisée uniquement par « node migrate.mjs ».
-      WOW_DATABASE_URL_DIRECT: ${WOW_DATABASE_URL_DIRECT:-}
-      WOW_APP_ORIGIN: ${WOW_APP_ORIGIN:-https://wow.ekreativ.be}
-      WOW_BASE_PATH: ${WOW_BASE_PATH:-}
-      # En-tête posé par le proxy de confiance (Traefik), pour la limitation de débit par client.
-      WOW_TRUSTED_IP_HEADER: ${WOW_TRUSTED_IP_HEADER:-x-real-ip}
-      # Exigé par PgBouncer sur cette instance (voir le README de shared-postgres).
-      PGMAXPROTOCOLVERSION: "3.0"
     # Jamais exposé directement : seul le reverse proxy de l'hôte y accède.
     ports:
       - "127.0.0.1:${WOW_HOST_PORT:-3016}:3000"
-    networks:
-      - shared-db
-    read_only: true
-    tmpfs:
-      - /tmp
-      - /app/.next/cache
-    cap_drop:
-      - ALL
-    security_opt:
-      - no-new-privileges:true
-    mem_limit: 512m
     labels:
       autoheal: "true"
+
+  # Commandes ponctuelles (migrations, compte d'accès) : docker compose run --rm tools node <script>.
+  # Service distinct de « web » : sans sonde de santé ni étiquette autoheal. Lancée depuis « web »,
+  # une commande interactive serait jugée en mauvaise santé (aucun serveur n'écoute) puis
+  # redémarrée par autoheal au milieu de la saisie.
+  tools:
+    <<: *app
+    profiles: ["tools"]
+    restart: "no"
+    healthcheck:
+      disable: true
 
 networks:
   # Réseau de l'instance PostgreSQL partagée (pg-shared, pgbouncer-shared).
