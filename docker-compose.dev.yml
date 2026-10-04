@@ -1,0 +1,25 @@
+# PostgreSQL local pour le développement et les tests d'intégration.
+# Identifiants de développement uniquement : jamais utilisés en production.
+name: wow-altboard-dev
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    container_name: wow-altboard-dev-pg
+    environment:
+      POSTGRES_USER: wow_altboard
+      POSTGRES_PASSWORD: dev-only-password
+      POSTGRES_DB: wow_altboard
+    ports:
+      - "127.0.0.1:54329:5432"
+    volumes:
+      - wow-altboard-dev-pg:/var/lib/postgresql/data
+      - ./db/dev-init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wow_altboard -d wow_altboard"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  wow-altboard-dev-pg:
