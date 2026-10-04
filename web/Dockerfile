@@ -20,6 +20,10 @@ RUN npm run build
 RUN npx esbuild src/db/migrate.ts --bundle --platform=node --format=esm --external:pg-native \
       --banner:js="import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);" \
       --outfile=migrate.mjs
+# Création du compte d'accès depuis l'image : le mot de passe est saisi sur le serveur, sans écho.
+RUN npx esbuild scripts/create-admin.ts --bundle --platform=node --format=esm --external:pg-native \
+      --banner:js="import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);" \
+      --outfile=create-admin.mjs
 
 FROM base AS runner
 ENV NODE_ENV=production PORT=3000 HOSTNAME=0.0.0.0 WOW_MIGRATIONS_DIR=/app/drizzle
@@ -29,6 +33,7 @@ COPY --from=build --chown=app:app /app/.next/static ./.next/static
 COPY --from=build --chown=app:app /app/public ./public
 COPY --from=build --chown=app:app /app/drizzle ./drizzle
 COPY --from=build --chown=app:app /app/migrate.mjs ./migrate.mjs
+COPY --from=build --chown=app:app /app/create-admin.mjs ./create-admin.mjs
 USER app
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \

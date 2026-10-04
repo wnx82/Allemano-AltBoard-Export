@@ -18,8 +18,10 @@ services:
       WOW_DATABASE_URL_DIRECT: ${WOW_DATABASE_URL_DIRECT:-}
       WOW_APP_ORIGIN: ${WOW_APP_ORIGIN:-https://wow.ekreativ.be}
       WOW_BASE_PATH: ${WOW_BASE_PATH:-}
-      # En-tête posé par le proxy de confiance, pour la limitation de débit par client.
-      WOW_TRUSTED_IP_HEADER: ${WOW_TRUSTED_IP_HEADER:-cf-connecting-ip}
+      # En-tête posé par le proxy de confiance (Traefik), pour la limitation de débit par client.
+      WOW_TRUSTED_IP_HEADER: ${WOW_TRUSTED_IP_HEADER:-x-real-ip}
+      # Exigé par PgBouncer sur cette instance (voir le README de shared-postgres).
+      PGMAXPROTOCOLVERSION: "3.0"
     # Jamais exposé directement : seul le reverse proxy de l'hôte y accède.
     ports:
       - "127.0.0.1:${WOW_HOST_PORT:-3016}:3000"

@@ -8,6 +8,8 @@ const nextConfig: NextConfig = {
   basePath,
   output: "standalone",
   poweredByHeader: false,
+  // La compression (brotli) est faite par le reverse proxy.
+  compress: false,
   reactStrictMode: true,
   async headers() {
     return [
