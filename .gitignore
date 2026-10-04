@@ -1,0 +1,30 @@
+# Visual Studio / .NET
+.vs/
+bin/
+obj/
+*.user
+publish/
+TestResults/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+next-env.d.ts
+
+# Secrets et configuration locale
+.env
+.env.*
+!.env.example
+
+# Journaux
+logs/
+*.log
+
+# Source de l'addon AltBoard : tous droits réservés, non redistribuable (voir sa LICENSE)
+/AltBoard-v*/
+
+# Gabarit Visual Studio C++ vide, hors projet
+/Allemano AltBoard Export.slnx
+/Allemano AltBoard Export.vcxproj*

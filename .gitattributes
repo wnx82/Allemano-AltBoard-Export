@@ -1,0 +1,4 @@
+* text=auto
+
+# Les fixtures reproduisent octet pour octet le format écrit par le client WoW (CRLF, UTF-8 sans BOM)
+tests/fixtures/** -text
