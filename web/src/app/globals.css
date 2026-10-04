@@ -1,26 +1,310 @@
 @import "tailwindcss";
 
+/* Thème unique, sombre. Aucun style en ligne dans les pages (la CSP l'interdit) : les couleurs
+   variables — classe, qualité d'objet, faction — passent par des attributs data-*. */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  color-scheme: dark;
+
+  --ink: #070a12;
+  --surface: #0f1522;
+  --raised: #161e30;
+  --line: rgb(255 255 255 / 0.09);
+  --line-strong: rgb(255 255 255 / 0.16);
+  --text: #e8ecf5;
+  --muted: #9aa5bd;
+  --faint: #6b7690;
+  --gold: #e3bd6a;
+  --gold-deep: #a9802f;
+  --accent: #6f9bff;
+  --alliance: #5a9bff;
+  --horde: #f0625f;
+  --ok: #5fd39a;
+  --warn: #f0b354;
+  --danger: #f0625f;
+  --radius-card: 1.1rem;
+
+  --class: #8b93a7;
+  --class-text: #c3c9d9;
+  --quality: #e8ecf5;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-cinzel), ui-serif, Georgia, serif;
+
+  --color-ink: var(--ink);
+  --color-surface: var(--surface);
+  --color-raised: var(--raised);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-text: var(--text);
+  --color-muted: var(--muted);
+  --color-faint: var(--faint);
+  --color-gold: var(--gold);
+  --color-accent: var(--accent);
+  --color-alliance: var(--alliance);
+  --color-horde: var(--horde);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-danger: var(--danger);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  background: var(--ink);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  min-height: 100dvh;
+  color: var(--text);
+  font-family: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  background:
+    radial-gradient(1100px 620px at 12% -8%, rgb(72 104 214 / 0.22), transparent 62%),
+    radial-gradient(900px 560px at 96% 4%, rgb(168 108 232 / 0.14), transparent 60%),
+    radial-gradient(1000px 700px at 50% 118%, rgb(227 189 106 / 0.1), transparent 62%),
+    var(--ink);
+  background-attachment: fixed;
+}
+
+::selection {
+  background: rgb(227 189 106 / 0.35);
+}
+
+:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+  border-radius: 0.35rem;
+}
+
+/* ---------------------------------------------------------------------------
+   Couleurs de classe. --class : teinte standard (bordures, halos, avatars).
+   --class-text : variante éclaircie quand la teinte standard manque de contraste sur fond sombre.
+   --------------------------------------------------------------------------- */
+[data-class="WARRIOR"] { --class: #c69b6d; --class-text: #d9b48a; }
+[data-class="PALADIN"] { --class: #f48cba; --class-text: #f7a6ca; }
+[data-class="HUNTER"] { --class: #aad372; --class-text: #b9dd8a; }
+[data-class="ROGUE"] { --class: #fff468; --class-text: #fff468; }
+[data-class="PRIEST"] { --class: #f2f4fa; --class-text: #ffffff; }
+[data-class="DEATHKNIGHT"] { --class: #c41e3a; --class-text: #f0627a; }
+[data-class="SHAMAN"] { --class: #0070dd; --class-text: #5aa9ff; }
+[data-class="MAGE"] { --class: #3fc7eb; --class-text: #6dd6f2; }
+[data-class="WARLOCK"] { --class: #8788ee; --class-text: #a5a6f5; }
+[data-class="MONK"] { --class: #00ff98; --class-text: #4dffb5; }
+[data-class="DRUID"] { --class: #ff7c0a; --class-text: #ff9a47; }
+[data-class="DEMONHUNTER"] { --class: #a330c9; --class-text: #cf7fea; }
+[data-class="EVOKER"] { --class: #33937f; --class-text: #5fc7b1; }
+[data-class="UNKNOWN"] { --class: #8b93a7; --class-text: #c3c9d9; }
+
+[data-quality="0"] { --quality: #9d9d9d; }
+[data-quality="1"] { --quality: #f2f4fa; }
+[data-quality="2"] { --quality: #3df25a; }
+[data-quality="3"] { --quality: #4d9eff; }
+[data-quality="4"] { --quality: #c069ff; }
+[data-quality="5"] { --quality: #ff9a2e; }
+[data-quality="6"] { --quality: #e6cc80; }
+[data-quality="7"] { --quality: #4fd8ff; }
+
+@layer components {
+  .display {
+    font-family: var(--font-cinzel), ui-serif, Georgia, serif;
+    letter-spacing: 0.04em;
+  }
+
+  .panel {
+    border: 1px solid var(--line);
+    border-radius: var(--radius-card);
+    background: linear-gradient(180deg, rgb(24 32 52 / 0.78), rgb(14 19 32 / 0.78));
+    backdrop-filter: blur(14px) saturate(140%);
+    box-shadow:
+      0 1px 0 rgb(255 255 255 / 0.05) inset,
+      0 18px 40px -24px rgb(0 0 0 / 0.75);
+  }
+
+  .class-text { color: var(--class-text); }
+  .quality-text { color: var(--quality); }
+
+  /* Carte personnage : liseré et halo à la couleur de la classe. */
+  .character-card {
+    position: relative;
+    overflow: hidden;
+    transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+  }
+  .character-card::before {
+    content: "";
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 3px;
+    background: linear-gradient(90deg, transparent, var(--class), transparent);
+    opacity: 0.9;
+  }
+  .character-card::after {
+    content: "";
+    position: absolute;
+    inset: -40% -20% auto auto;
+    width: 60%;
+    aspect-ratio: 1;
+    background: radial-gradient(closest-side, var(--class), transparent);
+    opacity: 0.1;
+    pointer-events: none;
+    transition: opacity 180ms ease;
+  }
+  .character-card:hover,
+  .character-card:focus-within {
+    transform: translateY(-3px);
+    border-color: color-mix(in srgb, var(--class) 45%, transparent);
+    box-shadow:
+      0 1px 0 rgb(255 255 255 / 0.06) inset,
+      0 24px 48px -26px color-mix(in srgb, var(--class) 55%, black);
+  }
+  .character-card:hover::after,
+  .character-card:focus-within::after {
+    opacity: 0.2;
+  }
+
+  .avatar {
+    display: grid;
+    place-items: center;
+    flex: none;
+    border-radius: 0.9rem;
+    border: 1px solid color-mix(in srgb, var(--class) 55%, transparent);
+    background:
+      radial-gradient(120% 120% at 30% 20%, color-mix(in srgb, var(--class) 38%, transparent), transparent 70%),
+      rgb(8 12 22 / 0.7);
+    color: var(--class-text);
+    font-family: var(--font-cinzel), ui-serif, Georgia, serif;
+    font-weight: 700;
+    box-shadow: 0 0 0 3px rgb(0 0 0 / 0.25);
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    padding: 0.15rem 0.6rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    line-height: 1.4;
+    color: var(--muted);
+    background: rgb(255 255 255 / 0.04);
+    white-space: nowrap;
+  }
+  .badge[data-faction="Alliance"] { color: var(--alliance); border-color: rgb(90 155 255 / 0.35); background: rgb(90 155 255 / 0.1); }
+  .badge[data-faction="Horde"] { color: var(--horde); border-color: rgb(240 98 95 / 0.35); background: rgb(240 98 95 / 0.1); }
+  .badge[data-tone="ok"] { color: var(--ok); border-color: rgb(95 211 154 / 0.35); background: rgb(95 211 154 / 0.1); }
+  .badge[data-tone="warn"] { color: var(--warn); border-color: rgb(240 179 84 / 0.35); background: rgb(240 179 84 / 0.1); }
+  .badge[data-tone="danger"] { color: var(--danger); border-color: rgb(240 98 95 / 0.35); background: rgb(240 98 95 / 0.1); }
+
+  /* Barre de progression native : accessible et sans style en ligne. */
+  .meter {
+    appearance: none;
+    display: block;
+    width: 100%;
+    height: 0.4rem;
+    border: 0;
+    border-radius: 999px;
+    overflow: hidden;
+    background: rgb(255 255 255 / 0.08);
+  }
+  .meter::-webkit-progress-bar { background: rgb(255 255 255 / 0.08); border-radius: 999px; }
+  .meter::-webkit-progress-value { background: linear-gradient(90deg, color-mix(in srgb, var(--class) 70%, white 0%), var(--class)); border-radius: 999px; }
+  .meter::-moz-progress-bar { background: var(--class); border-radius: 999px; }
+  .meter[data-tone="gold"] { --class: var(--gold); }
+
+  .coin-gold { color: #f0cf7a; }
+  .coin-silver { color: #c9d2e3; }
+  .coin-copper { color: #d99263; }
+
+  .field {
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 0.7rem;
+    background: rgb(7 10 18 / 0.65);
+    color: var(--text);
+    padding: 0.55rem 0.8rem;
+    font-size: 0.875rem;
+    transition: border-color 150ms ease, background 150ms ease;
+  }
+  .field::placeholder { color: var(--faint); }
+  .field:hover { border-color: var(--line-strong); }
+  .field:focus { border-color: var(--gold); outline: none; background: rgb(7 10 18 / 0.9); }
+  select.field { padding-right: 2rem; }
+  select.field option { background: var(--surface); color: var(--text); }
+
+  .button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    border: 1px solid var(--line-strong);
+    border-radius: 0.7rem;
+    background: rgb(255 255 255 / 0.05);
+    color: var(--text);
+    padding: 0.5rem 0.9rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+  }
+  .button:hover { background: rgb(255 255 255 / 0.1); }
+  .button[aria-pressed="true"] { border-color: var(--gold); color: var(--gold); background: rgb(227 189 106 / 0.12); }
+  .button[data-variant="primary"] {
+    border-color: var(--gold-deep);
+    background: linear-gradient(180deg, #edc878, #c89a45);
+    color: #1a1407;
+  }
+  .button[data-variant="primary"]:hover { background: linear-gradient(180deg, #f5d58d, #d4a650); }
+  .button[data-variant="danger"] { color: var(--danger); border-color: rgb(240 98 95 / 0.4); }
+  .button:disabled { opacity: 0.55; cursor: not-allowed; }
+
+  .data-table { width: 100%; border-collapse: collapse; font-size: 0.86rem; }
+  .data-table th {
+    text-align: left;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--faint);
+    padding: 0.7rem 0.9rem;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  .data-table td { padding: 0.65rem 0.9rem; border-bottom: 1px solid rgb(255 255 255 / 0.05); vertical-align: middle; }
+  .data-table tbody tr:last-child td { border-bottom: 0; }
+  .data-table tbody tr { transition: background 120ms ease; }
+  .data-table tbody tr:hover { background: rgb(255 255 255 / 0.035); }
+  .data-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* Courbes de l'historique. Couleurs de série validées sur la surface sombre
+     (bande de luminosité, contraste et séparation en vision daltonienne). */
+  [data-series="level"] { --series: #5b84e8; }
+  [data-series="gold"] { --series: #b38d3a; }
+  .trend-chart { display: block; max-width: 100%; overflow: visible; }
+  .trend-grid { stroke: rgb(255 255 255 / 0.08); stroke-width: 1; }
+  .trend-axis { fill: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .trend-line { fill: none; stroke: var(--series); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+  .trend-marker { fill: var(--series); stroke: #131b2c; stroke-width: 2; outline: none; }
+  .trend-marker:focus-visible { stroke: var(--gold); }
+  .trend-value { fill: var(--text); font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .trend-crosshair { stroke: rgb(255 255 255 / 0.28); stroke-width: 1; }
+  .trend-tooltip rect { fill: #0a0f1b; stroke: var(--line-strong); }
+  .trend-tooltip-value { fill: var(--text); font-size: 12.5px; font-weight: 600; }
+  .trend-tooltip-date { fill: var(--muted); font-size: 11px; }
+
+  .eyebrow {
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--faint);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+  .character-card:hover, .character-card:focus-within { transform: none; }
 }

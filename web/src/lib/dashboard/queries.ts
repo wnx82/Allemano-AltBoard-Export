@@ -1,0 +1,309 @@
+import { asc, desc, eq, inArray, sql } from "drizzle-orm";
+import type { Database } from "@/db/client";
+import * as t from "@/db/schema";
+
+// Chaque page lit ses données en un nombre fixe de requêtes, indépendant du nombre de personnages.
+
+export type Named = { id: number; label: string };
+
+export const accountLabel = (account: { displayName: string | null; folderHint: string | null }) =>
+  account.displayName ?? `Compte ${account.folderHint ?? "inconnu"}`;
+
+export const machineLabel = (machine: { displayName: string | null; hostname: string | null }) =>
+  machine.displayName ?? machine.hostname ?? "Machine inconnue";
+
+export type CharacterListItem = {
+  id: number;
+  name: string;
+  realm: string;
+  class: string | null;
+  race: string | null;
+  faction: string | null;
+  level: number | null;
+  xp: number | null;
+  xpMax: number | null;
+  guild: string | null;
+  zone: string | null;
+  moneyCopper: number | null;
+  itemLevel: number | null;
+  hidden: boolean;
+  account: Named;
+  machines: Named[];
+  professions: { name: string; rank: number | null; maxRank: number | null; isPrimary: boolean }[];
+  /** Dernière collecte par l'addon (lastSeen) : la donnée n'est jamais du temps réel. */
+  sourceLastSeenAt: string;
+  lastSyncAt: string;
+};
+
+export async function listCharacters(db: Database): Promise<CharacterListItem[]> {
+  const rows = await db
+    .select({
+      id: t.characters.id,
+      name: t.characters.name,
+      realm: t.realms.name,
+      class: t.characters.class,
+      race: t.characters.race,
+      faction: t.characters.faction,
+      level: t.characters.level,
+      xp: t.characters.xp,
+      xpMax: t.characters.xpMax,
+      guild: t.characters.guild,
+      zone: t.characters.zone,
+      moneyCopper: t.characters.moneyCopper,
+      itemLevel: t.characters.itemLevel,
+      hidden: t.characters.hidden,
+      accountId: t.wowAccounts.id,
+      accountDisplayName: t.wowAccounts.displayName,
+      accountFolderHint: t.wowAccounts.folderHint,
+      sourceLastSeenAt: t.characters.sourceLastSeenAt,
+      lastSyncAt: t.characters.lastSyncAt,
+    })
+    .from(t.characters)
+    .innerJoin(t.wowAccounts, eq(t.wowAccounts.id, t.characters.accountId))
+    .innerJoin(t.realms, eq(t.realms.id, t.characters.realmId))
+    .orderBy(desc(t.characters.level), asc(t.characters.name));
+  if (rows.length === 0) return [];
+
+  const ids = rows.map((row) => row.id);
+  const [professions, machines] = await Promise.all([
+    db
+      .select({
+        characterId: t.characterProfessions.characterId,
+        name: t.characterProfessions.name,
+        rank: t.characterProfessions.rank,
+        maxRank: t.characterProfessions.maxRank,
+        isPrimary: t.characterProfessions.isPrimary,
+      })
+      .from(t.characterProfessions)
+      .where(inArray(t.characterProfessions.characterId, ids))
+      .orderBy(asc(t.characterProfessions.characterId), asc(t.characterProfessions.position)),
+    db
+      .select({
+        characterId: t.characterMachines.characterId,
+        id: t.machines.id,
+        displayName: t.machines.displayName,
+        hostname: t.machines.hostname,
+      })
+      .from(t.characterMachines)
+      .innerJoin(t.machines, eq(t.machines.id, t.characterMachines.machineId))
+      .where(inArray(t.characterMachines.characterId, ids))
+      .orderBy(asc(t.machines.id)),
+  ]);
+
+  const professionsBy = Map.groupBy(professions, (profession) => profession.characterId);
+  const machinesBy = Map.groupBy(machines, (machine) => machine.characterId);
+
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    realm: row.realm,
+    class: row.class,
+    race: row.race,
+    faction: row.faction,
+    level: row.level,
+    xp: row.xp,
+    xpMax: row.xpMax,
+    guild: row.guild,
+    zone: row.zone,
+    moneyCopper: row.moneyCopper,
+    itemLevel: row.itemLevel,
+    hidden: row.hidden,
+    account: { id: row.accountId, label: accountLabel({ displayName: row.accountDisplayName, folderHint: row.accountFolderHint }) },
+    machines: (machinesBy.get(row.id) ?? []).map((machine) => ({ id: machine.id, label: machineLabel(machine) })),
+    professions: (professionsBy.get(row.id) ?? []).map(({ name, rank, maxRank, isPrimary }) => ({ name, rank, maxRank, isPrimary })),
+    sourceLastSeenAt: row.sourceLastSeenAt.toISOString(),
+    lastSyncAt: row.lastSyncAt.toISOString(),
+  }));
+}
+
+export type LastSync = { at: string; machine: string; status: string } | null;
+
+export type Overview = { accounts: number; machines: number; lastSync: LastSync };
+
+export async function getOverview(db: Database): Promise<Overview> {
+  const [[accounts], [machines], [last]] = await Promise.all([
+    db.select({ count: sql<number>`count(*)::int` }).from(t.wowAccounts),
+    db.select({ count: sql<number>`count(*)::int` }).from(t.machines),
+    db
+      .select({
+        at: t.syncRuns.startedAt,
+        status: t.syncRuns.status,
+        displayName: t.machines.displayName,
+        hostname: t.machines.hostname,
+      })
+      .from(t.syncRuns)
+      .leftJoin(t.machines, eq(t.machines.id, t.syncRuns.machineId))
+      .where(eq(t.syncRuns.status, "success"))
+      .orderBy(desc(t.syncRuns.startedAt))
+      .limit(1),
+  ]);
+  return {
+    accounts: accounts.count,
+    machines: machines.count,
+    lastSync: last ? { at: last.at.toISOString(), machine: machineLabel(last), status: last.status } : null,
+  };
+}
+
+export async function getCharacterDetail(db: Database, id: number) {
+  const [character] = await db
+    .select({
+      character: t.characters,
+      realm: t.realms.name,
+      accountId: t.wowAccounts.id,
+      accountDisplayName: t.wowAccounts.displayName,
+      accountFolderHint: t.wowAccounts.folderHint,
+      machineDisplayName: t.machines.displayName,
+      machineHostname: t.machines.hostname,
+    })
+    .from(t.characters)
+    .innerJoin(t.wowAccounts, eq(t.wowAccounts.id, t.characters.accountId))
+    .innerJoin(t.realms, eq(t.realms.id, t.characters.realmId))
+    .leftJoin(t.machines, eq(t.machines.id, t.characters.lastMachineId))
+    .where(eq(t.characters.id, id));
+  if (!character) return null;
+
+  const [stats, professions, equipment, reputations, currencies, items, snapshots] = await Promise.all([
+    db.select().from(t.characterStats).where(eq(t.characterStats.characterId, id)),
+    db.select().from(t.characterProfessions).where(eq(t.characterProfessions.characterId, id)).orderBy(asc(t.characterProfessions.position)),
+    db.select().from(t.characterEquipment).where(eq(t.characterEquipment.characterId, id)).orderBy(asc(t.characterEquipment.slot)),
+    db
+      .select()
+      .from(t.characterReputations)
+      .where(eq(t.characterReputations.characterId, id))
+      .orderBy(asc(t.characterReputations.groupName), asc(t.characterReputations.name)),
+    db.select().from(t.characterCurrencies).where(eq(t.characterCurrencies.characterId, id)).orderBy(asc(t.characterCurrencies.name)),
+    db
+      .select({
+        location: t.characterItems.location,
+        itemKey: t.characterItems.itemKey,
+        quantity: t.characterItems.quantity,
+        name: t.items.name,
+        quality: t.items.quality,
+      })
+      .from(t.characterItems)
+      .leftJoin(t.items, eq(t.items.itemKey, t.characterItems.itemKey))
+      .where(eq(t.characterItems.characterId, id))
+      .orderBy(desc(t.items.quality), asc(t.items.name)),
+    db
+      .select()
+      .from(t.characterSnapshots)
+      .where(eq(t.characterSnapshots.characterId, id))
+      .orderBy(desc(t.characterSnapshots.capturedAt))
+      .limit(200),
+  ]);
+
+  return {
+    ...character.character,
+    realm: character.realm,
+    account: { id: character.accountId, label: accountLabel({ displayName: character.accountDisplayName, folderHint: character.accountFolderHint }) },
+    lastMachine: character.machineHostname === null && character.machineDisplayName === null
+      ? null
+      : machineLabel({ displayName: character.machineDisplayName, hostname: character.machineHostname }),
+    stats: stats[0] ?? null,
+    professions,
+    equipment,
+    reputations,
+    currencies,
+    bags: items.filter((item) => item.location === "bags"),
+    bank: items.filter((item) => item.location === "bank"),
+    // Du plus ancien au plus récent, pour les courbes et le calcul des changements.
+    snapshots: snapshots.reverse(),
+  };
+}
+
+export type CharacterDetail = NonNullable<Awaited<ReturnType<typeof getCharacterDetail>>>;
+
+export async function listAccounts(db: Database) {
+  const [accounts, seenBy] = await Promise.all([
+    db
+      .select({
+        id: t.wowAccounts.id,
+        displayName: t.wowAccounts.displayName,
+        folderHint: t.wowAccounts.folderHint,
+        lastSyncAt: t.wowAccounts.lastSyncAt,
+        characters: sql<number>`count(${t.characters.id})::int`,
+        maxLevel: sql<number | null>`max(${t.characters.level})::int`,
+        totalCopper: sql<number>`coalesce(sum(${t.characters.moneyCopper}), 0)::float8`,
+      })
+      .from(t.wowAccounts)
+      .leftJoin(t.characters, eq(t.characters.accountId, t.wowAccounts.id))
+      .groupBy(t.wowAccounts.id)
+      .orderBy(asc(t.wowAccounts.id)),
+    db
+      .select({
+        accountId: t.machineAccounts.accountId,
+        machineId: t.machines.id,
+        displayName: t.machines.displayName,
+        hostname: t.machines.hostname,
+        flavor: t.machineAccounts.flavor,
+        addonVersion: t.machineAccounts.addonVersion,
+        lastSeenAt: t.machineAccounts.lastSeenAt,
+      })
+      .from(t.machineAccounts)
+      .innerJoin(t.machines, eq(t.machines.id, t.machineAccounts.machineId))
+      .orderBy(asc(t.machines.id)),
+  ]);
+  const seenByAccount = Map.groupBy(seenBy, (row) => row.accountId);
+  return accounts.map((account) => ({
+    ...account,
+    label: accountLabel(account),
+    machines: (seenByAccount.get(account.id) ?? []).map((row) => ({
+      id: row.machineId,
+      label: machineLabel(row),
+      flavor: row.flavor,
+      addonVersion: row.addonVersion,
+      lastSeenAt: row.lastSeenAt,
+    })),
+  }));
+}
+
+export async function listMachines(db: Database) {
+  const [machines, tokens] = await Promise.all([
+    db
+      .select({
+        id: t.machines.id,
+        machineUuid: t.machines.machineUuid,
+        displayName: t.machines.displayName,
+        hostname: t.machines.hostname,
+        agentVersion: t.machines.agentVersion,
+        firstSeenAt: t.machines.firstSeenAt,
+        lastSeenAt: t.machines.lastSeenAt,
+        accounts: sql<number>`(select count(*)::int from ${t.machineAccounts} where ${t.machineAccounts.machineId} = ${t.machines.id})`,
+        characters: sql<number>`(select count(*)::int from ${t.characterMachines} where ${t.characterMachines.machineId} = ${t.machines.id})`,
+      })
+      .from(t.machines)
+      .orderBy(desc(t.machines.lastSeenAt)),
+    db.select().from(t.agentTokens).orderBy(desc(t.agentTokens.createdAt)),
+  ]);
+  const tokensByMachine = Map.groupBy(tokens.filter((token) => token.machineId !== null), (token) => token.machineId!);
+  return {
+    machines: machines.map((machine) => ({ ...machine, label: machineLabel(machine), tokens: tokensByMachine.get(machine.id) ?? [] })),
+    // Jetons créés mais jamais utilisés : pas encore liés à une machine.
+    pendingTokens: tokens.filter((token) => token.machineId === null),
+  };
+}
+
+export async function listRecentRuns(db: Database, limit = 15) {
+  return db
+    .select({
+      id: t.syncRuns.id,
+      startedAt: t.syncRuns.startedAt,
+      status: t.syncRuns.status,
+      durationMs: t.syncRuns.durationMs,
+      accountsDetected: t.syncRuns.accountsDetected,
+      charactersDetected: t.syncRuns.charactersDetected,
+      charactersCreated: t.syncRuns.charactersCreated,
+      charactersUpdated: t.syncRuns.charactersUpdated,
+      charactersUnchanged: t.syncRuns.charactersUnchanged,
+      charactersStale: t.syncRuns.charactersStale,
+      snapshotsCreated: t.syncRuns.snapshotsCreated,
+      errorsCount: t.syncRuns.errorsCount,
+      agentVersion: t.syncRuns.agentVersion,
+      machineDisplayName: t.machines.displayName,
+      machineHostname: t.machines.hostname,
+    })
+    .from(t.syncRuns)
+    .leftJoin(t.machines, eq(t.machines.id, t.syncRuns.machineId))
+    .orderBy(desc(t.syncRuns.startedAt))
+    .limit(limit);
+}

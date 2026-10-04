@@ -1,0 +1,59 @@
+import { NextResponse, type NextRequest } from "next/server";
+import { sessionCookieName } from "@/lib/auth/cookie";
+
+// Deux rôles, sur chaque page :
+// 1. poser une CSP stricte à nonce (aucun script ni style en ligne non signé) ;
+// 2. renvoyer vers /login quand aucun cookie de session n'est présent. Ce n'est qu'un premier
+//    filtre : la session est réellement vérifiée en base par le layout du tableau de bord.
+
+const PUBLIC_PATHS = new Set(["/login"]);
+
+export function proxy(request: NextRequest) {
+  const { pathname, search } = request.nextUrl;
+
+  if (!PUBLIC_PATHS.has(pathname) && !request.cookies.has(sessionCookieName())) {
+    const login = request.nextUrl.clone();
+    login.pathname = "/login";
+    login.search = pathname === "/" ? "" : `?next=${encodeURIComponent(pathname + search)}`;
+    return NextResponse.redirect(login);
+  }
+
+  const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
+  const development = process.env.NODE_ENV === "development";
+  const csp = [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${development ? " 'unsafe-eval'" : ""}`,
+    // En développement, le rechargement à chaud injecte des styles non signés ; un nonce présent
+    // ferait ignorer 'unsafe-inline' par le navigateur, d'où deux formes distinctes.
+    development ? "style-src 'self' 'unsafe-inline'" : `style-src 'self' 'nonce-${nonce}'`,
+    "img-src 'self' data: blob:",
+    "font-src 'self'",
+    "connect-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+  ].join("; ");
+
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-nonce", nonce);
+  requestHeaders.set("Content-Security-Policy", csp);
+
+  const response = NextResponse.next({ request: { headers: requestHeaders } });
+  response.headers.set("Content-Security-Policy", csp);
+  response.headers.set("Cache-Control", "private, no-store");
+  return response;
+}
+
+export const config = {
+  matcher: [
+    {
+      // Les routes d'API s'authentifient elles-mêmes ; les fichiers statiques n'ont pas de CSP.
+      source: "/((?!api|_next/static|_next/image|favicon.ico).*)",
+      missing: [
+        { type: "header", key: "next-router-prefetch" },
+        { type: "header", key: "purpose", value: "prefetch" },
+      ],
+    },
+  ],
+};

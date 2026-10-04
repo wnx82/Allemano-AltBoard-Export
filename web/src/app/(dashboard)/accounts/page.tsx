@@ -1,0 +1,88 @@
+import type { Metadata } from "next";
+import { RenameForm } from "@/components/admin-forms";
+import { EmptyState, Money } from "@/components/ui";
+import { getDatabase } from "@/db/client";
+import { renameAccountAction } from "@/lib/dashboard/actions";
+import { listAccounts } from "@/lib/dashboard/queries";
+import { formatDateTime, formatRelative } from "@/lib/wow/format";
+
+export const metadata: Metadata = { title: "Comptes" };
+
+export default async function AccountsPage() {
+  const accounts = await listAccounts(getDatabase());
+  const now = new Date();
+
+  return (
+    <>
+      <p className="eyebrow text-gold">World of Warcraft</p>
+      <h1 className="display mt-1 text-3xl font-bold sm:text-4xl">Comptes</h1>
+      <p className="mt-2 max-w-3xl text-sm text-muted">
+        Un compte correspond à un dossier <code className="text-text">WTF\Account</code>. Son nom réel n&apos;est jamais transmis : le serveur ne
+        connaît qu&apos;une empreinte et un libellé masqué. Donnez-lui le nom qui vous parle.
+      </p>
+
+      {accounts.length === 0 ? (
+        <div className="mt-6">
+          <EmptyState title="Aucun compte synchronisé" />
+        </div>
+      ) : (
+        <ul className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {accounts.map((account) => (
+            <li key={account.id} className="panel p-5">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h2 className="display text-xl font-bold text-gold">{account.label}</h2>
+                <span className="badge">Dossier {account.folderHint ?? "inconnu"}</span>
+              </div>
+
+              <dl className="mt-4 grid grid-cols-3 gap-3 text-sm">
+                <div>
+                  <dt className="eyebrow">Personnages</dt>
+                  <dd className="mt-0.5 text-lg font-semibold tabular-nums">{account.characters}</dd>
+                </div>
+                <div>
+                  <dt className="eyebrow">Niveau max.</dt>
+                  <dd className="mt-0.5 text-lg font-semibold tabular-nums">{account.maxLevel ?? "—"}</dd>
+                </div>
+                <div>
+                  <dt className="eyebrow">Or cumulé</dt>
+                  <dd className="mt-0.5 text-lg">
+                    <Money copper={account.characters > 0 ? account.totalCopper : null} />
+                  </dd>
+                </div>
+              </dl>
+
+              <div className="mt-4 border-t border-line pt-4">
+                <p className="eyebrow mb-2">Vu depuis</p>
+                <ul className="space-y-1 text-sm">
+                  {account.machines.map((machine) => (
+                    <li key={machine.id} className="flex flex-wrap items-baseline justify-between gap-2">
+                      <span>
+                        {machine.label}
+                        <span className="ml-2 text-xs text-muted">
+                          {[machine.flavor, machine.addonVersion && `AltBoard ${machine.addonVersion}`].filter(Boolean).join(" · ")}
+                        </span>
+                      </span>
+                      <time className="text-xs text-muted" dateTime={machine.lastSeenAt.toISOString()} title={formatDateTime(machine.lastSeenAt)}>
+                        {formatRelative(machine.lastSeenAt, now)}
+                      </time>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              <div className="mt-4 border-t border-line pt-4">
+                <RenameForm
+                  id={account.id}
+                  name={account.displayName}
+                  placeholder={`Compte ${account.folderHint ?? ""}`}
+                  action={renameAccountAction}
+                  label={`Nom d'affichage de ${account.label}`}
+                />
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </>
+  );
+}
