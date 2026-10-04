@@ -625,6 +625,135 @@ describe("temps de jeu (Allemano Ledger)", () => {
   });
 });
 
+describe("sessions de jeu (Allemano Ledger)", () => {
+  type Sessions = NonNullable<CharacterPayload["sessions"]>;
+  const stored = async () => {
+    const mage = await character(MAGE);
+    const rows = await database.db.select().from(t.characterSessions).where(eq(t.characterSessions.characterId, mage.id)).orderBy(asc(t.characterSessions.startedAt));
+    return rows.map((row) => ({
+      start: row.startedAt.getTime() / 1000,
+      stop: row.stoppedAt === null ? null : row.stoppedAt.getTime() / 1000,
+      duration: row.durationSeconds,
+      xp: row.xpGained,
+      levels: row.levels,
+      zone: row.zone,
+      tag: row.tag,
+      open: row.inProgress,
+    }));
+  };
+  const brief = async () => (await stored()).map((row) => [row.start, row.xp, row.open]);
+  const withSessions = (payload: SyncPayload, sessions: Sessions, lastSeenOffset = 0): SyncPayload => {
+    const mage = mageOf(payload);
+    mage.sessions = sessions;
+    mage.lastSeen += lastSeenOffset;
+    return payload;
+  };
+  const START = 1791110000;
+  /** La session ouverte à START, telle que relevée à un instant donné. */
+  const open = (stoppedAt: number, xpGained: number): Sessions => [
+    { startedAt: START, stoppedAt, durationSeconds: stoppedAt - START, xpGained, zone: "Loch Modan", inProgress: true },
+  ];
+
+  test("un document sans session reste accepté et ne crée rien", async () => {
+    await ok(clone());
+
+    assert.equal(await count(t.characterSessions), 0);
+  });
+
+  test("les sessions sont enregistrées, la session en cours signalée", async () => {
+    await ok(
+      withSessions(clone(), [
+        { startedAt: 1791040000, stoppedAt: 1791050400, durationSeconds: 9000, xpGained: 12_400, levels: 2, zone: "Dun Morogh", tag: "Dungeon", inProgress: false },
+        { startedAt: START, stoppedAt: 1791118570, durationSeconds: 4770, xpGained: 5300, inProgress: true },
+      ]),
+    );
+
+    assert.deepEqual(await stored(), [
+      { start: 1791040000, stop: 1791050400, duration: 9000, xp: 12_400, levels: 2, zone: "Dun Morogh", tag: "Dungeon", open: false },
+      { start: START, stop: 1791118570, duration: 4770, xp: 5300, levels: null, zone: null, tag: null, open: true },
+    ]);
+  });
+
+  test("renvoyer le même document ne duplique aucune session", async () => {
+    const payload = withSessions(clone(), [{ startedAt: 1791040000, durationSeconds: 600, xpGained: 100, inProgress: false }, ...open(1791112000, 300)]);
+    await ok(payload);
+
+    const result = await ok(structuredClone(payload));
+
+    assert.equal(result.charactersUnchanged, 6);
+    assert.equal(await count(t.characterSessions), 2);
+  });
+
+  test("une session en cours avance, puis sa version terminée la remplace, jamais l'inverse", async () => {
+    await ok(withSessions(clone(), open(1791112000, 300)));
+
+    // La même session, relevée plus tard : elle a avancé.
+    await ok(withSessions(clone(), open(1791115000, 900), 3600));
+    assert.deepEqual(await brief(), [[START, 900, true]]);
+
+    // Un relevé provisoire plus ancien ne la fait pas reculer.
+    await ok(withSessions(clone(), open(1791111000, 100), 7200));
+    assert.deepEqual(await brief(), [[START, 900, true]]);
+
+    // Session close par l'addon : valeurs définitives.
+    await ok(withSessions(clone(), [{ startedAt: START, stoppedAt: 1791118570, durationSeconds: 4770, xpGained: 5300, levels: 1, tag: "Leveling", inProgress: false }], 10_800));
+    // Un fichier resté sur la version provisoire ne la rouvre pas.
+    await ok(withSessions(clone(), open(1791119999, 9999), 14_400));
+
+    assert.deepEqual(await stored(), [
+      // La zone, absente de la version terminée, est conservée : une valeur connue n'est jamais remplacée par une absence.
+      { start: START, stop: 1791118570, duration: 4770, xp: 5300, levels: 1, zone: "Loch Modan", tag: "Leveling", open: false },
+    ]);
+  });
+
+  test("les sessions de deux PC s'additionnent, même quand le fichier AltBoard est en retard", async () => {
+    const token2 = (await createAgentToken(database.db, "PC 2")).token;
+    await ok(withSessions(onlyAccount(0), [{ startedAt: 1791100000, durationSeconds: 3600, xpGained: 4000, inProgress: false }]));
+
+    // PC 2 : fichier AltBoard plus ancien (personnage « stale »), mais son Ledger connaît une autre session.
+    const older = withSessions(fromMachine(onlyAccount(0), PC2, "PC-2"), [{ startedAt: 1791000000, durationSeconds: 1800, xpGained: 1500, inProgress: false }], -86_400);
+    const result = await ok(older, { token: token2 });
+
+    assert.equal(result.charactersStale, 1);
+    assert.deepEqual(await brief(), [
+      [1791000000, 1500, false],
+      [1791100000, 4000, false],
+    ]);
+  });
+
+  test("une session mal formée fait refuser le document", async () => {
+    const tooMany = Array.from({ length: 61 }, (_, index) => ({ startedAt: 1791100000 + index, inProgress: false }));
+    for (const sessions of [
+      [{ inProgress: false }],
+      [{ startedAt: 1791100000 }],
+      [{ startedAt: 1791100000, xpGained: -1, inProgress: false }],
+      [{ startedAt: 1791100000, inProgress: false, or: 5 }],
+      "aucune",
+      tooMany,
+    ]) {
+      const payload = clone();
+      (mageOf(payload) as { sessions: unknown }).sessions = sessions;
+      assert.equal((await send(payload)).status, 422, JSON.stringify(sessions).slice(0, 80));
+    }
+    assert.equal(await count(t.characters), 0);
+  });
+});
+
+describe("progression d'expérience", () => {
+  test("le relevé garde l'expérience du niveau, sans laquelle l'expérience ne se situe pas", async () => {
+    await ok(clone());
+
+    const mage = await character(MAGE);
+    const [snapshot] = await database.db
+      .select({ level: t.characterSnapshots.level, xp: t.characterSnapshots.xp, xpMax: t.characterSnapshots.xpMax })
+      .from(t.characterSnapshots)
+      .where(eq(t.characterSnapshots.characterId, mage.id));
+    const source = mageOf(clone());
+    assert.deepEqual(snapshot, { level: source.level, xp: source.xp, xpMax: source.xpMax });
+    assert.ok(snapshot.xpMax !== null && snapshot.xpMax > 0);
+  });
+});
+
 describe("transactions et contraintes", () => {
   test("une erreur en cours de traitement annule toute la synchronisation", async () => {
     const broken = clone();

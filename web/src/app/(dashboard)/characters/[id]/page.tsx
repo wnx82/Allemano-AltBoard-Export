@@ -3,13 +3,14 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 import { InventoryList } from "@/components/inventory-list";
-import { LevelTimeChart } from "@/components/level-time-chart";
+import { LevelTimeChart, SessionXpChart } from "@/components/ledger-charts";
 import { TrendChart, type TrendPoint } from "@/components/trend-chart";
 import { ClassAvatar, FactionBadge, Meter, Money, ProfessionIcon, SectionTitle, StatTile } from "@/components/ui";
 import { getDatabase } from "@/db/client";
 import { buildHistory } from "@/lib/dashboard/history";
 import { buildLevelTimes, formatDuration } from "@/lib/dashboard/level-times";
-import { getCharacterDetail, type CharacterDetail } from "@/lib/dashboard/queries";
+import { buildSessions, sessionTagLabel, summarizeSessions } from "@/lib/dashboard/sessions";
+import { getCharacterDetail, SESSIONS_SHOWN, type CharacterDetail } from "@/lib/dashboard/queries";
 import {
   classKey,
   classLabel,
@@ -18,6 +19,7 @@ import {
   formatItemLevel,
   formatMoney,
   formatRelative,
+  fractionalLevel,
   progressPercent,
   QUALITY_LABELS,
   REACTION_LABELS,
@@ -42,6 +44,7 @@ export async function generateMetadata({ params }: PageProps<"/characters/[id]">
 const percentFormat = new Intl.NumberFormat("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const percent = (value: number | null) => (value === null ? null : `${percentFormat.format(value)} %`);
 const shortDate = new Intl.DateTimeFormat("fr-BE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Brussels" });
+const levelFormat = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 });
 
 export default async function CharacterPage({ params }: PageProps<"/characters/[id]">) {
   const character = await load(params);
@@ -52,14 +55,22 @@ export default async function CharacterPage({ params }: PageProps<"/characters/[
   const history = buildHistory(character.snapshots);
   const levelTimes = buildLevelTimes(character.levelTimes, character.playtime, character.level);
   const totalPlayed = character.playtime?.totalSeconds ?? null;
+  const sessions = buildSessions(character.sessions);
+  const sessionTotals = summarizeSessions(sessions);
+  // Niveau et part d'expérience acquise sur une même échelle : la courbe monte aussi entre deux niveaux.
   const levelPoints: TrendPoint[] = character.snapshots
     .filter((snapshot) => snapshot.level !== null)
-    .map((snapshot) => ({
-      at: snapshot.capturedAt.toISOString(),
-      value: snapshot.level!,
-      label: `Niveau ${snapshot.level}`,
-      dateLabel: shortDate.format(snapshot.capturedAt),
-    }));
+    .map((snapshot) => {
+      const value = fractionalLevel(snapshot.level!, snapshot.xp, snapshot.xpMax);
+      const percentOfLevel = progressPercent(snapshot.xp, snapshot.xpMax);
+      return {
+        at: snapshot.capturedAt.toISOString(),
+        value,
+        label: percentOfLevel === null ? `Niveau ${snapshot.level}` : `Niveau ${snapshot.level} · ${Math.min(percentOfLevel, 99)} %`,
+        valueLabel: levelFormat.format(value),
+        dateLabel: shortDate.format(snapshot.capturedAt),
+      };
+    });
   const goldPoints: TrendPoint[] = character.snapshots
     .filter((snapshot) => snapshot.moneyCopper !== null)
     .map((snapshot) => ({
@@ -413,6 +424,73 @@ export default async function CharacterPage({ params }: PageProps<"/characters/[
         )}
       </section>
 
+      <section aria-labelledby="sessions" className="mt-8">
+        <SectionTitle
+          aside={
+            sessions.length === 0
+              ? "Source : addon Allemano Ledger"
+              : `${sessions.length >= SESSIONS_SHOWN ? `${SESSIONS_SHOWN} dernières sessions` : `${sessions.length} session${sessions.length > 1 ? "s" : ""}`} · ${formatInteger(sessionTotals.xpGained)} XP en ${formatDuration(sessionTotals.durationSeconds)}${
+                  sessionTotals.xpPerHour === null ? "" : ` · ${formatInteger(sessionTotals.xpPerHour)} XP/h`
+                }`
+          }
+        >
+          <span id="sessions">Sessions de jeu</span>
+        </SectionTitle>
+        {sessions.length === 0 ? (
+          <div className="panel p-5 text-sm text-muted">
+            Aucune session relevée pour ce personnage. L&apos;addon Allemano Ledger enregistre chaque session de jeu (durée, expérience
+            gagnée) à partir de son installation : connectez ce personnage, faites <code className="text-text">/reload</code>, puis
+            synchronisez.
+          </div>
+        ) : (
+          <>
+            <SessionXpChart sessions={sessions} />
+            <details className="panel mt-4 overflow-hidden">
+              <summary className="cursor-pointer px-5 py-3 text-sm text-muted hover:text-text">Tableau des sessions</summary>
+              <div className="overflow-x-auto">
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Début</th>
+                      <th scope="col" className="num">
+                        Durée
+                      </th>
+                      <th scope="col" className="num">
+                        XP gagnée
+                      </th>
+                      <th scope="col" className="num">
+                        XP par heure
+                      </th>
+                      <th scope="col" className="num">
+                        Niveaux
+                      </th>
+                      <th scope="col">Zone</th>
+                      <th scope="col">Type</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...sessions].reverse().map((session) => (
+                      <tr key={session.startedAt}>
+                        <td className="whitespace-nowrap">
+                          {formatDateTime(session.startedAt)}
+                          {session.current && " (en cours)"}
+                        </td>
+                        <td className="num">{formatDuration(session.durationSeconds)}</td>
+                        <td className="num">{formatInteger(session.xpGained)}</td>
+                        <td className="num">{formatInteger(session.xpPerHour)}</td>
+                        <td className="num">{session.levels ? `+${session.levels}` : "—"}</td>
+                        <td>{session.zone ?? "—"}</td>
+                        <td>{sessionTagLabel(session.tag) ?? "—"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          </>
+        )}
+      </section>
+
       <section aria-labelledby="history" className="mt-8">
         <SectionTitle aside={`${character.snapshots.length} relevé${character.snapshots.length > 1 ? "s" : ""} conservé${character.snapshots.length > 1 ? "s" : ""}`}>
           <span id="history">Progression</span>
@@ -424,7 +502,7 @@ export default async function CharacterPage({ params }: PageProps<"/characters/[
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-            {levelPoints.length > 1 && <TrendChart title="Niveau" series="level" points={levelPoints} />}
+            {levelPoints.length > 1 && <TrendChart title="Niveau et expérience" series="level" points={levelPoints} />}
             {goldPoints.length > 1 && <TrendChart title="Or" series="gold" points={goldPoints} />}
             <div className="panel p-5">
               <h3 className="eyebrow mb-3">Derniers changements</h3>

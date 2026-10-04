@@ -24,7 +24,7 @@
 - Variables `WOW_DATABASE_URL`, `WOW_DATABASE_URL_DIRECT`, `WOW_TEST_DATABASE_URL` : jamais de nom
   générique, qui pourrait exister dans l'environnement pour un autre projet.
 
-## Tables (21)
+## Tables (22)
 
 Conventions : clés `bigint` générées, dates en `timestamptz`, argent en pièces de cuivre.
 
@@ -53,6 +53,7 @@ Conventions : clés `bigint` générées, dates en `timestamptz`, argent en piè
 | `character_items` | `(character_id, location, item_key)` | Contenu des sacs (`bags`) et de la banque (`bank`) |
 | `character_playtime` | `character_id` | Dernier `/played` connu, date de la mesure, début du niveau en cours (addon Allemano Ledger) |
 | `character_level_times` | `(character_id, level)` | Un niveau terminé : temps de jeu, temps réel, date, zone (addon Allemano Ledger) |
+| `character_sessions` | `(character_id, started_at)` | Une session de jeu : fin, temps connecté, expérience gagnée, niveaux, zone, étiquette, session encore ouverte (addon Allemano Ledger) |
 
 Colonnes volontairement absentes, faute de donnée dans AltBoard : genre, région, quêtes, recettes.
 
@@ -60,7 +61,7 @@ Colonnes volontairement absentes, faute de donnée dans AltBoard : genre, régio
 
 | Table | Contenu |
 |---|---|
-| `character_snapshots` | Un état daté par progression : niveau, expérience, or, niveau d'objet + détail en `jsonb`. Unicité `(character_id, captured_at)` |
+| `character_snapshots` | Un état daté par progression : niveau, expérience et expérience du niveau (`xp_max`), or, niveau d'objet + détail en `jsonb`. Unicité `(character_id, captured_at)` |
 | `sync_runs` | Une ligne par synchronisation : machine, statut, compteurs, durée, versions |
 | `sync_errors` | Erreurs et avertissements de l'agent rattachés à une synchronisation |
 
@@ -73,7 +74,7 @@ Colonnes volontairement absentes, faute de donnée dans AltBoard : genre, régio
 
 ## Contraintes
 
-21 clés primaires, 21 clés étrangères, 8 contraintes d'unicité, 6 contraintes de validation
+22 clés primaires, 22 clés étrangères, 8 contraintes d'unicité, 7 contraintes de validation
 (`slot` entre 1 et 19, `location` ∈ `bags`/`bank`, quantités, or et durées positifs, statut de synchronisation).
 
 Suppression d'un personnage : ses tables filles et ses snapshots suivent (`ON DELETE CASCADE`).
@@ -95,6 +96,7 @@ En cas d'erreur, tout est annulé, puis l'échec est journalisé à part (`sync_
 | Même compte depuis deux PC | Un seul `wow_accounts`, deux `machine_accounts` |
 | Niveau terminé (`playtime.levels`) | Ajouté, jamais retiré ; une valeur connue n'est jamais remplacée par une absence. Appliqué même quand `lastSeen` est plus ancien : chaque PC ne connaît que les niveaux gagnés chez lui |
 | Total `/played` et niveau en cours | Remplacés seulement par une mesure au moins aussi récente (`measured_at`) |
+| Session de jeu (`sessions`) | Ajoutée, jamais retirée, même quand `lastSeen` est plus ancien. Une session close remplace sa version ouverte ; une version ouverte n'en remplace une autre que si elle est au moins aussi récente, et jamais une session close |
 
 Tous les hash sont calculés sur un JSON **canonique** (clés triées) : le client WoW réécrit ses
 tables dans un ordre différent à chaque sauvegarde.
@@ -105,7 +107,8 @@ Un snapshot est créé quand le **hash de progression** diffère de celui du der
 personnage. Entrent dans ce hash : niveau, expérience, or, niveau d'objet, guilde, métiers (niveau,
 maximum), équipement (objet, enchantement), réputations (palier, valeur), monnaies.
 
-N'y entrent pas : zone, expérience reposée, statistiques, horodatages, contenu des sacs, temps de jeu. Une
+N'y entrent pas : zone, expérience reposée, statistiques, horodatages, contenu des sacs, temps de jeu,
+sessions. Une
 connexion sans progression met donc le personnage à jour sans créer d'historique.
 
 La comparaison se fait avec le **dernier** snapshot seulement : un retour à un état antérieur
@@ -138,6 +141,7 @@ Les migrations passent en connexion directe, jamais par PgBouncer. Le suivi est 
 |---|---|
 | `0000_init` | les 19 tables d'origine |
 | `0001_playtime` | `character_playtime`, `character_level_times` (ajouts seuls) |
+| `0002_sessions` | `character_sessions`, colonne `character_snapshots.xp_max` (ajouts seuls). Les relevés antérieurs reçoivent le `xp_max` de leur personnage quand il est encore au même niveau ; les autres restent sans valeur |
 
 ## Checkpoint B
 

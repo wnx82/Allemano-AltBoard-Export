@@ -105,6 +105,20 @@ const playtime = z.strictObject({
     .max(200),
 });
 
+// Sessions de jeu relevées par Allemano Ledger, identifiées par leur début. durationSeconds est le
+// temps connecté, pauses exclues. inProgress : session encore ouverte quand le jeu a écrit le
+// fichier, donc valeurs provisoires. L'addon garde 50 sessions par personnage, plus celle en cours.
+const session = z.strictObject({
+  startedAt: unixSeconds,
+  stoppedAt: unixSeconds.optional(),
+  durationSeconds: count.optional(),
+  xpGained: count.optional(),
+  levels: level.optional(),
+  zone: name.optional(),
+  tag: text(40).optional(),
+  inProgress: z.boolean(),
+});
+
 const character = z.strictObject({
   guid: z.string().regex(/^[A-Za-z0-9-]{1,64}$/),
   name,
@@ -131,6 +145,7 @@ const character = z.strictObject({
   bags: container.optional(),
   bank: container.optional(),
   playtime: playtime.optional(),
+  sessions: z.array(session).max(60).optional(),
 });
 
 const item = z.strictObject({

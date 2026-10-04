@@ -89,7 +89,8 @@ fichiers `.bak` sont ignorés. Zéro compte n'est pas une erreur.
 
 Si le même dossier contient `AllemanoLedger.lua` (addon Allemano Ledger), l'agent y lit le temps
 de jeu des personnages connus d'AltBoard : dernier `/played`, début du niveau en cours, niveaux
-terminés ([LEDGER-DATA-MODEL](LEDGER-DATA-MODEL.md)). Fichier facultatif : absent, rien ne change ;
+terminés, et leurs sessions de jeu : dates, durée, expérience gagnée
+([LEDGER-DATA-MODEL](LEDGER-DATA-MODEL.md)). Fichier facultatif : absent, rien ne change ;
 illisible, un avertissement est joint au document et la synchronisation continue.
 
 ## Lecture pendant que le jeu écrit

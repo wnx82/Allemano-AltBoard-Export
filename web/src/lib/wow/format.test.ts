@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { classKey, classLabel, formatItemLevel, formatMoney, formatRelative, progressPercent, splitMoney } from "./format";
+import { classKey, classLabel, formatItemLevel, formatMoney, formatRelative, fractionalLevel, progressPercent, splitMoney } from "./format";
 
 const nbsp = (text: string) => text.replace(/[  ]/g, " ");
 
@@ -30,6 +30,17 @@ test("la progression est bornée et tolère les données absentes", () => {
   assert.equal(progressPercent(-5, 150), 0);
   assert.equal(progressPercent(10, 0), null);
   assert.equal(progressPercent(null, 150), null);
+});
+
+test("le niveau porte sa part d'expérience, sans jamais atteindre le niveau suivant", () => {
+  assert.equal(fractionalLevel(26, 17_000, 34_000), 26.5);
+  assert.equal(fractionalLevel(26, 0, 34_000), 26);
+  assert.equal(fractionalLevel(26, 34_000, 34_000), 26.99);
+  assert.equal(fractionalLevel(26, 99_999, 34_000), 26.99);
+  // Expérience inconnue : le niveau seul, jamais une estimation.
+  assert.equal(fractionalLevel(26, null, 34_000), 26);
+  assert.equal(fractionalLevel(26, 500, null), 26);
+  assert.equal(fractionalLevel(26, 500, 0), 26);
 });
 
 test("le niveau d'objet garde une décimale", () => {

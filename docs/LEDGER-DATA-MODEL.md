@@ -1,8 +1,9 @@
-# Modèle de données Allemano Ledger — temps de jeu
+# Modèle de données Allemano Ledger — temps de jeu et sessions
 
-> AltBoard ne relève aucun temps de jeu. Le temps passé sur chaque niveau vient d'un second addon du
-> même auteur, **Allemano Ledger** (ancien Session Tracker), quand il est installé. Source
-> facultative : sans elle, tout le reste fonctionne à l'identique.
+> AltBoard ne relève ni temps de jeu ni sessions. Le temps passé sur chaque niveau et l'expérience
+> gagnée par session viennent d'un second addon du même auteur, **Allemano Ledger** (ancien Session
+> Tracker), quand il est installé. Source facultative : sans elle, tout le reste fonctionne à
+> l'identique.
 
 ## 1. Source analysée
 
@@ -17,6 +18,9 @@ Constats sur le fichier réel : les clés de `levelLog` sont numériques (`[26] 
 accepte aussi une chaîne ; `wall` est absent du premier niveau suivi ; la zone est écrite telle que
 le client l'affiche (`Bois de la Pénombre (Duskwood)`). Lu par l'agent, accepté par le schéma du
 serveur, enregistré et affiché en local sans écart avec le fichier.
+
+Sessions : la session ouverte (`current`) du fichier réel est lue et affichée sans écart. Aucune
+session close n'existait encore : la forme de `history` vient du code de l'addon, pas d'un fichier.
 
 Le source de l'addon est sous droits réservés : il n'est ni copié ni versionné ici. La fixture
 `tests/fixtures/ledger-two-characters.lua` est écrite à la main.
@@ -49,7 +53,32 @@ Le source de l'addon est sous droits réservés : il n'est ni copié ni versionn
 | `levelLog[n].reached` | instant du passage au niveau `n + 1` | secondes Unix |
 | `levelLog[n].zone` | zone du passage de niveau, dans la langue du client | |
 
-Le reste (`current`, `history`, or par source, réglages, erreurs) n'est ni lu ni transmis.
+### Sessions
+
+```lua
+["current"] = {                       -- session ouverte
+  ["start"] = 1791129268, ["lastSeen"] = 1791135864,
+  ["active"] = 0, ["stintStart"] = 1791129268,   -- ["paused"] = true pendant une pause
+  ["startLevel"] = 26, ["level"] = 27, ["xpGained"] = 28471,
+  ["zone"] = "Cité de Stormwind", ["autoTag"] = "Leveling",   -- ["tag"] si le joueur en a choisi une
+},
+["history"] = {                       -- sessions closes, la plus récente d'abord
+  { ["start"] = 1791090000, ["stop"] = 1791097200, ["duration"] = 6900,
+    ["xpGained"] = 8200, ["levels"] = 1, ["zone"] = "Loch Modan", ["tag"] = "Leveling" }, -- [1]
+},
+```
+
+| Champ | Sens |
+|---|---|
+| `start` | début de la session, en secondes Unix : c'est son identité, inchangée quand la session est close |
+| `stop` / `lastSeen` | fin de la session, ou dernière activité d'une session ouverte |
+| `duration` | temps connecté en secondes, pauses exclues. Session ouverte : `active` + (`lastSeen` − `stintStart`), ou `active` seul pendant une pause |
+| `xpGained` | expérience gagnée pendant la session, passages de niveau compris |
+| `levels` | niveaux gagnés (`level` − `startLevel` pour une session ouverte) |
+| `zone`, `tag` | zone du dernier gain d'or de la session (à défaut, zone de départ) ; étiquette anglaise fixe (`Leveling`, `Dungeon`, `Farming`…), traduite à l'affichage |
+
+Le reste (or par source, détail des recettes et dépenses, objets, réputation, réglages, erreurs)
+n'est ni lu ni transmis.
 
 ## 3. Comportement de l'addon ayant un impact
 
@@ -65,7 +94,14 @@ Le reste (`current`, `history`, or par source, réglages, erreurs) n'est ni lu n
   un `/reload` ne la rafraîchit pas. Le temps du niveau en cours affiché s'arrête donc à cet instant.
 - Comme pour AltBoard, le fichier n'est écrit qu'au `/reload`, à la déconnexion ou à la fermeture,
   et seul le personnage connecté est relevé.
-- Chaque PC ne connaît que les niveaux gagnés chez lui : le fichier n'est pas partagé entre PC.
+- Chaque PC ne connaît que les niveaux gagnés et les sessions jouées chez lui : le fichier n'est
+  pas partagé entre PC.
+- L'addon ne garde que **50 sessions** par personnage et n'archive pas celles de moins de 60
+  secondes. La session ouverte ne rejoint `history` qu'à la connexion suivante.
+- `history` contient aussi les « runs » d'instance (`kind = "run"`). Un run recoupe la session
+  qui le contient : il n'est pas transmis, sinon son expérience serait comptée deux fois.
+- Aucune courbe d'expérience à l'intérieur d'une session : la seule série temporelle de l'addon
+  concerne l'or.
 
 ## 4. Traitement
 
@@ -77,7 +113,11 @@ Le reste (`current`, `history`, or par source, réglages, erreurs) n'est ni lu n
 | Serveur | Niveaux terminés : ajoutés, jamais retirés ; une valeur connue n'est jamais remplacée par une absence. Les relevés de deux PC s'additionnent |
 | Serveur | Total et niveau en cours : remplacés seulement par une mesure au moins aussi récente (`played.at`) |
 | Serveur | Un fichier AltBoard en retard (`lastSeen` plus ancien) apporte quand même ses temps par niveau |
+| Agent | Sessions : `history` sans les runs, puis `current`, de la plus ancienne à la plus récente ; une entrée sans début valide est écartée ; au plus 60 |
+| Serveur | Sessions : ajoutées, jamais retirées — elles s'accumulent au-delà des 50 de l'addon. Identité : `(personnage, début)` |
+| Serveur | Une session close remplace sa version ouverte. Une version ouverte n'en remplace une autre que si elle est au moins aussi récente, et jamais une session close |
+| Page | Seule la dernière session peut être affichée « en cours ». Expérience par heure calculée seulement si la durée atteint une minute |
 | Page | Niveau en cours affiché seulement s'il est égal au niveau du personnage ; durée = `played.total − levelStart.playedTotal`, donc arrêtée au dernier relevé |
 
-Tables : `character_playtime` et `character_level_times` ([DATABASE](DATABASE.md)). Contrat :
-champ `playtime` du personnage ([API](API.md)).
+Tables : `character_playtime`, `character_level_times` et `character_sessions`
+([DATABASE](DATABASE.md)). Contrat : champs `playtime` et `sessions` du personnage ([API](API.md)).

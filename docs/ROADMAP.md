@@ -14,7 +14,7 @@ Dernière mise à jour : 2026-10-04.
 | Chaîne complète PC → agent → HTTPS → PostgreSQL → tableau de bord | ✅ sur les fichiers réels (2 comptes, 6 personnages) |
 | Recette après une vraie modification en jeu | ⬜ à faire par le joueur : jouer, `/reload`, `AltBoardSync.exe sync` |
 | Compte personnel d'accès au tableau de bord | ⬜ à créer par le joueur (mot de passe saisi sur le serveur) |
-| Tests automatisés | 117 (agent) + 64 (web), tous verts |
+| Tests automatisés | 121 (agent) + 77 (web), tous verts |
 
 Le critère de réussite de la V1 est rempli jusqu'à l'étape 5 (personnage vérifié dans le fichier, la
 base et la page). Les étapes 6 à 10 — modifier une donnée en jeu, resynchroniser, constater la mise
@@ -121,6 +121,8 @@ très long, accentué, à apostrophes, hors alphabet latin ; base injoignable.
 | Réputations | ✅ | |
 | Inventaire (sacs, banque, recherche) | ✅ | |
 | Historique | 🟡 | courbes et changements vérifiés sur un personnage de démonstration en local ; en production chaque personnage n'a encore qu'un relevé |
+| Courbe « Niveau et expérience » | 🟡 | niveau et part d'expérience acquise sur une même échelle, depuis les relevés. Vérifiée en local ; un relevé antérieur sans `xp_max` reste au niveau entier |
+| Sessions de jeu (expérience par session, par heure, tableau) | 🟡 | source : addon Allemano Ledger. Session ouverte vérifiée en local sur le fichier réel du 2026-10-04 : fichier ↔ agent ↔ base ↔ page, 0 écart. Sessions closes : vérifiées sur fixture seulement, aucune n'existe encore |
 | Temps par niveau (graphique, tableau, temps de jeu total) | 🟡 | source : addon Allemano Ledger ([LEDGER-DATA-MODEL](LEDGER-DATA-MODEL.md)). Vérifié en local sur le fichier réel du 2026-10-04 : fichier ↔ agent ↔ base ↔ page, 0 écart (1 personnage, 1 niveau terminé). Reste la mise en production |
 
 **Checkpoint E** ✅ — en production : `AltBoard.lua` ↔ base (138 comparaisons) ↔ pages servies par
@@ -191,7 +193,7 @@ Rien n'est implémenté ni activé : la commande `watch` répond qu'elle n'est p
 |---|---|
 | Créer son compte d'accès (voir [DEPLOYMENT § Comptes et jetons](DEPLOYMENT.md)) | joueur |
 | Recette après une vraie modification en jeu | joueur |
-| Icônes et temps par niveau en production : déployer le serveur (voir [DEPLOYMENT § Mettre à jour](DEPLOYMENT.md)), puis republier l'agent et synchroniser | joueur |
+| Icônes, temps par niveau, sessions et courbe d'expérience en production : déployer le serveur (voir [DEPLOYMENT § Mettre à jour](DEPLOYMENT.md)), puis republier l'agent et synchroniser | joueur |
 | Agent sur les autres PC : copier `AltBoardSync.exe`, créer un jeton par PC | joueur |
 | Pousser le dépôt vers un dépôt distant et déclarer la pile dans Komodo | à décider |
 | Fusionner `feat/v1-pipeline` dans `main` | à décider |

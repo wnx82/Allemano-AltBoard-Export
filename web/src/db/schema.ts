@@ -312,6 +312,28 @@ export const characterLevelTimes = pgTable(
   ],
 );
 
+// Une session de jeu (Allemano Ledger), identifiée par son début. duration_seconds est le temps
+// connecté, pauses exclues. in_progress : session encore ouverte au dernier relevé, donc valeurs
+// provisoires. L'addon ne garde que 50 sessions : ici elles s'accumulent sans limite.
+export const characterSessions = pgTable(
+  "character_sessions",
+  {
+    characterId: characterId(),
+    startedAt: ts("started_at").notNull(),
+    stoppedAt: ts("stopped_at"),
+    durationSeconds: integer("duration_seconds"),
+    xpGained: integer("xp_gained"),
+    levels: smallint("levels"),
+    zone: text("zone"),
+    tag: text("tag"),
+    inProgress: boolean("in_progress").notNull().default(false),
+  },
+  (t) => [
+    primaryKey({ columns: [t.characterId, t.startedAt] }),
+    check("character_sessions_values_check", sql`${t.durationSeconds} >= 0 and ${t.xpGained} >= 0 and ${t.levels} >= 0`),
+  ],
+);
+
 // ---------------------------------------------------------------------------
 // Journal des synchronisations
 // ---------------------------------------------------------------------------
@@ -374,6 +396,8 @@ export const characterSnapshots = pgTable(
     snapshotHash: text("snapshot_hash").notNull(),
     level: smallint("level"),
     xp: integer("xp"),
+    // Expérience du niveau : sans elle, xp ne se compare pas d'un niveau à l'autre.
+    xpMax: integer("xp_max"),
     moneyCopper: bigint("money_copper", { mode: "number" }),
     itemLevel: doublePrecision("item_level"),
     restedXp: integer("rested_xp"),

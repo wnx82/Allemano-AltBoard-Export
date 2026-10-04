@@ -59,6 +59,9 @@ public sealed record CharacterPayload
 
     /// <summary>Temps de jeu relevé par l'addon Allemano Ledger ; absent si l'addon n'est pas installé.</summary>
     public PlaytimePayload? Playtime { get; init; }
+
+    /// <summary>Sessions de jeu relevées par l'addon Allemano Ledger ; absent si l'addon n'en a enregistré aucune.</summary>
+    public IReadOnlyList<SessionPayload>? Sessions { get; init; }
 }
 
 public sealed record StatsPayload
@@ -111,6 +114,12 @@ public sealed record CurrentLevelPayload(int Level, int? StartTotalSeconds, long
 
 /// <summary>Un niveau terminé. PlayedSeconds est absent quand plusieurs niveaux ont été gagnés d'un coup.</summary>
 public sealed record LevelTimePayload(int Level, int? PlayedSeconds, int? WallSeconds, long? ReachedAt, string? Zone);
+
+/// <summary>
+/// Une session de jeu, identifiée par son début. DurationSeconds est le temps connecté, pauses exclues.
+/// InProgress : session encore ouverte quand le jeu a écrit le fichier, donc valeurs provisoires.
+/// </summary>
+public sealed record SessionPayload(long StartedAt, long? StoppedAt, int? DurationSeconds, int? XpGained, int? Levels, string? Zone, string? Tag, bool InProgress);
 
 public sealed record ItemPayload(string Key, int ItemId, int? SuffixId, string? Name, int? Quality, int? Icon, string? Link);
 

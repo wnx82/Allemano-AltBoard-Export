@@ -98,6 +98,15 @@ export function progressPercent(current: number | null, max: number | null): num
   return Math.max(0, Math.min(100, Math.round((current / max) * 100)));
 }
 
+/**
+ * Niveau avec la part d'expérience acquise : 26,84 = niveau 26 à 84 %. Sans expérience connue, le
+ * niveau seul. La part reste sous 1 : un niveau n'est franchi que par le jeu.
+ */
+export function fractionalLevel(level: number, xp: number | null, xpMax: number | null): number {
+  if (xp === null || xpMax === null || xpMax <= 0) return level;
+  return level + Math.max(0, Math.min(0.99, xp / xpMax));
+}
+
 const dateTime = new Intl.DateTimeFormat("fr-BE", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Brussels" });
 
 export function formatDateTime(date: Date | string | null): string {

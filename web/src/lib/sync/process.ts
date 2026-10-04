@@ -294,7 +294,7 @@ async function applyAccount(tx: Transaction, account: AccountPayload, scope: Sco
         .returning({ id: t.characters.id });
       characterId = created.id;
       await replaceDetails(tx, characterId, character, { stats: true, bags: true, bank: true });
-      await applyPlaytime(tx, characterId, character);
+      await applyLedger(tx, characterId, character);
       counters.created++;
       counters.snapshots += await addSnapshot(tx, characterId, character, scope);
     } else {
@@ -302,7 +302,7 @@ async function applyAccount(tx: Transaction, account: AccountPayload, scope: Sco
       if (lastSeen.getTime() < known.sourceLastSeenAt.getTime()) {
         // Ce PC détient un fichier plus ancien que l'état déjà connu : on ne régresse pas.
         // Ses temps par niveau restent utiles : ils ont pu être relevés sur ce PC seulement.
-        await applyPlaytime(tx, characterId, character);
+        await applyLedger(tx, characterId, character);
         counters.stale++;
       } else if (hash === known.contentHash) {
         counters.unchanged++;
@@ -328,7 +328,7 @@ async function applyAccount(tx: Transaction, account: AccountPayload, scope: Sco
           })
           .where(eq(t.characters.id, characterId));
         await replaceDetails(tx, characterId, character, blocks);
-        await applyPlaytime(tx, characterId, character);
+        await applyLedger(tx, characterId, character);
         counters.updated++;
         if (lastSnapshotHash.get(characterId) !== snapshotHash(character)) {
           counters.snapshots += await addSnapshot(tx, characterId, character, scope);
@@ -495,6 +495,12 @@ async function replaceDetails(tx: Transaction, characterId: number, character: C
   }
 }
 
+/** Données de l'addon Allemano Ledger : appliquées même quand le fichier AltBoard est en retard. */
+async function applyLedger(tx: Transaction, characterId: number, character: CharacterPayload): Promise<void> {
+  await applyPlaytime(tx, characterId, character);
+  await applySessions(tx, characterId, character);
+}
+
 /**
  * Temps de jeu (Allemano Ledger). Les niveaux terminés sont des faits acquis : ils s'ajoutent et ne
  * sont jamais retirés, chaque PC ne connaissant que les niveaux gagnés chez lui. Le total et le
@@ -549,6 +555,48 @@ async function applyPlaytime(tx: Transaction, characterId: number, character: Ch
   }
 }
 
+/**
+ * Sessions de jeu (Allemano Ledger), identifiées par leur début. Elles s'ajoutent et ne sont jamais
+ * retirées : l'addon n'en garde que 50, et chaque PC ne connaît que les siennes. Une session
+ * terminée remplace sa version provisoire. Une version provisoire n'en remplace une autre que si
+ * elle est au moins aussi récente, et ne remplace jamais une session terminée.
+ */
+async function applySessions(tx: Transaction, characterId: number, character: CharacterPayload): Promise<void> {
+  const sessions = uniqueBy(character.sessions ?? [], (entry) => entry.startedAt);
+  if (sessions.length === 0) return;
+
+  const stored = t.characterSessions;
+  await tx
+    .insert(stored)
+    .values(
+      sessions.map((entry) => ({
+        characterId,
+        startedAt: fromUnix(entry.startedAt),
+        stoppedAt: entry.stoppedAt === undefined ? null : fromUnix(entry.stoppedAt),
+        durationSeconds: entry.durationSeconds ?? null,
+        xpGained: entry.xpGained ?? null,
+        levels: entry.levels ?? null,
+        zone: entry.zone ?? null,
+        tag: entry.tag ?? null,
+        inProgress: entry.inProgress,
+      })),
+    )
+    .onConflictDoUpdate({
+      target: [stored.characterId, stored.startedAt],
+      // Une valeur connue n'est jamais remplacée par une absence.
+      set: {
+        stoppedAt: sql`coalesce(excluded.stopped_at, ${stored.stoppedAt})`,
+        durationSeconds: sql`coalesce(excluded.duration_seconds, ${stored.durationSeconds})`,
+        xpGained: sql`coalesce(excluded.xp_gained, ${stored.xpGained})`,
+        levels: sql`coalesce(excluded.levels, ${stored.levels})`,
+        zone: sql`coalesce(excluded.zone, ${stored.zone})`,
+        tag: sql`coalesce(excluded.tag, ${stored.tag})`,
+        inProgress: sql`excluded.in_progress`,
+      },
+      setWhere: sql`not excluded.in_progress or (${stored.inProgress} and (${stored.stoppedAt} is null or excluded.stopped_at >= ${stored.stoppedAt}))`,
+    });
+}
+
 /** Renvoie 1 si un snapshot a été créé, 0 s'il existait déjà pour cet instant (synchronisation rejouée). */
 async function addSnapshot(tx: Transaction, characterId: number, character: CharacterPayload, scope: Scope): Promise<number> {
   const inserted = await tx
@@ -561,6 +609,7 @@ async function addSnapshot(tx: Transaction, characterId: number, character: Char
       snapshotHash: snapshotHash(character),
       level: character.level ?? null,
       xp: character.xp ?? null,
+      xpMax: character.xpMax ?? null,
       moneyCopper: character.moneyCopper ?? null,
       itemLevel: character.itemLevel ?? null,
       restedXp: character.restedXp ?? null,

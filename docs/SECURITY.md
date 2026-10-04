@@ -3,7 +3,8 @@
 ## Ce qui n'est jamais collecté
 
 L'agent ne lit que deux fichiers par compte : `SavedVariables\AltBoard.lua` et, s'il existe,
-`SavedVariables\AllemanoLedger.lua` (temps de jeu seulement : ni or, ni sessions, ni historique).
+`SavedVariables\AllemanoLedger.lua` (temps de jeu et sessions : dates, durée, expérience ; l'or de
+l'addon et son détail ne sont pas lus).
 Il ne lit ni identifiants Battle.net, ni mot de passe, ni jeton de session du jeu, et n'envoie
 aucun chemin de fichier.
 
@@ -11,7 +12,7 @@ aucun chemin de fichier.
 |---|---|
 | Nom du dossier de compte (`WTF\Account\<COMPTE>`) | jamais transmis : empreinte SHA-256 + libellé masqué (`12…#1`) |
 | Nom d'hôte du PC | transmis, informatif |
-| Noms de personnage, guildes, or, équipement, temps de jeu | transmis : c'est l'objet du tableau de bord |
+| Noms de personnage, guildes, or, équipement, temps de jeu, sessions | transmis : c'est l'objet du tableau de bord |
 
 L'empreinte du compte est une **pseudonymisation**, pas un secret : elle évite d'afficher ou de
 stocker l'identifiant réel, mais resterait retrouvable par force brute par quiconque lirait la base.

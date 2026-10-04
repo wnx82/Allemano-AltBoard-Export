@@ -145,6 +145,9 @@ export async function getOverview(db: Database): Promise<Overview> {
   };
 }
 
+/** Sessions de jeu lues pour une fiche : les plus récentes. */
+export const SESSIONS_SHOWN = 100;
+
 export async function getCharacterDetail(db: Database, id: number) {
   const [character] = await db
     .select({
@@ -163,7 +166,7 @@ export async function getCharacterDetail(db: Database, id: number) {
     .where(eq(t.characters.id, id));
   if (!character) return null;
 
-  const [stats, professions, equipment, reputations, currencies, items, snapshots, playtime, levelTimes] = await Promise.all([
+  const [stats, professions, equipment, reputations, currencies, items, snapshots, playtime, levelTimes, sessions] = await Promise.all([
     db.select().from(t.characterStats).where(eq(t.characterStats.characterId, id)),
     db.select().from(t.characterProfessions).where(eq(t.characterProfessions.characterId, id)).orderBy(asc(t.characterProfessions.position)),
     db.select().from(t.characterEquipment).where(eq(t.characterEquipment.characterId, id)).orderBy(asc(t.characterEquipment.slot)),
@@ -193,6 +196,12 @@ export async function getCharacterDetail(db: Database, id: number) {
       .limit(200),
     db.select().from(t.characterPlaytime).where(eq(t.characterPlaytime.characterId, id)),
     db.select().from(t.characterLevelTimes).where(eq(t.characterLevelTimes.characterId, id)).orderBy(asc(t.characterLevelTimes.level)),
+    db
+      .select()
+      .from(t.characterSessions)
+      .where(eq(t.characterSessions.characterId, id))
+      .orderBy(desc(t.characterSessions.startedAt))
+      .limit(SESSIONS_SHOWN),
   ]);
 
   return {
@@ -213,6 +222,8 @@ export async function getCharacterDetail(db: Database, id: number) {
     snapshots: snapshots.reverse(),
     playtime: playtime[0] ?? null,
     levelTimes,
+    // De la plus ancienne à la plus récente.
+    sessions: sessions.reverse(),
   };
 }
 

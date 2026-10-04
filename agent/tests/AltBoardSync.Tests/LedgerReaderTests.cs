@@ -9,18 +9,18 @@ namespace AltBoardSync.Tests;
 
 public class LedgerReaderTests
 {
-    private static IReadOnlyDictionary<string, PlaytimePayload> Read(string lua, List<string>? warnings = null) =>
+    private static IReadOnlyDictionary<string, LedgerCharacter> Read(string lua, List<string>? warnings = null) =>
         LedgerReader.Read(SavedVariablesParser.Parse(lua), warnings ?? []);
 
     [Fact]
     public void Playtime_is_read_per_character()
     {
-        var playtimes = LedgerReader.Read(Fixture.Parse("ledger-two-characters.lua"), []);
+        var ledger = LedgerReader.Read(Fixture.Parse("ledger-two-characters.lua"), []);
 
         // Un personnage sans aucune mesure n'est pas transmis.
-        Assert.Equal(["Player-9999-00000002", "Player-9999-00000009", "Player-9999-000000EE"], playtimes.Keys.Order(StringComparer.Ordinal));
+        Assert.Equal(["Player-9999-00000002", "Player-9999-00000009", "Player-9999-000000EE"], ledger.Keys.Order(StringComparer.Ordinal));
 
-        var hunter = playtimes["Player-9999-00000002"];
+        var hunter = ledger["Player-9999-00000002"].Playtime!;
         Assert.Equal((36000, 1791118570L), (hunter.TotalSeconds, hunter.MeasuredAt));
         Assert.Equal(new CurrentLevelPayload(12, 33300, 1791100000), hunter.Current);
         Assert.Equal(
@@ -31,7 +31,7 @@ public class LedgerReaderTests
             ],
             hunter.Levels);
 
-        var warlock = playtimes["Player-9999-00000009"];
+        var warlock = ledger["Player-9999-00000009"].Playtime!;
         Assert.Equal(new CurrentLevelPayload(13, 52200, null), warlock.Current);
         Assert.Empty(warlock.Levels);
     }
@@ -62,7 +62,7 @@ public class LedgerReaderTests
                 [7] = "pas une table",
               },
             } } }
-            """)["Player-1-A"];
+            """)["Player-1-A"].Playtime!;
 
         Assert.Null(playtime.TotalSeconds);
         Assert.Null(playtime.Current);
@@ -72,11 +72,76 @@ public class LedgerReaderTests
     [Fact]
     public void A_total_without_its_date_is_not_sent()
     {
-        var playtime = Read("""AllemanoLedgerDB = { chars = { ["Player-1-A"] = { played = { total = 500 }, levelLog = { [3] = { played = 60 } } } } }""")["Player-1-A"];
+        var playtime = Read("""AllemanoLedgerDB = { chars = { ["Player-1-A"] = { played = { total = 500 }, levelLog = { [3] = { played = 60 } } } } }""")["Player-1-A"].Playtime!;
 
         Assert.Null(playtime.TotalSeconds);
         Assert.Null(playtime.MeasuredAt);
         Assert.Single(playtime.Levels);
+    }
+
+    [Fact]
+    public void Sessions_are_read_oldest_first_and_the_open_one_is_flagged()
+    {
+        var ledger = LedgerReader.Read(Fixture.Parse("ledger-two-characters.lua"), []);
+
+        Assert.Equal(
+            [
+                new SessionPayload(1791040000, 1791050400, 9000, 12400, 2, "Dun Morogh", "Dungeon", false),
+                new SessionPayload(1791090000, 1791097200, 6900, 8200, 1, "Loch Modan", "Leveling", false),
+                // Session ouverte : temps connecté = connexions précédentes (1200 s) + connexion courante (3570 s).
+                new SessionPayload(1791110000, 1791118570, 4770, 5300, 1, "Loch Modan", "Leveling", true),
+            ],
+            // Le « run » d'instance (kind = "run") n'est pas une session : il recoupe celle qui le contient.
+            ledger["Player-9999-00000002"].Sessions);
+
+        // En pause : le temps connecté est figé ; l'étiquette choisie par le joueur prime sur l'automatique.
+        Assert.Equal([new SessionPayload(1791095000, 1791097693, 900, 0, 0, null, "Farming", true)], ledger["Player-9999-00000009"].Sessions);
+        Assert.Empty(ledger["Player-9999-000000EE"].Sessions);
+    }
+
+    [Fact]
+    public void Malformed_sessions_are_dropped_and_bad_values_are_left_out()
+    {
+        var sessions = Read("""
+            AllemanoLedgerDB = { chars = { ["Player-1-A"] = {
+              history = {
+                { start = 1791000300, stop = 1791000900, duration = -5, xpGained = "beaucoup", levels = 99999, zone = 42, tag = 7 },
+                { stop = 1791000200, duration = 60, xpGained = 10 },
+                { start = "hier", duration = 60 },
+                "pas une table",
+                { start = 1791000100, stop = 1791000200, duration = 100, xpGained = 50, levels = 0 },
+              },
+              current = { start = 1791000100, lastSeen = 1791009999, xpGained = 999, level = 3, startLevel = 5 },
+            } } }
+            """)["Player-1-A"].Sessions;
+
+        Assert.Equal(
+            [
+                // Même début que la session en cours : la session terminée fait foi.
+                new SessionPayload(1791000100, 1791000200, 100, 50, 0, null, null, false),
+                new SessionPayload(1791000300, 1791000900, null, null, null, null, null, false),
+            ],
+            sessions);
+    }
+
+    [Fact]
+    public void An_open_session_without_usable_dates_keeps_what_is_known()
+    {
+        var session = Assert.Single(Read("""AllemanoLedgerDB = { chars = { ["Player-1-A"] = { current = { start = 1791000100, xpGained = 40, level = 3, startLevel = 5 } } } }""")["Player-1-A"].Sessions);
+
+        // Ni dernière activité ni niveaux cohérents : durée et niveaux restent inconnus plutôt qu'inventés.
+        Assert.Equal(new SessionPayload(1791000100, null, null, 40, null, null, null, true), session);
+    }
+
+    [Fact]
+    public void Only_the_most_recent_sessions_are_kept()
+    {
+        var entries = string.Join(",", Enumerable.Range(0, 70).Select(i => $"{{ start = {1791000000 + i * 1000}, duration = 600, xpGained = {i} }}"));
+
+        var sessions = Read("AllemanoLedgerDB = { chars = { [\"Player-1-A\"] = { history = { " + entries + " } } } }")["Player-1-A"].Sessions;
+
+        Assert.Equal(60, sessions.Count);
+        Assert.Equal((10, 69), (sessions[0].XpGained, sessions[^1].XpGained));
     }
 
     [Fact]
@@ -96,6 +161,7 @@ public class LedgerReaderTests
         var withLedger = (await builder.ReadAccountAsync(sources[1])).Payload!;
 
         Assert.All(withoutLedger.Characters, c => Assert.Null(c.Playtime));
+        Assert.All(withoutLedger.Characters, c => Assert.Null(c.Sessions));
         Assert.Empty(withLedger.Warnings);
         // Les personnages inconnus d'AltBoard ne sont pas ajoutés : seul le temps de jeu est repris.
         Assert.Equal(2, withLedger.Characters.Count);
@@ -108,7 +174,19 @@ public class LedgerReaderTests
         Assert.Equal(12, playtime.GetProperty("current").GetProperty("level").GetInt32());
         Assert.Equal(2, playtime.GetProperty("levels").GetArrayLength());
         Assert.False(playtime.GetProperty("levels")[1].TryGetProperty("playedSeconds", out _));
-        Assert.False(JsonDocument.Parse(JsonSerializer.Serialize(withoutLedger.Characters[0], SyncJsonContext.Default.CharacterPayload)).RootElement.TryGetProperty("playtime", out _));
+        var sessions = json.RootElement.GetProperty("sessions");
+        Assert.Equal(3, sessions.GetArrayLength());
+        Assert.Equal(
+            (1791110000L, 4770, 5300, true),
+            (sessions[2].GetProperty("startedAt").GetInt64(), sessions[2].GetProperty("durationSeconds").GetInt32(), sessions[2].GetProperty("xpGained").GetInt32(), sessions[2].GetProperty("inProgress").GetBoolean()));
+        Assert.False(sessions[0].GetProperty("inProgress").GetBoolean());
+        // Champ sans valeur : omis, jamais null.
+        using var warlock = JsonDocument.Parse(JsonSerializer.Serialize(withLedger.Characters[1], SyncJsonContext.Default.CharacterPayload));
+        Assert.False(warlock.RootElement.GetProperty("sessions")[0].TryGetProperty("zone", out _));
+
+        using var bare = JsonDocument.Parse(JsonSerializer.Serialize(withoutLedger.Characters[0], SyncJsonContext.Default.CharacterPayload));
+        Assert.False(bare.RootElement.TryGetProperty("playtime", out _));
+        Assert.False(bare.RootElement.TryGetProperty("sessions", out _));
     }
 
     [Fact]
@@ -125,6 +203,7 @@ public class LedgerReaderTests
         Assert.True(result.Succeeded);
         Assert.Equal(2, result.Payload!.Characters.Count);
         Assert.All(result.Payload.Characters, c => Assert.Null(c.Playtime));
+        Assert.All(result.Payload.Characters, c => Assert.Null(c.Sessions));
         Assert.Contains(result.Payload.Warnings, w => w.StartsWith("Allemano Ledger illisible"));
     }
 }

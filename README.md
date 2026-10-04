@@ -50,8 +50,8 @@ dotnet run --project src/AltBoardSync -- sync
 ## Vérifications
 
 ```bash
-cd agent && dotnet test                               # 117 tests
-cd web && npm run typecheck && npm run lint && npm test && npm run build   # 64 tests
+cd agent && dotnet test                               # 121 tests
+cd web && npm run typecheck && npm run lint && npm test && npm run build   # 77 tests
 ```
 
 Les tests web vident la base `wow_altboard_test`. Le code refuse toute base dont le nom ne commence
@@ -64,7 +64,7 @@ pas par `wow_altboard` : voir `web/src/db/env.ts`.
 | [ROADMAP](docs/ROADMAP.md) | État d'avancement, phase par phase |
 | [ARCHITECTURE](docs/ARCHITECTURE.md) | Composants, flux, décisions |
 | [ALTBOARD-DATA-MODEL](docs/ALTBOARD-DATA-MODEL.md) | Structure réellement observée de `AltBoardDB` |
-| [LEDGER-DATA-MODEL](docs/LEDGER-DATA-MODEL.md) | Temps de jeu par niveau, issu de l'addon Allemano Ledger |
+| [LEDGER-DATA-MODEL](docs/LEDGER-DATA-MODEL.md) | Temps de jeu par niveau et sessions, issus de l'addon Allemano Ledger |
 | [DATABASE](docs/DATABASE.md) | Schéma PostgreSQL, identifiants, snapshots |
 | [API](docs/API.md) | Contrat de `POST /api/sync` et des autres routes |
 | [AGENT](docs/AGENT.md) | Installation, commandes, automatisation future |

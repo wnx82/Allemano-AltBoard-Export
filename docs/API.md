@@ -59,7 +59,11 @@ Reçoit l'état AltBoard d'une machine.
             "totalSeconds": 171000, "measuredAt": 1791118113,
             "current": { "level": 25, "startTotalSeconds": 162400, "startedAt": 1791031713 },
             "levels": [{ "level": 24, "playedSeconds": 18300, "wallSeconds": 58320, "reachedAt": 1791031713, "zone": "Les Paluns" }]
-          }
+          },
+          "sessions": [
+            { "startedAt": 1791090000, "stoppedAt": 1791097200, "durationSeconds": 6900, "xpGained": 8200, "levels": 1, "zone": "Loch Modan", "tag": "Leveling", "inProgress": false },
+            { "startedAt": 1791110000, "stoppedAt": 1791118570, "durationSeconds": 4770, "xpGained": 5300, "levels": 1, "zone": "Loch Modan", "tag": "Leveling", "inProgress": true }
+          ]
         }
       ]
     }
@@ -76,10 +80,13 @@ Règles :
 - `bank` et `bags` sont absents tant que l'addon ne les a jamais datés ;
 - `playtime` est absent sans l'addon Allemano Ledger ([LEDGER-DATA-MODEL](LEDGER-DATA-MODEL.md)).
   `levels[].level` est le niveau quitté ; `playedSeconds` est omis quand plusieurs niveaux ont été
-  gagnés d'un coup. Au plus 200 niveaux par personnage.
+  gagnés d'un coup. Au plus 200 niveaux par personnage ;
+- `sessions` est absent quand Allemano Ledger n'en a enregistré aucune. `startedAt` identifie la
+  session ; `durationSeconds` est le temps connecté, pauses exclues ; `inProgress` signale une
+  session encore ouverte, aux valeurs provisoires. Au plus 60 sessions par personnage.
 
-Compatibilité : `playtime` est un ajout facultatif à la version 1. Les objets étant stricts, un
-serveur antérieur refuserait un document qui le contient : **le serveur se met à jour avant les
+Compatibilité : `playtime` et `sessions` sont des ajouts facultatifs à la version 1. Les objets étant
+stricts, un serveur antérieur refuserait un document qui les contient : **le serveur se met à jour avant les
 agents**. Un agent antérieur reste accepté par le nouveau serveur.
 
 Le schéma complet, avec ses bornes, est `web/src/lib/sync/schema.ts` ; son miroir côté agent est

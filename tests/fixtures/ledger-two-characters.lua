@@ -34,6 +34,57 @@ AllemanoLedgerDB = {
 },
 },
 ["history"] = {
+{
+["start"] = 1791090000,
+["stop"] = 1791097200,
+["duration"] = 6900,
+["money"] = 1250,
+["net"] = 1250,
+["inc"] = {
+["loot"] = 1250,
+},
+["exp"] = {
+},
+["lootValue"] = 0,
+["tag"] = "Leveling",
+["zone"] = "Loch Modan",
+["xpGained"] = 8200,
+["levels"] = 1,
+}, -- [1]
+{
+["kind"] = "run",
+["start"] = 1791060000,
+["stop"] = 1791062400,
+["duration"] = 2400,
+["xpGained"] = 3100,
+["levels"] = 0,
+["tag"] = "Dungeon",
+["zone"] = "Les Mortemines",
+}, -- [2]
+{
+["start"] = 1791040000,
+["stop"] = 1791050400,
+["duration"] = 9000,
+["tag"] = "Dungeon",
+["zone"] = "Dun Morogh",
+["xpGained"] = 12400,
+["levels"] = 2,
+}, -- [3]
+},
+["current"] = {
+["start"] = 1791110000,
+["lastSeen"] = 1791118570,
+["active"] = 1200,
+["stintStart"] = 1791115000,
+["startLevel"] = 11,
+["level"] = 12,
+["xp"] = 2100,
+["xpMax"] = 10100,
+["xpGained"] = 5300,
+["autoTag"] = "Leveling",
+["zone"] = "Loch Modan",
+["startMoney"] = 200,
+["money"] = 389,
 },
 ["days"] = {
 },
@@ -51,6 +102,18 @@ AllemanoLedgerDB = {
 ["playedTotal"] = 52200,
 },
 ["levelLog"] = {
+},
+["current"] = {
+["start"] = 1791095000,
+["lastSeen"] = 1791097693,
+["active"] = 900,
+["stintStart"] = 1791096000,
+["paused"] = true,
+["startLevel"] = 13,
+["level"] = 13,
+["xpGained"] = 0,
+["tag"] = "Farming",
+["autoTag"] = "Leveling",
 },
 },
 ["Player-9999-000000EE"] = {

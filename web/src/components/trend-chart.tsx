@@ -2,7 +2,8 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 
-export type TrendPoint = { at: string; value: number; label: string; dateLabel: string };
+/** valueLabel : valeur courte posée au bout de la courbe ; à défaut, la valeur au format des graduations. */
+export type TrendPoint = { at: string; value: number; label: string; dateLabel: string; valueLabel?: string };
 
 type Props = {
   title: string;
@@ -129,7 +130,7 @@ export function TrendChart({ title, points, series }: Props) {
           ))}
           {/* Valeur courante, directement au bout de la courbe. */}
           <text className="trend-value" x={last.x + 10} y={last.y} dominantBaseline="middle">
-            {formatTick(points[points.length - 1].value)}
+            {points[points.length - 1].valueLabel ?? formatTick(points[points.length - 1].value)}
           </text>
 
           {/* Zone de survol : plus large que les marques, elle vise le point le plus proche. */}
