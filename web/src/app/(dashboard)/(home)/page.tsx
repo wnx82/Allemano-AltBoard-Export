@@ -25,7 +25,13 @@ export default async function CharactersPage() {
           <p className="eyebrow text-gold">World of Warcraft</p>
           <h1 className="display mt-1 text-3xl font-bold sm:text-4xl">Mes personnages</h1>
         </div>
-        <p className="text-sm text-muted">
+        <p className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted">
+          {characters.length > 0 && (
+            // Lien de téléchargement : la route d'API n'est pas une page, d'où l'ancre simple.
+            <a className="button" href={`${process.env.WOW_BASE_PATH ?? ""}/api/export/xlsx`} download>
+              Exporter en Excel
+            </a>
+          )}
           {overview.lastSync ? (
             <>
               Dernière synchronisation{" "}

@@ -310,7 +310,7 @@ function CharacterCard({ character, now }: { character: CharacterListItem; now: 
         <ClassAvatar name={character.name} classToken={character.class} />
         <div className="min-w-0 flex-1">
           <h3 className="display truncate text-lg font-bold leading-tight class-text" title={character.name}>
-            <Link href={`/characters/${character.id}`} className="after:absolute after:inset-0 after:z-10 focus-visible:outline-none">
+            <Link href={`/characters/${character.id}`} prefetch={false} className="after:absolute after:inset-0 after:z-10 focus-visible:outline-none">
               {character.name}
             </Link>
           </h3>
@@ -402,7 +402,7 @@ function CharacterTable({ characters, now }: { characters: CharacterListItem[]; 
           {characters.map((character) => (
             <tr key={character.id} data-class={classKey(character.class)}>
               <td>
-                <Link href={`/characters/${character.id}`} className="flex items-center gap-3 font-semibold class-text hover:underline">
+                <Link href={`/characters/${character.id}`} prefetch={false} className="flex items-center gap-3 font-semibold class-text hover:underline">
                   <ClassAvatar name={character.name} classToken={character.class} size="sm" />
                   <span className="max-w-56 truncate" title={character.name}>
                     {character.name}
