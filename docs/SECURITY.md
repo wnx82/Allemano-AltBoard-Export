@@ -70,7 +70,7 @@ n'est pas appelée depuis un navigateur tiers.
 
 ## Base de données
 
-- Base et rôles dédiés ; le rôle applicatif n'a aucun droit hors de `wow_altboard`.
+- Base et rôle dédiés ; le rôle n'a accès à aucune base d'un autre projet (vérifié en production).
 - Le code refuse toute connexion vers une base étrangère au projet (`web/src/db/env.ts`).
 - Les tests ne tournent que sur `wow_altboard*_test`.
 
@@ -98,4 +98,6 @@ Utilisateur non privilégié, système de fichiers en lecture seule, toutes capa
 | Limitation de débit en mémoire | remise à zéro au redémarrage ; non partagée entre instances | Redis partagé si l'application passe à plusieurs instances |
 | Un seul niveau d'accès | tout compte du tableau de bord voit tout et gère les jetons | rôles, si d'autres personnes y accèdent |
 | Pas de second facteur | la protection repose sur le mot de passe et la limitation des tentatives | accès restreint en amont (Cloudflare Access) ou TOTP |
-| Identité du client derrière le proxy | dépend de `WOW_TRUSTED_IP_HEADER` ; sans lui, tous les clients partagent le même compteur | à régler au déploiement |
+| Identité du client derrière le proxy | `X-Real-Ip`, posé par Traefik (domaine non proxifié par Cloudflare) | passer à `cf-connecting-ip` seulement si le domaine est proxifié et l'origine fermée |
+| En-têtes du proxy | la chaîne Traefik commune remplace `X-Frame-Options` (`SAMEORIGIN`) et `Referrer-Policy` | l'encadrement reste interdit par `frame-ancestors 'none'` |
+| Un seul rôle de base | le rôle applicatif est aussi propriétaire du schéma (convention de l'hôte) | séparer migration et application si le besoin apparaît |

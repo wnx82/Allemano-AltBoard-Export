@@ -3,8 +3,6 @@
 Statuts : ⬜ À faire · 🟡 En cours · ✅ Validé · 🔴 Bloqué
 
 Une étape n'est ✅ que si elle est implémentée, testée et vérifiée sur un résultat réel.
-« Local » désigne le poste de développement : agent réel, fichiers `AltBoard.lua` réels,
-PostgreSQL 17 en Docker, application en mode production.
 
 Dernière mise à jour : 2026-10-04.
 
@@ -12,10 +10,15 @@ Dernière mise à jour : 2026-10-04.
 
 | | |
 |---|---|
-| Chaîne complète en local, sur fichiers réels | ✅ |
-| Mise en production (`wow.ekreativ.be`) | ⬜ en attente d'accord : création de base, DNS, Traefik |
-| Recette après une vraie modification en jeu | ⬜ à faire par le joueur (`/reload` puis `sync`) |
-| Tests automatisés | 111 (agent) + 53 (web), tous verts |
+| En production sur `https://wow.ekreativ.be` | ✅ depuis le 2026-10-04 |
+| Chaîne complète PC → agent → HTTPS → PostgreSQL → tableau de bord | ✅ sur les fichiers réels (2 comptes, 6 personnages) |
+| Recette après une vraie modification en jeu | ⬜ à faire par le joueur : jouer, `/reload`, `AltBoardSync.exe sync` |
+| Compte personnel d'accès au tableau de bord | ⬜ à créer par le joueur (mot de passe saisi sur le serveur) |
+| Tests automatisés | 111 (agent) + 54 (web), tous verts |
+
+Le critère de réussite de la V1 est rempli jusqu'à l'étape 5 (personnage vérifié dans le fichier, la
+base et la page). Les étapes 6 à 10 — modifier une donnée en jeu, resynchroniser, constater la mise
+à jour sans doublon — demandent une action en jeu et restent à faire.
 
 ## P0 — Analyse
 
@@ -25,7 +28,7 @@ Dernière mise à jour : 2026-10-04.
 | Environnement | ✅ | idem |
 | `AltBoard.lua` | ✅ | 2 fichiers réels, 6 personnages |
 | `AltBoardDB` | ✅ | [ALTBOARD-DATA-MODEL](ALTBOARD-DATA-MODEL.md), source de l'addon lu |
-| PostgreSQL | 🔴 | inventaire de production refusé par le garde-fou de la session ; instance locale utilisée à la place |
+| PostgreSQL | ✅ | inventaire de l'instance de production : 27 bases, PostgreSQL 17.10, PgBouncer en mode transaction |
 
 **Checkpoint A** ✅ — machine, compte, royaume et personnage identifiables sans ambiguïté.
 
@@ -43,13 +46,15 @@ Dernière mise à jour : 2026-10-04.
 
 | Étape | Statut | Note |
 |---|---|---|
-| Base dédiée | 🟡 | ✅ en local ; ⬜ en production |
-| Migrations | ✅ | appliquées en local, y compris depuis l'image Docker |
-| Contraintes | ✅ | vérifiées dans l'instance et par tests |
+| Base dédiée | ✅ | `wow_altboard`, créée par l'outil de l'hôte (`pgdb`) |
+| Migrations | ✅ | appliquées depuis l'image, en local et en production |
+| Contraintes | ✅ | vérifiées dans les deux instances |
 | Index essentiels | ✅ | |
-| Validation dans l'instance de production | ⬜ | [DEPLOYMENT § 4](DEPLOYMENT.md) |
+| Validation dans l'instance de production | ✅ | |
 
-**Checkpoint B** 🟡 — ✅ en local (19 tables, 19 PK, 19 FK, 8 UNIQUE, 5 CHECK) ; ⬜ en production.
+**Checkpoint B** ✅ — en production : 19 tables, 19 PK, 19 FK, 8 UNIQUE, 5 CHECK, 1 migration ; le
+rôle ne peut ni ouvrir une base d'un autre projet ni créer de base ; les 27 bases et 31 rôles
+préexistants sont identiques avant et après.
 
 ## P3 — Parser
 
@@ -72,7 +77,7 @@ parser indépendant : 6 personnages, 3 144 comparaisons, 0 écart.
 | Parsing | ✅ |
 | UUID de machine | ✅ |
 | Configuration | ✅ |
-| `sync` | ✅ en local ; ⬜ contre le serveur de production |
+| `sync` | ✅ contre la production, en HTTPS |
 
 ## P5 — API
 
@@ -85,8 +90,8 @@ parser indépendant : 6 personnages, 3 144 comparaisons, 0 écart.
 | Upsert | ✅ |
 | Idempotence | ✅ |
 
-**Checkpoint D** ✅ — même document envoyé dix fois (test) et fichiers réels synchronisés deux fois
-de suite : aucun doublon, 6 personnages inchangés.
+**Checkpoint D** ✅ — même document envoyé dix fois (test) ; en production, fichiers réels
+synchronisés deux fois de suite : 6 créés puis 6 inchangés, 6 GUID distincts pour 6 personnages.
 
 ## P6 — Tableau de bord
 
@@ -101,6 +106,9 @@ de suite : aucun doublon, 6 personnages inchangés.
 | Vue cartes / tableau mémorisée | ✅ |
 | Adaptation aux écrans (390 à 1920 px) | ✅ |
 
+Essais d'interface faits en local sur une base de test : 0, 1, 5, 20 et 50 personnages ; noms court,
+très long, accentué, à apostrophes, hors alphabet latin ; base injoignable.
+
 ## P7 — Personnage
 
 | Étape | Statut | Note |
@@ -111,10 +119,10 @@ de suite : aucun doublon, 6 personnages inchangés.
 | Monnaies | ✅ | |
 | Réputations | ✅ | |
 | Inventaire (sacs, banque, recherche) | ✅ | |
-| Historique | ✅ | vérifié sur un personnage de démonstration ; les personnages réels n'ont qu'un relevé |
+| Historique | 🟡 | courbes et changements vérifiés sur un personnage de démonstration en local ; en production chaque personnage n'a encore qu'un relevé |
 
-**Checkpoint E** 🟡 — ✅ en local : `AltBoard.lua` ↔ base (138 comparaisons) ↔ pages (122
-comparaisons), 0 écart sur les 6 personnages réels ; ⬜ à rejouer en production.
+**Checkpoint E** ✅ — en production : `AltBoard.lua` ↔ base (138 comparaisons) ↔ pages servies par
+`wow.ekreativ.be` (122 comparaisons), 0 écart sur les 6 personnages réels.
 
 ## P8 — Comptes et machines
 
@@ -140,24 +148,20 @@ comparaisons), 0 écart sur les 6 personnages réels ; ⬜ à rejouer en product
 | Jeton d'agent | ✅ | |
 | Validation | ✅ | |
 | Limitation de débit | ✅ | en mémoire : valable pour une instance unique |
-| Secrets | ✅ | aucun dans le dépôt |
-| En-têtes | ✅ | CSP à nonce vérifiée en mode production, sans violation |
+| Secrets | ✅ | aucun dans le dépôt ; en production, fichiers en `600` |
+| En-têtes | ✅ | CSP à nonce vérifiée en production, sans violation |
 
 ## P11 — Recette réelle
 
 | Étape | Statut | Note |
 |---|---|---|
-| PC réel | ✅ | local |
+| PC réel | ✅ | ce poste, agent installé |
 | Plusieurs comptes | ✅ | 2 |
 | Plusieurs personnages | ✅ | 6 |
 | Modifications réelles | ⬜ | aucune modification en jeu depuis la première synchronisation |
 | Nouvelle synchronisation | ✅ | sans changement : tout « inchangé » |
-| Contrôle de la base | ✅ | local |
-| Contrôle de l'interface | ✅ | local |
-| Le tout via HTTPS, en production | ⬜ | |
-
-Le critère de réussite de la V1 n'est donc **pas encore atteint** : il manque la mise en production
-et la recette après une vraie modification en jeu.
+| Contrôle de la base | ✅ | production |
+| Contrôle de l'interface | ✅ | production |
 
 ## P12 — Préparation de l'automatisation
 
@@ -170,20 +174,29 @@ et la recette après une vraie modification en jeu.
 
 Rien n'est implémenté ni activé : la commande `watch` répond qu'elle n'est pas disponible.
 
-## P13 — Préparation de `wow.ekreativ.be`
+## P13 — `wow.ekreativ.be`
 
 | Étape | Statut | Note |
 |---|---|---|
-| Configuration du domaine | ⬜ | DNS et Traefik |
+| Configuration du domaine | ✅ | DNS, routeur Traefik, certificat Let's Encrypt |
 | URLs configurables | ✅ | vérifié à la racine et sous `/wow` |
 | Authentification compatible | ✅ | cookie lié à l'hôte, aucun domaine en dur |
-| Documentation de migration | ✅ | [DEPLOYMENT](DEPLOYMENT.md) |
+| Documentation | ✅ | [DEPLOYMENT](DEPLOYMENT.md) |
+
+## Reste à faire
+
+| Quoi | Qui |
+|---|---|
+| Créer son compte d'accès (voir [DEPLOYMENT § Comptes et jetons](DEPLOYMENT.md)) | joueur |
+| Recette après une vraie modification en jeu | joueur |
+| Agent sur les autres PC : copier `AltBoardSync.exe`, créer un jeton par PC | joueur |
+| Pousser le dépôt vers un dépôt distant et déclarer la pile dans Komodo | à décider |
+| Fusionner `feat/v1-pipeline` dans `main` | à décider |
 
 ## Suite
 
 | Version | Contenu |
 |---|---|
-| V1 | mise en production, recette réelle |
 | V2 | `watch`, démarrage à l'ouverture de session, icône de zone de notification |
 | V3 | historique détaillé, comparaison des métiers, activité |
 | V4 | n8n, notifications, rapports |
@@ -196,5 +209,6 @@ Rien n'est implémenté ni activé : la commande `watch` répond qu'elle n'est p
 | Pages à la racine (`/`, `/characters/[id]`…) et non sous `/wow` | application autonome sur son sous-domaine ; le préfixe `/wow` reste disponible par configuration |
 | `.NET 10` au lieu de `.NET 8` | seul SDK installé ; exécutable autonome, donc sans effet sur les PC cibles |
 | Une table `character_items` au lieu de `character_inventory` + `character_bank` | même structure, un discriminant |
+| Un seul rôle PostgreSQL au lieu d'un rôle de migration et d'un rôle applicatif | convention de l'hôte : une base, un rôle par projet |
 | Pas de colonnes genre, région ; pas de tables quêtes, recettes | données absentes d'AltBoard |
 | Pas d'icônes d'objet | AltBoard ne fournit que des identifiants de fichier du jeu |

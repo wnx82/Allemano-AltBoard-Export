@@ -8,13 +8,15 @@
 | Environnement | État |
 |---|---|
 | PostgreSQL 17 local (Docker, `127.0.0.1:54329`) | ✅ migration appliquée et vérifiée dans l'instance |
-| Production (`pg-shared`, hôte contabo) | ⬜ rien créé — inventaire refusé par le garde-fou de la session, création en attente d'accord |
+| Production (`pg-shared`, hôte contabo) | ✅ base `wow_altboard` créée le 2026-10-04, migration appliquée et vérifiée dans l'instance |
 
 ## Isolation
 
 - Base dédiée **`wow_altboard`** ; aucune table dans une base ou un schéma existant.
-- Deux rôles : `wow_altboard_owner` (migrations) et `wow_altboard_app` (lecture et écriture des
-  données, rien d'autre).
+- Un rôle `wow_altboard`, propriétaire de sa seule base : c'est la convention de l'hôte (une base,
+  un rôle par projet, créés par `pgdb`). Il ne peut se connecter à aucune base d'un autre projet
+  ni créer de base ; comme tout rôle de l'instance, il peut ouvrir la base de maintenance `postgres`.
+- L'application passe par PgBouncer (mode transaction), les migrations par une connexion directe.
 - Garde-fou applicatif (`web/src/db/env.ts`) : toute connexion vers une base dont le nom ne commence
   pas par `wow_altboard` est refusée avant même d'ouvrir une socket ; les tests n'acceptent que
   `wow_altboard*_test`.
@@ -122,21 +124,22 @@ npm run db:migrate:test      # applique sur la base de test
 ```
 
 En production, depuis l'image : `docker compose run --rm web node migrate.mjs`.
+Ne jamais passer de `statement_timeout` (ni aucun autre paramètre de session) dans les options du
+pool : PgBouncer refuse les paramètres de démarrage hors de sa liste. Un test le vérifie.
 Les migrations passent en connexion directe, jamais par PgBouncer. Le suivi est tenu dans
 `drizzle.__drizzle_migrations`.
 
 ## Checkpoint B
 
-Vérifié dans l'instance locale (pas seulement dans les fichiers SQL) :
+Vérifié dans les instances, pas seulement dans les fichiers SQL :
 
-| Contrôle | Résultat |
-|---|---|
-| Tables présentes | 19 / 19, dans `wow_altboard` et `wow_altboard_test` |
-| Contraintes (`pg_constraint`) | 19 PK, 19 FK, 8 UNIQUE, 5 CHECK |
-| Suivi des migrations | 1 migration enregistrée |
-| Unicité, clés étrangères, validations, cascade, rollback | exercés par les tests d'intégration |
-| Migration depuis l'image Docker | 19 tables créées dans une base vierge |
-
-À refaire à l'identique en production après création de la base (voir [DEPLOYMENT](DEPLOYMENT.md)),
-en y ajoutant : le rôle applicatif ne peut ni lire ni écrire hors du projet, et les bases
-préexistantes sont inchangées.
+| Contrôle | Local | Production |
+|---|---|---|
+| Tables présentes | 19 / 19 | 19 / 19 |
+| Contraintes (`pg_constraint`) | 19 PK, 19 FK, 8 UNIQUE, 5 CHECK | identique |
+| Suivi des migrations | 1 migration | 1 migration |
+| Unicité, clés étrangères, validations, cascade, rollback | tests d'intégration | — |
+| Migration depuis l'image Docker | base vierge → 19 tables | base vierge → 19 tables |
+| Le rôle ne peut pas ouvrir les bases d'autres projets | — | refusé (`ekreativ`, `sysaudit`) |
+| Le rôle ne peut pas créer de base | — | refusé |
+| Bases et rôles préexistants inchangés | — | 27 bases et 31 rôles identiques avant et après |

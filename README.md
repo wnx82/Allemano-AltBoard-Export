@@ -3,6 +3,8 @@
 Centralise dans PostgreSQL les données de l'addon World of Warcraft **AltBoard** et les présente
 dans un tableau de bord web privé : tous les personnages de tous les comptes, depuis tous les PC.
 
+En production : **https://wow.ekreativ.be**
+
 ```text
 PC Windows ── AltBoardSync.exe sync ──► POST /api/sync ──► PostgreSQL ──► tableau de bord
    (WTF\Account\*\SavedVariables\AltBoard.lua)   HTTPS + jeton        base dédiée      wow.ekreativ.be
@@ -49,7 +51,7 @@ dotnet run --project src/AltBoardSync -- sync
 
 ```bash
 cd agent && dotnet test                               # 111 tests
-cd web && npm run typecheck && npm run lint && npm test && npm run build   # 53 tests
+cd web && npm run typecheck && npm run lint && npm test && npm run build   # 54 tests
 ```
 
 Les tests web vident la base `wow_altboard_test`. Le code refuse toute base dont le nom ne commence
