@@ -1,0 +1,43 @@
+# Déploiement de production (hôte contabo). Les valeurs sensibles viennent du fichier .env voisin,
+# jamais versionné : voir deploy/.env.example et docs/DEPLOYMENT.md.
+name: wow-altboard
+
+services:
+  web:
+    image: wow-altboard-web:${WOW_IMAGE_TAG:-latest}
+    build:
+      context: ../web
+      args:
+        WOW_BASE_PATH: ${WOW_BASE_PATH:-}
+    container_name: wow-altboard-web
+    restart: unless-stopped
+    environment:
+      # Connexion applicative, par PgBouncer.
+      WOW_DATABASE_URL: ${WOW_DATABASE_URL:?connexion applicative manquante}
+      # Connexion directe, utilisée uniquement par « node migrate.mjs ».
+      WOW_DATABASE_URL_DIRECT: ${WOW_DATABASE_URL_DIRECT:-}
+      WOW_APP_ORIGIN: ${WOW_APP_ORIGIN:-https://wow.ekreativ.be}
+      WOW_BASE_PATH: ${WOW_BASE_PATH:-}
+      # En-tête posé par le proxy de confiance, pour la limitation de débit par client.
+      WOW_TRUSTED_IP_HEADER: ${WOW_TRUSTED_IP_HEADER:-cf-connecting-ip}
+    # Jamais exposé directement : seul le reverse proxy de l'hôte y accède.
+    ports:
+      - "127.0.0.1:${WOW_HOST_PORT:-3016}:3000"
+    networks:
+      - shared-db
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/.next/cache
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 512m
+    labels:
+      autoheal: "true"
+
+networks:
+  # Réseau de l'instance PostgreSQL partagée (pg-shared, pgbouncer-shared).
+  shared-db:
+    external: true

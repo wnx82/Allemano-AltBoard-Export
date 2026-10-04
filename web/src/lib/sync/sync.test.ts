@@ -313,6 +313,32 @@ describe("refus", () => {
     assert.equal(await count(t.machines), 1);
   });
 
+  test("base injoignable : 503 avec invitation à réessayer, sans détail technique", async () => {
+    const down = new Proxy(database.db, {
+      get: (target, property) =>
+        property === "select"
+          ? () => {
+              throw new Error("connexion refusée par 10.0.0.5");
+            }
+          : Reflect.get(target, property),
+    });
+
+    const response = await handleSyncRequest(
+      new Request("https://wow.example.test/api/sync", {
+        method: "POST",
+        headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+        body: JSON.stringify(clone()),
+      }),
+      { db: down, rateLimiter: new RateLimiter(), now: () => NOW, log: (event) => logs.push(event) },
+    );
+
+    assert.equal(response.status, 503);
+    assert.equal(response.headers.get("retry-after"), "60");
+    const body = JSON.stringify(await response.json());
+    assert.ok(body.includes("service_unavailable"));
+    assert.ok(!body.includes("10.0.0.5"));
+  });
+
   test("les échecs d'authentification répétés sont limités : 429", async () => {
     const limiter = new RateLimiter(() => NOW.getTime());
     for (let i = 0; i < 10; i++) assert.equal((await send(clone(), { token: null, limiter })).status, 401);

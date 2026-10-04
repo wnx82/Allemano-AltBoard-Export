@@ -30,18 +30,25 @@ export async function loginAction(_previous: LoginState, formData: FormData): Pr
   if (!email || !password || email.length > 254 || password.length > 1024) return refused;
   if (!limiter.consume(`login:client:${client}`, ATTEMPTS) || !limiter.consume(`login:email:${email}`, ATTEMPTS)) return refused;
 
-  const db = getDatabase();
-  const [user] = await db.select().from(adminUsers).where(eq(adminUsers.email, email));
-  const valid = user?.active ? await verifyPassword(password, user.passwordHash) : await verifyAgainstDummy(password);
-  if (!user || !valid) {
-    console.warn(JSON.stringify({ event: "auth.login.failed" }));
-    return refused;
+  try {
+    const db = getDatabase();
+    const [user] = await db.select().from(adminUsers).where(eq(adminUsers.email, email));
+    const valid = user?.active ? await verifyPassword(password, user.passwordHash) : await verifyAgainstDummy(password);
+    if (!user || !valid) {
+      console.warn(JSON.stringify({ event: "auth.login.failed" }));
+      return refused;
+    }
+
+    const now = new Date();
+    await setSessionCookie(await createSession(db, user.id, now));
+    await db.update(adminUsers).set({ lastLoginAt: now }).where(eq(adminUsers.id, user.id));
+    console.log(JSON.stringify({ event: "auth.login.succeeded", userId: user.id }));
+  } catch (error) {
+    console.error(JSON.stringify({ event: "auth.login.unavailable", error: error instanceof Error ? error.message : "unknown error" }));
+    return { error: "Service momentanément indisponible. Réessayez dans un instant." };
   }
 
-  const now = new Date();
-  await setSessionCookie(await createSession(db, user.id, now));
-  await db.update(adminUsers).set({ lastLoginAt: now }).where(eq(adminUsers.id, user.id));
-  console.log(JSON.stringify({ event: "auth.login.succeeded", userId: user.id }));
+  // Hors du try : redirect() fonctionne en levant une exception de contrôle.
   redirect(safeNext(formData.get("next")));
 }
 

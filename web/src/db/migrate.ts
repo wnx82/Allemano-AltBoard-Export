@@ -3,7 +3,9 @@ import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { createDatabase, createPool } from "./client";
 import { assertProjectDatabase, describeTarget, migrationDatabaseUrl, testDatabaseUrl } from "./env";
 
-export const MIGRATIONS_FOLDER = path.resolve(import.meta.dirname, "../../drizzle");
+// Dans l'image de production le script est empaqueté en un seul fichier : le dossier des
+// migrations est alors indiqué par WOW_MIGRATIONS_DIR.
+export const MIGRATIONS_FOLDER = process.env.WOW_MIGRATIONS_DIR || path.resolve(import.meta.dirname, "../../drizzle");
 
 export async function runMigrations(connectionString: string): Promise<void> {
   const pool = createPool(assertProjectDatabase(connectionString));

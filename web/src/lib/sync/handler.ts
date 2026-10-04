@@ -79,7 +79,14 @@ export async function handleSyncRequest(request: Request, deps: SyncDependencies
   }
 
   const token = parseBearerToken(request.headers.get("authorization"));
-  const tokenId = token === null ? null : await findActiveToken(deps.db, token);
+  let tokenId: number | null;
+  try {
+    tokenId = token === null ? null : await findActiveToken(deps.db, token);
+  } catch (error) {
+    // Base injoignable : l'agent doit savoir qu'il peut réessayer, pas que son jeton est refusé.
+    log({ event: "sync.unavailable", requestId, error: error instanceof Error ? error.message : "unknown error" });
+    return respond(503, { error: "Service momentanément indisponible, réessayez plus tard.", code: "service_unavailable" }, { "Retry-After": "60" });
+  }
   if (tokenId === null) {
     deps.rateLimiter.consume(`sync:auth:${client}`, AUTH_FAILURES_PER_CLIENT);
     return reject(401, "unauthorized", "Jeton d'agent absent, invalide ou révoqué.", {}, { "WWW-Authenticate": "Bearer" });
