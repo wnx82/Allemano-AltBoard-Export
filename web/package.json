@@ -11,7 +11,8 @@
     "test": "tsx --env-file-if-exists=.env.local --test --test-concurrency=1 \"src/**/*.test.ts\"",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx --env-file-if-exists=.env.local src/db/migrate.ts",
-    "db:migrate:test": "tsx --env-file-if-exists=.env.local src/db/migrate.ts --test"
+    "db:migrate:test": "tsx --env-file-if-exists=.env.local src/db/migrate.ts --test",
+    "token:create": "tsx --env-file-if-exists=.env.local scripts/create-agent-token.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.3",

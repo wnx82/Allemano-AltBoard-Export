@@ -136,7 +136,7 @@ public class AltBoardReaderTests
         Assert.Equal(2, document.Characters.Count);
 
         var hunter = document.Characters[0];
-        Assert.Equal(("Märta Ünsal", "HUNTER", 12, 389L, 7.125, 188L, "Les Sans-Souci"),
+        Assert.Equal(("Märta Ünsal", "HUNTER", 12, 389L, 7.125, 188, "Les Sans-Souci"),
             (hunter.Name, hunter.Class, hunter.Level, hunter.MoneyCopper, hunter.ItemLevel, hunter.RestedXp, hunter.Guild));
         Assert.Equal(["Travail du cuir", "Dépeçage", "Cuisine"], hunter.Professions.Select(p => p.Name));
         Assert.Equal(10, hunter.Gear.Count);
@@ -289,6 +289,38 @@ public class AltBoardReaderTests
         Assert.Equal([new ItemCountPayload("2589:-17", 20), new ItemCountPayload("6948", 1)], character.Bags!.Items);
         Assert.Equal(new ItemPayload("2589:-17", 2589, -17, "Étoffe \"de\" lin", 1, 132889,
             "|cnIQ1:|Hitem:2589::::::-17:::::::::|h[Étoffe \"de\" lin]|h|r"), Assert.Single(document.Items));
+    }
+
+    [Fact]
+    public void Out_of_range_values_are_dropped_instead_of_poisoning_the_document()
+    {
+        var veryLongKey = new string('k', 2000);
+        var document = AltBoardReader.Read(SavedVariablesParser.Parse($$"""
+            AltBoardDB = { schema = 2, chars = {
+              ["Player-1-AAAA0001"] = {
+                name = "Bornes", realm = "Royaume", lastSeen = 1791000000,
+                level = 70000, money = 1e300, xp = 5000000000, rested = -1, statsAt = -5,
+                gear = { { link = "lien", q = -1 } },
+                reps = { [47] = { name = "Faction", reaction = 99999 } },
+                profs = { { name = "Métier", skillLine = -3 } },
+                bags = { ["1"] = 2 }, bagsAt = 99999999999999,
+              },
+              ["Player-1-AAAA0002"] = { name = "Trop Tard", realm = "Royaume", lastSeen = 1e15 },
+            }, ["{{veryLongKey}}"] = 1 }
+            """));
+
+        var character = Assert.Single(document.Characters);
+        Assert.Null(character.Level);
+        Assert.Null(character.MoneyCopper);
+        Assert.Null(character.Xp);
+        Assert.Null(character.RestedXp);
+        Assert.Null(character.StatsAt);
+        Assert.Null(character.Gear[0].Quality);
+        Assert.Null(character.Reputations[0].Reaction);
+        Assert.Empty(character.Professions);
+        Assert.Null(character.Bags);
+        Assert.All(document.Warnings, w => Assert.True(w.Length <= 300));
+        Assert.Contains(document.Warnings, w => w.Contains("Player-1-AAAA0002"));
     }
 
     [Fact]

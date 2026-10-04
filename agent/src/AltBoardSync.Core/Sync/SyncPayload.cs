@@ -40,9 +40,9 @@ public sealed record CharacterPayload
     public string? Race { get; init; }
     public string? Faction { get; init; }
     public int? Level { get; init; }
-    public long? Xp { get; init; }
-    public long? XpMax { get; init; }
-    public long? RestedXp { get; init; }
+    public int? Xp { get; init; }
+    public int? XpMax { get; init; }
+    public int? RestedXp { get; init; }
     public string? Guild { get; init; }
     public string? Zone { get; init; }
     public long? MoneyCopper { get; init; }

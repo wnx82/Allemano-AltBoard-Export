@@ -25,6 +25,7 @@ public static partial class AltBoardReader
     private const int MaxName = 120;
     private const int MaxLink = 600;
     private const int MaxWarnings = 50;
+    private const int MaxWarningLength = 300;
 
     private static readonly HashSet<string> KnownRootKeys =
         ["schema", "chars", "items", "errors", "order", "settings", "launcher", "window", "itemsWindow", "probe"];
@@ -112,8 +113,8 @@ public static partial class AltBoardReader
 
         var name = Text(c.Get("name"), MaxName);
         var realm = Text(c.Get("realm"), MaxName);
-        var lastSeen = c.Get("lastSeen")?.AsInt64();
-        if (name is null || realm is null || lastSeen is null or <= 0)
+        var lastSeen = Timestamp(c.Get("lastSeen"));
+        if (name is null || realm is null || lastSeen is null)
         {
             // L'addon lui-même ignore un personnage sans nom (entrée créée avant la première collecte).
             warnings.Add($"personnage {guid} ignoré : nom, royaume ou lastSeen absent");
@@ -135,17 +136,17 @@ public static partial class AltBoardReader
             Class = Text(c.Get("class"), MaxName),
             Race = Text(c.Get("race"), MaxName),
             Faction = Text(c.Get("faction"), MaxName),
-            Level = NonNegative(c.Get("level")?.AsInt32()),
-            Xp = NonNegative(c.Get("xp")?.AsInt64()),
-            XpMax = NonNegative(c.Get("xpMax")?.AsInt64()),
-            RestedXp = NonNegative(c.Get("rested")?.AsInt64()),
+            Level = Small(c.Get("level")),
+            Xp = NonNegative(c.Get("xp")?.AsInt32()),
+            XpMax = NonNegative(c.Get("xpMax")?.AsInt32()),
+            RestedXp = NonNegative(c.Get("rested")?.AsInt32()),
             Guild = Text(c.Get("guild"), MaxName),
             Zone = Text(c.Get("zone"), MaxName),
-            MoneyCopper = NonNegative(c.Get("money")?.AsInt64()),
+            MoneyCopper = Money(c.Get("money")),
             ItemLevel = c.Get("ilvl")?.AsDouble(),
             Hidden = c.Get("hidden")?.AsBoolean() ?? false,
             Stats = ReadStats(c.Get("stats")?.AsTable()),
-            StatsAt = Positive(c.Get("statsAt")?.AsInt64()),
+            StatsAt = Timestamp(c.Get("statsAt")),
             Gear = ReadGear(c.Get("gear")?.AsTable()),
             Professions = ReadProfessions(c.Get("profs")?.AsTable(), guid, warnings),
             Reputations = ReadReputations(c.Get("reps")?.AsTable()),
@@ -209,7 +210,7 @@ public static partial class AltBoardReader
                 itemId,
                 enchantId,
                 Text(g.Get("name"), MaxName),
-                g.Get("q")?.AsInt32(),
+                Small(g.Get("q")),
                 g.Get("ilvl")?.AsInt32(),
                 g.Get("icon")?.AsInt32(),
                 link));
@@ -229,7 +230,7 @@ public static partial class AltBoardReader
         {
             if (value is not LuaTable p) continue;
             var name = Text(p.Get("name"), MaxName);
-            var skillLine = p.Get("skillLine")?.AsInt32();
+            var skillLine = NonNegative(p.Get("skillLine")?.AsInt32());
             if (name is null || skillLine is null || !seen.Add(skillLine.Value))
             {
                 warnings.Add($"métier ignoré pour {guid} : nom ou skillLine absent, ou doublon");
@@ -263,7 +264,7 @@ public static partial class AltBoardReader
                 (int)factionId.Value,
                 name,
                 Text(r.Get("group"), MaxName),
-                r.Get("reaction")?.AsInt32(),
+                Small(r.Get("reaction")),
                 r.Get("cur")?.AsInt32(),
                 r.Get("min")?.AsInt32(),
                 r.Get("max")?.AsInt32()));
@@ -281,7 +282,7 @@ public static partial class AltBoardReader
         foreach (var (key, value) in currency.Entries)
         {
             if (key.Kind != LuaKeyKind.String || value is not LuaTable cur) continue;
-            var name = Truncate(key.Text!, MaxName);
+            var name = Truncate(key.Text!.Replace(" ", ""), MaxName);
             var quantity = NonNegative(cur.Get("qty")?.AsInt32());
             if (name.Length == 0 || quantity is null) continue;
             result.Add(new CurrencyPayload(name, quantity.Value, cur.Get("max")?.AsInt32(), cur.Get("icon")?.AsInt32()));
@@ -294,7 +295,7 @@ public static partial class AltBoardReader
     /// <summary>Sacs ou banque. Absent tant que l'addon n'a jamais daté ce bloc (banque jamais ouverte).</summary>
     private static ContainerPayload? ReadContainer(LuaTable c, string itemsKey, string slotsKey, string atKey)
     {
-        var at = Positive(c.Get(atKey)?.AsInt64());
+        var at = Timestamp(c.Get(atKey));
         if (at is null || c.Get(itemsKey) is not LuaTable counts) return null;
 
         var items = new List<ItemCountPayload>();
@@ -308,7 +309,7 @@ public static partial class AltBoardReader
 
         items.Sort((a, b) => string.CompareOrdinal(a.Key, b.Key));
         var slots = c.Get(slotsKey)?.AsTable();
-        return new ContainerPayload(at.Value, NonNegative(slots?.Get("used")?.AsInt32()), NonNegative(slots?.Get("total")?.AsInt32()), items);
+        return new ContainerPayload(at.Value, Small(slots?.Get("used")), Small(slots?.Get("total")), items);
     }
 
     private static ItemPayload? ReadItem(LuaKey key, LuaValue value, Warnings warnings)
@@ -326,7 +327,7 @@ public static partial class AltBoardReader
             int.Parse(match.Groups[1].ValueSpan),
             match.Groups[2].Success ? int.Parse(match.Groups[2].ValueSpan) : null,
             Text(item.Get("n"), MaxName),
-            item.Get("q")?.AsInt32(),
+            Small(item.Get("q")),
             item.Get("i")?.AsInt32(),
             Text(item.Get("l"), MaxLink));
     }
@@ -343,7 +344,8 @@ public static partial class AltBoardReader
 
     private static string? Text(LuaValue? value, int maxLength)
     {
-        var text = value?.AsString();
+        // PostgreSQL refuse l'octet nul dans un texte.
+        var text = value?.AsString()?.Replace(" ", "");
         if (string.IsNullOrWhiteSpace(text)) return null;
         return Truncate(text, maxLength);
     }
@@ -358,9 +360,16 @@ public static partial class AltBoardReader
 
     private static int? NonNegative(int? value) => value is >= 0 ? value : null;
 
-    private static long? NonNegative(long? value) => value is >= 0 ? value : null;
+    // Bornes identiques à celles du serveur (web/src/lib/sync/schema.ts) : une valeur aberrante est
+    // écartée ici plutôt que de faire refuser tout le document.
+    private const long MaxTimestamp = 32_503_680_000; // an 3000
+    private const long MaxSafeInteger = 9_007_199_254_740_991;
 
-    private static long? Positive(long? value) => value is > 0 ? value : null;
+    private static long? Timestamp(LuaValue? value) => value?.AsInt64() is > 0 and <= MaxTimestamp and var seconds ? seconds : null;
+
+    private static long? Money(LuaValue? value) => value?.AsInt64() is >= 0 and <= MaxSafeInteger and var copper ? copper : null;
+
+    private static int? Small(LuaValue? value) => value?.AsInt32() is >= 0 and <= short.MaxValue and var small ? small : null;
 
     private sealed class Warnings
     {
@@ -369,6 +378,7 @@ public static partial class AltBoardReader
 
         public void Add(string message)
         {
+            if (message.Length > MaxWarningLength) message = message[..MaxWarningLength];
             if (_list.Count < MaxWarnings && _seen.Add(message)) _list.Add(message);
         }
 
