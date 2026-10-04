@@ -11,10 +11,12 @@
 | Addon | Allemano Ledger 0.7.1 (`Interface\AddOns\AllemanoLedger`), fichiers `Levels.lua`, `Core.lua`, `Session.lua` |
 | Fichier lu | `WTF\Account\<COMPTE>\SavedVariables\AllemanoLedger.lua` |
 | Variable | `AllemanoLedgerDB` (le fichier contient aussi `SessionTrackerDB`, ancien nom, ignoré) |
-| Constat du 2026-10-04 | aucun compte de ce PC n'avait encore ce fichier : la structure ci-dessous vient du code de l'addon, pas d'un fichier réel |
+| Fichier réel observé | 2026-10-04 : 1 compte, 1 personnage, 1 niveau terminé (745 lignes). Structure conforme au code de l'addon |
 
-À vérifier sur le premier fichier réel : la forme des clés de `levelLog` (nombre ou chaîne). Le
-lecteur accepte les deux.
+Constats sur le fichier réel : les clés de `levelLog` sont numériques (`[26] = {`) — le lecteur
+accepte aussi une chaîne ; `wall` est absent du premier niveau suivi ; la zone est écrite telle que
+le client l'affiche (`Bois de la Pénombre (Duskwood)`). Lu par l'agent, accepté par le schéma du
+serveur, enregistré et affiché en local sans écart avec le fichier.
 
 Le source de l'addon est sous droits réservés : il n'est ni copié ni versionné ici. La fixture
 `tests/fixtures/ledger-two-characters.lua` est écrite à la main.
@@ -58,6 +60,9 @@ Le reste (`current`, `history`, or par source, réglages, erreurs) n'est ni lu n
   dernier a un temps de jeu ; les autres ont `played` absent. Un `played` absent n'est jamais
   remplacé par une estimation, ni par l'agent, ni par le serveur, ni par le graphique.
 - `wall` est absent tant que le début du niveau n'a pas été observé (premier niveau suivi).
+- `played.at` est l'instant de la dernière réponse du jeu à `/played` (demandée à chaque entrée
+  dans le monde hors `/reload`, et à chaque passage de niveau), pas celui de l'écriture du fichier :
+  un `/reload` ne la rafraîchit pas. Le temps du niveau en cours affiché s'arrête donc à cet instant.
 - Comme pour AltBoard, le fichier n'est écrit qu'au `/reload`, à la déconnexion ou à la fermeture,
   et seul le personnage connecté est relevé.
 - Chaque PC ne connaît que les niveaux gagnés chez lui : le fichier n'est pas partagé entre PC.

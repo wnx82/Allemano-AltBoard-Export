@@ -121,7 +121,7 @@ très long, accentué, à apostrophes, hors alphabet latin ; base injoignable.
 | Réputations | ✅ | |
 | Inventaire (sacs, banque, recherche) | ✅ | |
 | Historique | 🟡 | courbes et changements vérifiés sur un personnage de démonstration en local ; en production chaque personnage n'a encore qu'un relevé |
-| Temps par niveau (graphique, tableau, temps de jeu total) | 🟡 | source : addon Allemano Ledger ([LEDGER-DATA-MODEL](LEDGER-DATA-MODEL.md)). Vérifié en local sur des données d'essai ; aucun fichier réel n'existe encore (l'addon n'a rien écrit sur ce PC au 2026-10-04) |
+| Temps par niveau (graphique, tableau, temps de jeu total) | 🟡 | source : addon Allemano Ledger ([LEDGER-DATA-MODEL](LEDGER-DATA-MODEL.md)). Vérifié en local sur le fichier réel du 2026-10-04 : fichier ↔ agent ↔ base ↔ page, 0 écart (1 personnage, 1 niveau terminé). Reste la mise en production |
 
 **Checkpoint E** ✅ — en production : `AltBoard.lua` ↔ base (138 comparaisons) ↔ pages servies par
 `wow.ekreativ.be` (122 comparaisons), 0 écart sur les 6 personnages réels.
@@ -191,7 +191,7 @@ Rien n'est implémenté ni activé : la commande `watch` répond qu'elle n'est p
 |---|---|
 | Créer son compte d'accès (voir [DEPLOYMENT § Comptes et jetons](DEPLOYMENT.md)) | joueur |
 | Recette après une vraie modification en jeu | joueur |
-| Temps par niveau sur données réelles : se connecter avec Allemano Ledger actif, `/reload`, puis `AltBoardSync.exe sync` avec l'agent à jour | joueur |
+| Icônes et temps par niveau en production : déployer le serveur (voir [DEPLOYMENT § Mettre à jour](DEPLOYMENT.md)), puis republier l'agent et synchroniser | joueur |
 | Agent sur les autres PC : copier `AltBoardSync.exe`, créer un jeton par PC | joueur |
 | Pousser le dépôt vers un dépôt distant et déclarer la pile dans Komodo | à décider |
 | Fusionner `feat/v1-pipeline` dans `main` | à décider |
