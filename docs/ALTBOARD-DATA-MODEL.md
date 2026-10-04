@@ -13,19 +13,20 @@
 | Déclaration | `## SavedVariables: AltBoardDB` — une seule variable globale, **par compte** |
 | Schéma addon | `AB.SCHEMA = 2` (`Core.lua:9`), stocké dans `AltBoardDB.schema` |
 | Fichiers réels | 2 fichiers `AltBoard.lua` (79 251 et 32 331 octets) + 2 `AltBoard.lua.bak` |
-| Volume | 4 dossiers de compte, 2 avec AltBoard, 6 personnages (4 + 2), 1 royaume |
+| Volume | 3 dossiers de compte, 2 avec AltBoard, 6 personnages (4 + 2), 1 royaume |
 
-Dossiers de compte observés sous `WTF\Account\` :
+Dossiers observés sous `WTF\Account\` :
 
-| Forme du nom de dossier | `SavedVariables` | `AltBoard.lua` |
+| Dossier | Nature | `AltBoard.lua` |
 |---|---|---|
-| `9999999999#9` | oui | **non** |
-| `999999999#9` | oui | oui (4 personnages) |
-| `999999999#9` | oui | oui (2 personnages) |
-| `AAAAAAAAAAAAAA` (alphabétique) | **non** | non |
+| `9999999999#9` | compte | **non** (a des `SavedVariables`, mais pas AltBoard) |
+| `999999999#9` | compte | oui (4 personnages) |
+| `999999999#9` | compte | oui (2 personnages) |
+| `SavedVariables` | **pas un compte** : dossier technique du client, au même niveau | non |
 
-Conséquences : un dossier de compte peut exister sans `SavedVariables`, et un compte peut avoir
-des `SavedVariables` sans AltBoard. Les deux cas sont normaux, pas des erreurs.
+Conséquences : un compte peut avoir des `SavedVariables` sans AltBoard, et tout sous-dossier de
+`WTF\Account\` n'est pas un compte. Seule la présence de `<dossier>\SavedVariables\AltBoard.lua`
+désigne un compte à synchroniser ; les autres cas sont normaux, pas des erreurs.
 
 ## 2. Format du fichier
 
@@ -191,7 +192,9 @@ emplacements vides (23 `nil`), **et** clés explicites `[15] = {…}` quand le t
 
 `name`, `q`, `ilvl` peuvent manquer si le client n'avait pas encore chargé l'objet (`Data.lua:76`).
 Le nom de l'enchantement n'est **pas** disponible, seulement son ID dans le lien.
-Certains liens contiennent le GUID du joueur : à anonymiser dans les fixtures.
+Certains liens contiennent un GUID de joueur, qui n'est pas forcément celui du porteur : on y trouve
+des personnages d'un autre compte (objet fabriqué puis échangé). Tous les GUID sont donc anonymisés
+dans les fixtures, pas seulement les clés de `chars`.
 
 ### 5.3 `profs`
 
