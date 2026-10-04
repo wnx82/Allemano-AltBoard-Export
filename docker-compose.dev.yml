@@ -11,7 +11,9 @@ services:
       POSTGRES_PASSWORD: dev-only-password
       POSTGRES_DB: wow_altboard
     ports:
-      - "127.0.0.1:54329:5432"
+      # Hors de la plage dynamique de Windows (49152-65535) : Hyper-V y réserve des blocs à chaque
+      # démarrage, et un port pris dans un bloc n'est plus publié, sans erreur de Docker.
+      - "127.0.0.1:35432:5432"
     volumes:
       - wow-altboard-dev-pg:/var/lib/postgresql/data
       - ./db/dev-init:/docker-entrypoint-initdb.d:ro

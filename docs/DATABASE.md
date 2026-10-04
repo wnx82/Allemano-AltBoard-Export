@@ -7,7 +7,7 @@
 
 | Environnement | État |
 |---|---|
-| PostgreSQL 17 local (Docker, `127.0.0.1:54329`) | ✅ migration appliquée et vérifiée dans l'instance |
+| PostgreSQL 17 local (Docker, `127.0.0.1:35432`) | ✅ migration appliquée et vérifiée dans l'instance |
 | Production (`pg-shared`, hôte contabo) | ✅ base `wow_altboard` créée le 2026-10-04, migration appliquée et vérifiée dans l'instance |
 
 ## Isolation

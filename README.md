@@ -28,7 +28,7 @@ La synchronisation est **manuelle** : rien n'est lu ni envoyé tant que la comma
 Prérequis : .NET SDK 10, Node.js 24, Docker.
 
 ```bash
-# 1. PostgreSQL 17 local (port 54329, bases wow_altboard et wow_altboard_test)
+# 1. PostgreSQL 17 local (port 35432, bases wow_altboard et wow_altboard_test)
 docker compose -f docker-compose.dev.yml up -d
 
 # 2. Application web
