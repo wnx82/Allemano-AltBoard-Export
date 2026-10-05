@@ -28,10 +28,14 @@ public abstract record WatchEvent
     }
 
     /// <summary>Un document a été envoyé et accepté par le serveur.</summary>
-    public sealed record Synced(SyncResponse Response, string Summary) : WatchEvent;
+    /// <param name="Changes">Ce qui a changé par personnage depuis l'envoi accepté précédent.</param>
+    public sealed record Synced(SyncResponse Response, string Summary, IReadOnlyList<CharacterChange> Changes) : WatchEvent;
 
     /// <summary>La lecture ou l'envoi a échoué ; un nouvel essai suivra.</summary>
     public sealed record Failed(string Error, TimeSpan RetryIn) : WatchEvent;
+
+    /// <summary>Une synchronisation demandée n'a trouvé aucun compte à envoyer.</summary>
+    public sealed record NothingToSend(string Reason) : WatchEvent;
 }
 
 /// <summary>Permet à l'hôte de demander une synchronisation immédiate à une surveillance en cours.</summary>
@@ -51,7 +55,7 @@ public sealed class WatchControl
 /// jamais le processus du jeu.
 /// </summary>
 internal sealed class WatchLoop(
-    AgentEnvironment env, AgentConfig config, string wowPath, Uri endpoint, TokenStore tokenStore, FileLog log, string version)
+    AgentEnvironment env, AgentConfig config, string wowPath, Uri endpoint, TokenStore tokenStore, FileLog log, SyncJournal journal, string version)
 {
     private enum Signal
     {
@@ -77,6 +81,7 @@ internal sealed class WatchLoop(
         {
             var force = false;
             var retry = TimeSpan.Zero;
+            string? journaledError = null;
             while (true)
             {
                 // Un seul cycle à la fois : ce qui arrive pendant un envoi attend dans la file.
@@ -84,11 +89,15 @@ internal sealed class WatchLoop(
                 if (error is null)
                 {
                     retry = TimeSpan.Zero;
+                    journaledError = null;
                 }
                 else
                 {
                     retry = retry == TimeSpan.Zero ? _options.FirstRetryDelay : TimeSpan.FromTicks(Math.Min(retry.Ticks * 2, _options.MaxRetryDelay.Ticks));
                     log.Error($"synchronisation automatique en échec : {error}");
+                    // Une entrée par panne, pas une à chaque nouvel essai.
+                    if (error != journaledError) journal.Failed(error);
+                    journaledError = error;
                     Say($"Échec : {error.TrimEnd('.')}. Nouvel essai dans {Describe(retry)}.");
                     env.OnWatchEvent?.Invoke(new WatchEvent.Failed(error, retry));
                 }
@@ -129,7 +138,20 @@ internal sealed class WatchLoop(
             if (result.Succeeded) readable.Add(result);
         }
 
-        if (readable.Count == 0) return null;
+        if (readable.Count == 0)
+        {
+            // Sans cette réponse, une synchronisation demandée à la main resterait sans effet visible.
+            if (force && sources.Count == 0)
+            {
+                const string reason = "Aucun compte AltBoard trouvé : rien à envoyer.";
+                journal.Info(reason);
+                Say(reason);
+                env.OnWatchEvent?.Invoke(new WatchEvent.NothingToSend(reason));
+            }
+
+            return null;
+        }
+
         if (!force && readable.All(r => state.Fingerprints.GetValueOrDefault(StateKey(r)) == r.Fingerprint)) return null;
 
         var token = tokenStore.Read();
@@ -155,8 +177,10 @@ internal sealed class WatchLoop(
         log.Info($"synchronisation automatique {response.Status} (run {response.RunId}) : {response.CharactersReceived} personnages, " +
                  $"{response.CharactersCreated} créés, {response.CharactersUpdated} mis à jour, {response.CharactersUnchanged} inchangés, " +
                  $"{response.SnapshotsCreated} snapshots, {response.Errors.Count} erreurs");
+        var changes = journal.Synced(document, summary);
         Say(summary);
-        env.OnWatchEvent?.Invoke(new WatchEvent.Synced(response, summary));
+        foreach (var change in changes) Say($"  {DescribeChange(change)}");
+        env.OnWatchEvent?.Invoke(new WatchEvent.Synced(response, summary, changes));
         return null;
     }
 
@@ -235,12 +259,15 @@ internal sealed class WatchLoop(
         _readErrors[file] = result.Error;
         var hint = AccountKey.Hint(result.Source.AccountFolder);
         log.Error($"compte {hint} illisible : {result.Error}");
+        journal.Failed($"Compte {hint} illisible : {result.Error}");
         Say($"Compte {hint} illisible : {result.Error}");
     }
 
     private static string StateKey(AccountReadResult result) => $"{result.Source.Flavor}/{AccountKey.Compute(result.Source.AccountFolder)}";
 
-    private static string Summarize(SyncResponse response)
+    internal static string DescribeChange(CharacterChange change) => $"{change.Name} ({change.Realm}) : {string.Join(" · ", change.Details)}";
+
+    internal static string Summarize(SyncResponse response)
     {
         var changed = response.CharactersCreated + response.CharactersUpdated;
         var summary = $"{AgentApp.Plural(response.CharactersReceived, "personnage synchronisé", "personnages synchronisés")}, " +

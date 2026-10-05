@@ -177,6 +177,7 @@ très long, accentué, à apostrophes, hors alphabet latin ; base injoignable.
 | Service futur documenté | ✅ |
 
 Implémenté depuis l'agent 0.2.0 : `watch`, `autostart`, icône de la zone de notification.
+Depuis l'agent 0.3.0 : fenêtre (démarrage avec Windows, journal des envois et de ce qui a changé).
 
 ## P13 — `wow.ekreativ.be`
 
@@ -202,7 +203,7 @@ Implémenté depuis l'agent 0.2.0 : `watch`, `autostart`, icône de la zone de n
 
 | Version | Contenu |
 |---|---|
-| V2 | ✅ agent 0.2.0 : `watch`, démarrage à l'ouverture de session, icône de zone de notification |
+| V2 | ✅ agent 0.2.0 : `watch`, démarrage à l'ouverture de session, icône de zone de notification ; agent 0.3.0 : fenêtre et journal des modifications |
 | V3 | historique détaillé, comparaison des métiers, activité |
 | V4 | n8n, notifications, rapports |
 | V5 | installation et mise à jour automatiques de l'agent |

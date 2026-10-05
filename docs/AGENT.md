@@ -1,8 +1,9 @@
 # Agent Windows — AltBoardSync
 
 Exécutable unique, autonome (aucun runtime .NET à installer), en lecture seule sur le dossier de
-World of Warcraft. Il synchronise à la demande (`sync`, ou un double-clic) ou tout seul, à chaque
-écriture du jeu (`watch`).
+World of Warcraft. Un double-clic ouvre sa [fenêtre](#fenêtre) : il synchronise alors tout seul, à
+chaque écriture du jeu, et tient le journal de ce qu'il envoie. Tout reste faisable en ligne de
+commande (`sync`, `watch`).
 
 ## Construire
 
@@ -28,10 +29,11 @@ Le jeton se lie à la première machine qui l'utilise ; il est refusé ailleurs.
 
 Ensuite, au choix :
 
-- `AltBoardSync.exe autostart on` : la synchronisation devient automatique, dès maintenant et à
-  chaque ouverture de session (voir [Synchronisation automatique](#synchronisation-automatique)) ;
-- un double-clic sur `AltBoardSync.exe` : une synchronisation, puis la fenêtre reste ouverte jusqu'à
-  l'appui d'une touche, le temps de lire le résultat.
+- un double-clic sur `AltBoardSync.exe` : la [fenêtre](#fenêtre) s'ouvre et la synchronisation
+  devient automatique tant que l'agent tourne ; son interrupteur **Démarrage avec Windows** le
+  relance à chaque ouverture de session ;
+- `AltBoardSync.exe autostart on` : la même chose sans fenêtre, dès maintenant et à chaque ouverture
+  de session (voir [Synchronisation automatique](#synchronisation-automatique)).
 
 Le jeu n'écrit `AltBoard.lua` qu'à la déconnexion du personnage ou sur `/reload` : synchroniser
 avant ne voit pas les derniers changements.
@@ -40,8 +42,9 @@ avant ne voit pas les derniers changements.
 
 | Commande | Effet |
 |---|---|
-| aucune, par double-clic | comme `sync`, puis attend une touche avant de fermer la fenêtre |
+| aucune, par double-clic | ouvre la fenêtre (comme `ui`) |
 | aucune, depuis un terminal | affiche l'aide |
+| `ui` | ouvre la fenêtre de l'agent ; celle de la surveillance en cours s'il y en a une |
 | `sync` | lit tous les `AltBoard.lua` (et `AllemanoLedger.lua` voisins) et envoie le document |
 | `watch` | synchronise à chaque écriture du jeu, jusqu'à l'arrêt |
 | `autostart` / `autostart on` / `autostart off` | affiche, active ou désactive le lancement de `watch` à l'ouverture de session ; `on` le lance aussi tout de suite, `off` arrête celui qui tourne |
@@ -59,7 +62,7 @@ Codes de sortie : `0` réussite, `1` synchronisation échouée ou partielle, `2`
 ## Exemple
 
 ```text
-AltBoard Sync 0.2.0
+AltBoard Sync 0.3.0
 
 Machine : PC-GAMING
 
@@ -76,8 +79,14 @@ Envoi vers le serveur...
 1 nouveau snapshot.
 5 personnages inchangés.
 
+Depuis la synchronisation précédente :
+  Aedot (Sulfuron) : niveau 28 → 30 · +12 po 40 pa · zone : Vallée de Strangleronce · sacs mis à jour
+
 Synchronisation terminée.
 ```
+
+La partie « Depuis la synchronisation précédente » n'apparaît que si un personnage a changé depuis
+l'envoi accepté précédent (voir [Journal](#journal)).
 
 ## Fichiers locaux
 
@@ -88,7 +97,13 @@ Dossier `%APPDATA%\AltBoardSync\` (remplaçable par la variable `ALTBOARDSYNC_HO
 | `config.json` | `machineUuid`, `machineName`, `wowPath`, `serverUrl` — aucun secret |
 | `token.dat` | jeton chiffré par DPAPI pour l'utilisateur Windows courant |
 | `state.json` | dernière empreinte envoyée par compte, pour `watch` ; ni contenu ni nom réel de dossier de compte |
-| `logs\altboardsync.log` | journal ; ni jeton ni nom réel de dossier de compte ; rotation à 1 Mo |
+| `journal.jsonl` | journal affiché par la fenêtre : une entrée par envoi, panne ou événement, avec ce qui a changé par personnage ; les 200 dernières sont gardées |
+| `characters.json` | ce que l'agent retient de chaque personnage envoyé (niveau, or, métiers, empreintes) pour dire ce qui change à l'envoi suivant |
+| `logs\altboardsync.log` | journal technique ; ni jeton ni nom réel de dossier de compte ; rotation à 1 Mo |
+
+`journal.jsonl` et `characters.json` nomment les personnages : ils ne quittent jamais la machine, et
+ne contiennent ni le jeton ni le nom réel d'un dossier de compte. Perdus, ils ne coûtent que
+l'historique affiché.
 
 `machineUuid` est généré au premier lancement et identifie l'installation ; le nom d'hôte n'est
 qu'informatif (un PC peut être renommé). Un `config.json` illisible arrête l'agent : il ne régénère
@@ -141,7 +156,9 @@ Une version de schéma AltBoard inconnue est lue au mieux, avec avertissement.
 
 `AltBoardSync.exe watch` synchronise à chaque écriture du jeu : déconnexion d'un personnage,
 `/reload`, fermeture. Depuis un terminal, il affiche une ligne par envoi et s'arrête par Ctrl+C.
-Lancé sans terminal (ouverture de session, `autostart on`), il tourne sans fenêtre.
+Lancé sans terminal (ouverture de session, `autostart on`), il tourne en arrière-plan : sa fenêtre
+ne s'ouvre que sur demande. Un double-clic sur l'exécutable lance la même surveillance, fenêtre
+ouverte.
 
 ```text
 AltBoard.lua ou AllemanoLedger.lua modifié (FileSystemWatcher sur WTF\Account)
@@ -167,11 +184,47 @@ parser → document → POST /api/sync (idempotent)
   suivent la même règle : la surveillance attend qu'on les corrige, elle ne s'arrête pas.
 - **Une seule surveillance** par session Windows : une seconde refuse de démarrer.
 
+### Fenêtre
+
+Un double-clic sur `AltBoardSync.exe`, la commande `ui` ou un clic sur l'icône de la zone de
+notification ouvrent la fenêtre de l'agent :
+
+- **état** : synchronisation active, en cours, ou en échec avec l'heure du prochain essai ;
+- **Démarrage avec Windows** : l'interrupteur inscrit ou retire le lancement à l'ouverture de
+  session (voir [plus bas](#démarrage-à-louverture-de-session)) ;
+- **dernier envoi**, nombre de personnages, serveur et présence du jeton ;
+- **Synchroniser maintenant** (ou F5), **Tableau de bord**, **Fichier journal** ;
+- **journal** : chaque envoi, chaque panne, et ce qui a changé par personnage.
+
+La fermer ne quitte pas l'agent : il reste dans la zone de notification, et **Quitter** l'arrête.
+Une seule surveillance tourne par session Windows : un second double-clic rouvre la fenêtre de
+celle qui tourne. Au clavier : Tab, Entrée ou Espace, flèches et Page précédente/suivante pour le
+journal, Échap pour fermer.
+
+Elle est dessinée directement par l'API Windows, aux couleurs du tableau de bord : ni Windows Forms
+ni WPF, qui empêcheraient de réduire l'exécutable. Sur Windows 11 24H2 et suivants, aucune console
+n'apparaît au double-clic ni à l'ouverture de session (`consoleAllocationPolicy` du manifeste) ;
+sur les versions antérieures, une console s'ouvre un instant puis se referme.
+
+### Journal
+
+Après chaque envoi accepté, l'agent compare les personnages à ceux de l'envoi accepté précédent
+et inscrit ce qui a changé : niveau, expérience, or, niveau d'objet, temps de jeu, métiers, zone,
+guilde, et les parties mises à jour (équipement, sacs, banque, réputations, monnaies). Un
+personnage inconnu jusque-là est signalé comme nouveau. Au tout premier envoi, rien n'est
+comparable : l'entrée ne porte que le résumé.
+
+La comparaison est locale : elle dit ce qui a changé entre deux envois de ce PC, pas ce que le
+serveur a retenu. `sync` et `watch` écrivent le même journal ; une panne n'y figure qu'une fois,
+pas à chaque nouvel essai. Les mêmes lignes s'affichent dans le terminal et, pour les trois
+premiers personnages, dans la bulle de notification.
+
 ### Zone de notification
 
 Pendant `watch`, une icône indique l'état en infobulle et affiche une bulle à chaque
-synchronisation et à chaque nouvelle panne. Clic droit : **Synchroniser maintenant**, **Ouvrir le
-tableau de bord**, **Ouvrir le journal**, **Quitter**.
+synchronisation et à chaque nouvelle panne. Clic gauche : la fenêtre. Clic droit : **Ouvrir
+AltBoard Sync**, **Synchroniser maintenant**, **Ouvrir le tableau de bord**, **Ouvrir le fichier
+journal**, **Quitter**.
 
 Windows range les nouvelles icônes dans le débordement (`^`) : la glisser sur la barre des tâches
 la garde visible. Le mode « Ne pas déranger », souvent actif en jeu, retient les bulles : elles
@@ -184,6 +237,9 @@ attendent dans le centre de notifications.
 suite. La commande passe par `conhost.exe --headless`, pour qu'aucune fenêtre ne s'ouvre. Elle
 retient l'emplacement de l'exécutable : après l'avoir déplacé, relancer `autostart on`.
 `autostart off` retire l'inscription et arrête la surveillance en cours.
+
+L'interrupteur **Démarrage avec Windows** de la fenêtre écrit la même inscription, avec la même
+contrainte d'emplacement ; il ne lance ni n'arrête rien, puisque l'agent tourne déjà.
 
 Ce n'est pas un service Windows : il tournerait sous un autre compte et ne pourrait pas déchiffrer
 le jeton (DPAPI).

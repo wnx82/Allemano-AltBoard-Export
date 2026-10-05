@@ -61,6 +61,9 @@ public class WatchTests
 
         public string Log => File.ReadAllText(Path.Combine(Home, "logs", "altboardsync.log"));
 
+        /// <summary>Du plus ancien au plus récent.</summary>
+        public IReadOnlyList<JournalEntry> Journal => [.. new SyncJournal(Home, () => DateTimeOffset.UtcNow).ReadLatest().Reverse()];
+
         public void Start(HttpMessageHandler server, string? token = Token)
         {
             var app = new AgentApp(new AgentEnvironment
@@ -148,6 +151,14 @@ public class WatchTests
         Assert.Contains("2 personnages synchronisés, 1 mis à jour.", h.Output);
         Assert.Contains("Synchronisation automatique arrêtée.", h.Output);
         Assert.Contains("synchronisation automatique success (run 7)", h.Log);
+
+        // Le journal : le démarrage, puis chaque envoi ; le second dit ce qui a changé.
+        Assert.Equal([JournalEntry.Info, JournalEntry.Synced, JournalEntry.Synced], h.Journal.Select(e => e.Kind));
+        Assert.Empty(h.Journal[1].Changes);
+        var changes = Assert.IsType<WatchEvent.Synced>(h.Events.Last()).Changes;
+        Assert.NotEmpty(changes);
+        Assert.Equal(changes.Select(c => c.Name), h.Journal[2].Changes.Select(c => c.Name));
+        Assert.Contains($"  {changes[0].Name} ({changes[0].Realm}) : ", h.Output);
     }
 
     [Fact]
@@ -187,6 +198,42 @@ public class WatchTests
         Assert.Equal(2, server.Calls);
         Assert.Contains("Échec : serveur indisponible. Nouvel essai dans", h.Output);
         Assert.Contains("synchronisation automatique en échec : serveur indisponible", h.Log);
+        Assert.Equal([JournalEntry.Info, JournalEntry.Failed, JournalEntry.Synced], h.Journal.Select(e => e.Kind));
+        Assert.Equal("serveur indisponible", h.Journal[1].Message);
+    }
+
+    [Fact]
+    public async Task A_lasting_failure_is_written_once_to_the_journal()
+    {
+        using var h = new Harness();
+        h.Temp.AddAccount(h.Flavor, "111111111#1", "account-two-characters.lua");
+        var server = new FakeServer(HttpStatusCode.ServiceUnavailable);
+
+        h.Start(server);
+        await Eventually(() => h.Events.Count >= 3, "trois essais en échec");
+        await h.StopAsync();
+
+        Assert.Equal([JournalEntry.Info, JournalEntry.Failed], h.Journal.Select(e => e.Kind));
+    }
+
+    [Fact]
+    public async Task A_requested_sync_that_finds_no_account_says_so()
+    {
+        using var h = new Harness();
+        var server = new FakeServer(HttpStatusCode.OK);
+        h.Start(server);
+        // Une demande n'a d'effet qu'une fois la surveillance en place.
+        await Eventually(() => h.Output.Contains("Ctrl+C"), "le démarrage de la surveillance");
+        await Quiet();
+        Assert.Empty(h.Events);
+
+        h.Control.RequestSync();
+
+        await Eventually(() => !h.Events.IsEmpty, "la réponse à la demande");
+        Assert.Contains("Aucun compte AltBoard", Assert.IsType<WatchEvent.NothingToSend>(h.Events.First()).Reason);
+        Assert.Equal(0, server.Calls);
+        Assert.Equal(JournalEntry.Info, h.Journal[^1].Kind);
+        Assert.Contains("Aucun compte AltBoard", h.Journal[^1].Message);
     }
 
     [Fact]

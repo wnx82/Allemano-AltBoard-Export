@@ -1,11 +1,12 @@
 using System.Collections.Concurrent;
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using static Win32;
 
 /// <summary>
 /// Icône de la zone de notification pendant « watch » : état en infobulle, bulle à chaque
-/// synchronisation ou échec, menu par clic droit. En Win32 direct : Windows Forms interdirait de
-/// réduire l'exécutable.
+/// synchronisation ou échec, menu par clic droit, fenêtre par clic gauche. Son fil est aussi celui
+/// de la fenêtre : il fait tourner la boucle de messages de l'une et de l'autre.
 /// </summary>
 [SupportedOSPlatform("windows")]
 internal sealed class TrayIcon : IDisposable
@@ -13,15 +14,14 @@ internal sealed class TrayIcon : IDisposable
     /// <summary>Entrée de menu ; un élément null de la liste est un séparateur.</summary>
     public sealed record MenuItem(string Label, Action Action);
 
-    private const uint WmDestroy = 0x0002, WmClose = 0x0010, WmCommand = 0x0111, WmRButtonUp = 0x0205;
     private const uint WmTray = 0x8001, WmInvoke = 0x8002;
     private const uint NimAdd = 0, NimModify = 1, NimDelete = 2;
     private const uint NifMessage = 0x01, NifIcon = 0x02, NifTip = 0x04, NifInfo = 0x10;
     private const uint NiifInfo = 0x01, NiifError = 0x03;
     private const uint MfString = 0x0000, MfSeparator = 0x0800, TpmRightButton = 0x0002;
-    private const int IconResource = 32512, SmCxSmIcon = 49, SmCySmIcon = 50;
 
     private readonly IReadOnlyList<MenuItem?> _menu;
+    private readonly Action? _onClick;
     private readonly ConcurrentQueue<Action> _pending = new();
     private readonly ManualResetEventSlim _ready = new();
     private readonly Thread _thread;
@@ -31,10 +31,12 @@ internal sealed class TrayIcon : IDisposable
     private uint _taskbarCreated;
     private string _tooltip;
 
-    public TrayIcon(string tooltip, IReadOnlyList<MenuItem?> menu)
+    /// <param name="onClick">Clic gauche sur l'icône ; appelé sur le fil de l'icône.</param>
+    public TrayIcon(string tooltip, IReadOnlyList<MenuItem?> menu, Action? onClick = null)
     {
         _tooltip = Fit(tooltip, 127);
         _menu = menu;
+        _onClick = onClick;
         _procedure = Handle;
         _thread = new Thread(Run) { IsBackground = true, Name = "zone de notification" };
         _thread.SetApartmentState(ApartmentState.STA);
@@ -64,8 +66,11 @@ internal sealed class TrayIcon : IDisposable
         _thread.Join(TimeSpan.FromSeconds(2));
     }
 
-    /// <summary>Toute modification de l'icône passe par le fil qui possède la fenêtre.</summary>
-    private void Post(Action action)
+    /// <summary>
+    /// Exécute <paramref name="action"/> sur le fil de l'icône : toute modification de l'icône ou de
+    /// la fenêtre y passe.
+    /// </summary>
+    public void Post(Action action)
     {
         _pending.Enqueue(action);
         PostMessageW(_window, WmInvoke, 0, 0);
@@ -85,7 +90,7 @@ internal sealed class TrayIcon : IDisposable
         RegisterClassExW(ref windowClass);
         _taskbarCreated = RegisterWindowMessageW("TaskbarCreated");
         // L'icône de l'exécutable, à la taille de la zone de notification pour l'échelle d'affichage.
-        _icon = LoadImageW(instance, IconResource, 1, GetSystemMetrics(SmCxSmIcon), GetSystemMetrics(SmCySmIcon), 0x8000);
+        _icon = LoadImageW(instance, IconResource, ImageIcon, GetSystemMetrics(SmCxSmIcon), GetSystemMetrics(SmCySmIcon), LoadShared);
         if (_icon == 0) _icon = LoadIconW(0, IconResource);
         // Fenêtre jamais affichée : elle ne sert qu'à recevoir les messages de l'icône.
         _window = CreateWindowExW(0, className, className, 0, 0, 0, 0, 0, 0, 0, instance, 0);
@@ -105,6 +110,9 @@ internal sealed class TrayIcon : IDisposable
         {
             case WmTray when (uint)(long)lParam == WmRButtonUp:
                 ShowMenu();
+                return 0;
+            case WmTray when (uint)(long)lParam == WmLButtonUp:
+                _onClick?.Invoke();
                 return 0;
             case WmCommand:
                 var index = (int)((long)wParam & 0xFFFF) - 1;
@@ -166,127 +174,4 @@ internal sealed class TrayIcon : IDisposable
     };
 
     private static string Fit(string text, int maxLength) => text.Length <= maxLength ? text : text[..(maxLength - 1)] + "…";
-
-    private delegate IntPtr WindowProcedure(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
-
-    // Structures de l'API Windows : leurs champs sont lus ou écrits par le système, pas par ce code.
-#pragma warning disable CS0649
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    private struct WNDCLASSEXW
-    {
-        public uint cbSize;
-        public uint style;
-        public IntPtr lpfnWndProc;
-        public int cbClsExtra;
-        public int cbWndExtra;
-        public IntPtr hInstance;
-        public IntPtr hIcon;
-        public IntPtr hCursor;
-        public IntPtr hbrBackground;
-        public string? lpszMenuName;
-        public string lpszClassName;
-        public IntPtr hIconSm;
-    }
-
-    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    private struct NOTIFYICONDATAW
-    {
-        public uint cbSize;
-        public IntPtr hWnd;
-        public uint uID;
-        public uint uFlags;
-        public uint uCallbackMessage;
-        public IntPtr hIcon;
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)] public string szTip;
-        public uint dwState;
-        public uint dwStateMask;
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 256)] public string szInfo;
-        public uint uVersion;
-        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 64)] public string szInfoTitle;
-        public uint dwInfoFlags;
-        public Guid guidItem;
-        public IntPtr hBalloonIcon;
-    }
-
-    private struct POINT
-    {
-        public int X;
-        public int Y;
-    }
-
-    private struct MSG
-    {
-        public IntPtr hwnd;
-        public uint message;
-        public IntPtr wParam;
-        public IntPtr lParam;
-        public uint time;
-        public POINT pt;
-    }
-#pragma warning restore CS0649
-
-    [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
-    private static extern IntPtr GetModuleHandleW(string? moduleName);
-
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    private static extern ushort RegisterClassExW(ref WNDCLASSEXW windowClass);
-
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    private static extern uint RegisterWindowMessageW(string name);
-
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    private static extern IntPtr CreateWindowExW(
-        uint exStyle, string className, string windowName, uint style, int x, int y, int width, int height,
-        IntPtr parent, IntPtr menu, IntPtr instance, IntPtr parameter);
-
-    [DllImport("user32.dll")]
-    private static extern IntPtr DefWindowProcW(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
-
-    [DllImport("user32.dll")]
-    private static extern bool DestroyWindow(IntPtr window);
-
-    [DllImport("user32.dll")]
-    private static extern int GetMessageW(out MSG message, IntPtr window, uint filterMin, uint filterMax);
-
-    [DllImport("user32.dll")]
-    private static extern bool TranslateMessage(ref MSG message);
-
-    [DllImport("user32.dll")]
-    private static extern IntPtr DispatchMessageW(ref MSG message);
-
-    [DllImport("user32.dll")]
-    private static extern bool PostMessageW(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
-
-    [DllImport("user32.dll")]
-    private static extern void PostQuitMessage(int exitCode);
-
-    [DllImport("user32.dll")]
-    private static extern IntPtr LoadImageW(IntPtr instance, IntPtr name, uint type, int width, int height, uint load);
-
-    [DllImport("user32.dll")]
-    private static extern IntPtr LoadIconW(IntPtr instance, IntPtr name);
-
-    [DllImport("user32.dll")]
-    private static extern int GetSystemMetrics(int index);
-
-    [DllImport("user32.dll")]
-    private static extern IntPtr CreatePopupMenu();
-
-    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
-    private static extern bool AppendMenuW(IntPtr menu, uint flags, nuint id, string? label);
-
-    [DllImport("user32.dll")]
-    private static extern bool TrackPopupMenu(IntPtr menu, uint flags, int x, int y, int reserved, IntPtr window, IntPtr rectangle);
-
-    [DllImport("user32.dll")]
-    private static extern bool DestroyMenu(IntPtr menu);
-
-    [DllImport("user32.dll")]
-    private static extern bool SetForegroundWindow(IntPtr window);
-
-    [DllImport("user32.dll")]
-    private static extern bool GetCursorPos(out POINT point);
-
-    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
-    private static extern bool Shell_NotifyIconW(uint message, ref NOTIFYICONDATAW data);
 }

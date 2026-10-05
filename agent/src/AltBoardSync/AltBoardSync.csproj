@@ -6,6 +6,8 @@
     <AssemblyName>AltBoardSync</AssemblyName>
     <!-- Produite par tools/make-icon.mjs. -->
     <ApplicationIcon>AltBoardSync.ico</ApplicationIcon>
+    <!-- Échelle d'affichage par écran, et pas de console au double-clic. -->
+    <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
 
   <!-- dotnet publish : un seul exécutable autonome, aucun runtime .NET requis sur le PC cible. -->

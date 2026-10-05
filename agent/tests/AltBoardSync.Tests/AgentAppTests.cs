@@ -144,6 +144,47 @@ public class AgentAppTests
     }
 
     [Fact]
+    public async Task Sync_tells_what_changed_since_the_previous_one_and_keeps_a_journal()
+    {
+        using var h = new Harness();
+        var file = h.Temp.AddAccount(h.Flavor, "111111111#1", "account-four-characters-previous.lua");
+        var server = new FakeServer(HttpStatusCode.OK, SuccessBody);
+
+        await h.Run(server, "sync");
+        Assert.DoesNotContain("Depuis la synchronisation précédente", h.Out.ToString());
+
+        File.Copy(Fixture.PathOf("account-four-characters.lua"), file, overwrite: true);
+        await h.Run(server, "sync");
+
+        Assert.Contains("Depuis la synchronisation précédente :", h.Out.ToString());
+        Assert.Contains("Ægir Çélèste (ClassicBetaPvE2) : données mises à jour", h.Out.ToString());
+        var journal = new SyncJournal(h.Home, () => DateTimeOffset.UtcNow).ReadLatest();
+        Assert.Equal(2, journal.Count);
+        Assert.All(journal, entry => Assert.Equal(JournalEntry.Synced, entry.Kind));
+        Assert.Equal("6 personnages synchronisés, 3 mis à jour.", journal[0].Message);
+        Assert.Equal(4, journal[0].Characters);
+        Assert.Equal("Ægir Çélèste", Assert.Single(journal[0].Changes).Name);
+        Assert.Empty(journal[1].Changes);
+        // Les fichiers du journal ne nomment pas plus le dossier de compte que le reste.
+        Assert.DoesNotContain("111111111", File.ReadAllText(Path.Combine(h.Home, "journal.jsonl")));
+        Assert.DoesNotContain("111111111", File.ReadAllText(Path.Combine(h.Home, "characters.json")));
+    }
+
+    [Fact]
+    public async Task A_refused_sync_is_written_to_the_journal()
+    {
+        using var h = new Harness();
+        h.Temp.AddAccount(h.Flavor, "111111111#1", "account-two-characters.lua");
+        var server = new FakeServer(HttpStatusCode.ServiceUnavailable, """{"error":"serveur indisponible"}""");
+
+        Assert.Equal(AgentApp.ExitFailed, await h.Run(server, "sync"));
+
+        var entry = Assert.Single(new SyncJournal(h.Home, () => DateTimeOffset.UtcNow).ReadLatest());
+        Assert.Equal(JournalEntry.Failed, entry.Kind);
+        Assert.Equal("serveur indisponible", entry.Message);
+    }
+
+    [Fact]
     public async Task Scan_reads_everything_but_sends_nothing()
     {
         using var h = new Harness();

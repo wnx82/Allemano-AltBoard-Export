@@ -51,6 +51,7 @@ public sealed class AgentApp(AgentEnvironment env)
     private readonly AgentConfigStore _configStore = new(env.HomeDirectory);
     private readonly TokenStore _tokenStore = new(env.HomeDirectory, env.GetEnvironmentVariable);
     private readonly FileLog _log = new(env.HomeDirectory, env.Now);
+    private readonly SyncJournal _journal = new(env.HomeDirectory, env.Now);
 
     public static string Version { get; } =
         (typeof(AgentApp).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "0.0.0").Split('+')[0];
@@ -104,6 +105,7 @@ public sealed class AgentApp(AgentEnvironment env)
               sync [options]            lit les fichiers AltBoard.lua et les envoie au serveur
               scan [options]            lit et affiche, sans rien envoyer (équivaut à sync --dry-run)
               watch [options]           synchronise à chaque écriture du jeu, jusqu'à l'arrêt
+              ui                        ouvre la fenêtre de l'agent (comme un double-clic)
               autostart [on|off]        lance watch à l'ouverture de session, ou l'arrête
               config                    affiche la configuration
               config set <clé> <valeur> modifie wowPath, serverUrl ou machineName
@@ -220,8 +222,10 @@ public sealed class AgentApp(AgentEnvironment env)
 
         if (!outcome.Succeeded)
         {
-            env.Error.WriteLine($"Échec de la synchronisation : {outcome.Error ?? "réponse inattendue du serveur"}");
+            var error = outcome.Error ?? "réponse inattendue du serveur";
+            env.Error.WriteLine($"Échec de la synchronisation : {error}");
             _log.Error($"synchronisation refusée par {endpoint.Host} : {outcome.Error}");
+            _journal.Failed(error);
             return ExitFailed;
         }
 
@@ -234,6 +238,14 @@ public sealed class AgentApp(AgentEnvironment env)
             env.Out.WriteLine($"{Plural(response.CharactersStale, "personnage plus récent côté serveur, ignoré", "personnages plus récents côté serveur, ignorés")}.");
         foreach (var error in response.Errors) env.Out.WriteLine($"  erreur serveur : {error.Message}");
         env.Out.WriteLine();
+
+        var changes = _journal.Synced(document, WatchLoop.Summarize(response));
+        if (changes.Count > 0)
+        {
+            env.Out.WriteLine("Depuis la synchronisation précédente :");
+            foreach (var change in changes) env.Out.WriteLine($"  {WatchLoop.DescribeChange(change)}");
+            env.Out.WriteLine();
+        }
 
         var clean = failures == 0 && response.Errors.Count == 0;
         env.Out.WriteLine(clean ? "Synchronisation terminée." : "Synchronisation terminée avec des erreurs.");
@@ -272,10 +284,11 @@ public sealed class AgentApp(AgentEnvironment env)
         env.Out.WriteLine("Envoi à chaque écriture du jeu (déconnexion, /reload). Ctrl+C pour arrêter.");
         env.Out.WriteLine();
         _log.Info("synchronisation automatique démarrée");
+        _journal.Info("Synchronisation automatique démarrée.");
 
         try
         {
-            await new WatchLoop(env, config, wowPath ?? config.WowPath, endpoint, _tokenStore, _log, Version).RunAsync(cancellationToken).ConfigureAwait(false);
+            await new WatchLoop(env, config, wowPath ?? config.WowPath, endpoint, _tokenStore, _log, _journal, Version).RunAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
