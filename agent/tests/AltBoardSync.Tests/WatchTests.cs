@@ -1,0 +1,250 @@
+using System.Collections.Concurrent;
+using System.Diagnostics;
+using System.Net;
+using System.Text;
+using AltBoardSync.Core.App;
+using AltBoardSync.Core.IO;
+
+namespace AltBoardSync.Tests;
+
+public class WatchTests
+{
+    private const string Token = "wab_jeton-de-test-0123456789";
+
+    private const string SuccessBody = """
+        {"runId":7,"status":"success","accountsReceived":1,"charactersReceived":2,"charactersCreated":0,
+         "charactersUpdated":1,"charactersUnchanged":1,"charactersStale":0,"snapshotsCreated":1,"errors":[]}
+        """;
+
+    /// <summary>Faux serveur : une réponse par appel, la dernière étant répétée.</summary>
+    private sealed class FakeServer(params HttpStatusCode[] statuses) : HttpMessageHandler
+    {
+        private int _calls;
+
+        public int Calls => Volatile.Read(ref _calls);
+
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            var status = statuses[Math.Min(Interlocked.Increment(ref _calls), statuses.Length) - 1];
+            var body = status == HttpStatusCode.OK ? SuccessBody : """{"error":"serveur indisponible"}""";
+            return Task.FromResult(new HttpResponseMessage(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") });
+        }
+    }
+
+    /// <summary>Une surveillance lancée en tâche de fond sur un faux dossier de jeu, aux délais raccourcis.</summary>
+    private sealed class Harness : IDisposable
+    {
+        private readonly StringWriter _out = new();
+        private CancellationTokenSource _cancellation = new();
+        private Task<int>? _running;
+
+        public TempDirectory Temp { get; } = new();
+        public string Flavor { get; }
+        public string Home { get; }
+        public WatchControl Control { get; } = new();
+        public ConcurrentQueue<WatchEvent> Events { get; } = new();
+
+        public Harness()
+        {
+            Flavor = Temp.Combine("wow", "_classic_beta_");
+            Home = Temp.Combine("home");
+            Directory.CreateDirectory(Path.Combine(Flavor, "WTF", "Account"));
+        }
+
+        public string Output
+        {
+            get
+            {
+                lock (_out) return _out.ToString();
+            }
+        }
+
+        public string Log => File.ReadAllText(Path.Combine(Home, "logs", "altboardsync.log"));
+
+        public void Start(HttpMessageHandler server, string? token = Token)
+        {
+            var app = new AgentApp(new AgentEnvironment
+            {
+                HomeDirectory = Home,
+                Out = TextWriter.Synchronized(_out),
+                Error = TextWriter.Synchronized(_out),
+                HttpHandler = server,
+                Hostname = "PC-TEST",
+                ReadOptions = new StableReadOptions { SettleDelay = TimeSpan.FromMilliseconds(10) },
+                GetEnvironmentVariable = name => name == "ALTBOARDSYNC_TOKEN" ? token : null,
+                // Seuls un événement de fichier, une demande ou un échec relancent un cycle.
+                WatchOptions = new WatchOptions
+                {
+                    Debounce = TimeSpan.FromMilliseconds(100),
+                    CheckInterval = TimeSpan.FromHours(1),
+                    FirstRetryDelay = TimeSpan.FromMilliseconds(100),
+                    MaxRetryDelay = TimeSpan.FromMilliseconds(200),
+                },
+                WatchControl = Control,
+                OnWatchEvent = Events.Enqueue,
+            });
+            var stop = _cancellation.Token;
+            _running = Task.Run(() => app.RunAsync(["watch", "--wow-path", Flavor, "--server", "https://wow.example.test/api/sync"], stop));
+        }
+
+        /// <summary>Arrête la surveillance ; <see cref="Start"/> peut ensuite la relancer sur le même dossier.</summary>
+        public async Task<int> StopAsync()
+        {
+            await _cancellation.CancelAsync();
+            var exit = await _running!;
+            _cancellation = new CancellationTokenSource();
+            return exit;
+        }
+
+        public void Dispose()
+        {
+            _cancellation.Cancel();
+            try
+            {
+                _running?.Wait(TimeSpan.FromSeconds(5));
+            }
+            catch (AggregateException)
+            {
+                // Le test a déjà échoué sur autre chose.
+            }
+
+            Temp.Dispose();
+        }
+    }
+
+    private static async Task Eventually(Func<bool> condition, string expectation)
+    {
+        var elapsed = Stopwatch.StartNew();
+        while (!condition())
+        {
+            if (elapsed.Elapsed > TimeSpan.FromSeconds(15)) Assert.Fail($"Jamais observé : {expectation}");
+            await Task.Delay(20);
+        }
+    }
+
+    /// <summary>Plusieurs fois l'anti-rebond : ce qui devait partir serait parti.</summary>
+    private static Task Quiet() => Task.Delay(500);
+
+    [Fact]
+    public async Task Sends_at_startup_then_again_only_when_a_file_changes()
+    {
+        using var h = new Harness();
+        var file = h.Temp.AddAccount(h.Flavor, "111111111#1", "account-two-characters-previous.lua");
+        var server = new FakeServer(HttpStatusCode.OK);
+
+        h.Start(server);
+        await Eventually(() => server.Calls == 1, "l'envoi du démarrage");
+        await Quiet();
+        Assert.Equal(1, server.Calls);
+
+        File.Copy(Fixture.PathOf("account-two-characters.lua"), file, overwrite: true);
+        await Eventually(() => server.Calls == 2, "l'envoi après la modification du fichier");
+        await Quiet();
+        Assert.Equal(2, server.Calls);
+
+        Assert.Equal(AgentApp.ExitOk, await h.StopAsync());
+        Assert.All(h.Events, e => Assert.IsType<WatchEvent.Synced>(e));
+        Assert.Equal(2, h.Events.Count);
+        Assert.Contains("2 personnages synchronisés, 1 mis à jour.", h.Output);
+        Assert.Contains("Synchronisation automatique arrêtée.", h.Output);
+        Assert.Contains("synchronisation automatique success (run 7)", h.Log);
+    }
+
+    [Fact]
+    public async Task Does_not_resend_after_a_restart_what_the_server_already_has()
+    {
+        using var h = new Harness();
+        h.Temp.AddAccount(h.Flavor, "111111111#1", "account-two-characters.lua");
+        var first = new FakeServer(HttpStatusCode.OK);
+        h.Start(first);
+        await Eventually(() => first.Calls == 1, "l'envoi du démarrage");
+        await h.StopAsync();
+
+        var second = new FakeServer(HttpStatusCode.OK);
+        h.Start(second);
+        await Quiet();
+
+        Assert.Equal(0, second.Calls);
+        var state = File.ReadAllText(Path.Combine(h.Home, "state.json"));
+        Assert.Contains("_classic_beta_/", state);
+        Assert.DoesNotContain("111111111", state);
+    }
+
+    [Fact]
+    public async Task Retries_after_a_failure_and_reports_both_outcomes()
+    {
+        using var h = new Harness();
+        h.Temp.AddAccount(h.Flavor, "111111111#1", "account-two-characters.lua");
+        var server = new FakeServer(HttpStatusCode.ServiceUnavailable, HttpStatusCode.OK);
+
+        h.Start(server);
+        await Eventually(() => h.Events.Count == 2, "un échec puis une réussite");
+
+        var failed = Assert.IsType<WatchEvent.Failed>(h.Events.First());
+        Assert.Equal("serveur indisponible", failed.Error);
+        Assert.Equal(TimeSpan.FromMilliseconds(100), failed.RetryIn);
+        Assert.IsType<WatchEvent.Synced>(h.Events.Last());
+        Assert.Equal(2, server.Calls);
+        Assert.Contains("Échec : serveur indisponible. Nouvel essai dans", h.Output);
+        Assert.Contains("synchronisation automatique en échec : serveur indisponible", h.Log);
+    }
+
+    [Fact]
+    public async Task Reports_a_missing_token_without_calling_the_server()
+    {
+        using var h = new Harness();
+        h.Temp.AddAccount(h.Flavor, "111111111#1", "account-two-characters.lua");
+        var server = new FakeServer(HttpStatusCode.OK);
+
+        h.Start(server, token: null);
+        await Eventually(() => !h.Events.IsEmpty, "le signalement du jeton absent");
+
+        Assert.Contains("Aucun jeton d'agent", Assert.IsType<WatchEvent.Failed>(h.Events.First()).Error);
+        Assert.Equal(0, server.Calls);
+        Assert.Equal(AgentApp.ExitOk, await h.StopAsync());
+    }
+
+    [Fact]
+    public async Task Sends_on_request_even_when_nothing_changed()
+    {
+        using var h = new Harness();
+        h.Temp.AddAccount(h.Flavor, "111111111#1", "account-two-characters.lua");
+        var server = new FakeServer(HttpStatusCode.OK);
+        h.Start(server);
+        await Eventually(() => server.Calls == 1, "l'envoi du démarrage");
+
+        h.Control.RequestSync();
+
+        await Eventually(() => server.Calls == 2, "l'envoi demandé");
+    }
+
+    [Fact]
+    public async Task Sends_again_when_only_the_ledger_file_changes()
+    {
+        using var h = new Harness();
+        var file = h.Temp.AddAccount(h.Flavor, "111111111#1", "account-two-characters.lua");
+        var ledger = Path.Combine(Path.GetDirectoryName(file)!, "AllemanoLedger.lua");
+        File.Copy(Fixture.PathOf("ledger-two-characters.lua"), ledger);
+        var server = new FakeServer(HttpStatusCode.OK);
+        h.Start(server);
+        await Eventually(() => server.Calls == 1, "l'envoi du démarrage");
+
+        File.AppendAllText(ledger, "\r\n-- réécrit par le jeu\r\n");
+
+        await Eventually(() => server.Calls == 2, "l'envoi après la modification d'Allemano Ledger");
+    }
+
+    [Fact]
+    public async Task Sends_nothing_while_no_account_exists_then_picks_up_a_new_one()
+    {
+        using var h = new Harness();
+        var server = new FakeServer(HttpStatusCode.OK);
+        h.Start(server);
+        await Quiet();
+        Assert.Equal(0, server.Calls);
+
+        h.Temp.AddAccount(h.Flavor, "111111111#1", "account-two-characters.lua");
+
+        await Eventually(() => server.Calls == 1, "l'envoi du compte apparu");
+    }
+}

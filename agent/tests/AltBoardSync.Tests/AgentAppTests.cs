@@ -258,14 +258,55 @@ public class AgentAppTests
         Assert.Contains("introuvable", h.Error.ToString());
     }
 
+    private sealed class FakeAutostart : IAutostart
+    {
+        public bool IsEnabled { get; private set; }
+
+        public void Enable() => IsEnabled = true;
+
+        public void Disable() => IsEnabled = false;
+    }
+
     [Fact]
-    public async Task Watch_mode_is_not_available_in_this_version()
+    public async Task Autostart_can_be_displayed_enabled_and_disabled()
+    {
+        using var h = new Harness();
+        var autostart = new FakeAutostart();
+        var app = new AgentApp(new AgentEnvironment { HomeDirectory = h.Home, Out = h.Out, Error = h.Error, Autostart = autostart });
+
+        Assert.Equal(AgentApp.ExitOk, await app.RunAsync(["autostart"]));
+        Assert.Contains("Démarrage automatique : désactivé.", h.Out.ToString());
+
+        Assert.Equal(AgentApp.ExitOk, await app.RunAsync(["autostart", "on"]));
+        Assert.True(autostart.IsEnabled);
+        Assert.Equal(AgentApp.ExitOk, await app.RunAsync(["autostart"]));
+        Assert.Contains("Démarrage automatique : activé.", h.Out.ToString());
+
+        Assert.Equal(AgentApp.ExitOk, await app.RunAsync(["autostart", "off"]));
+        Assert.False(autostart.IsEnabled);
+
+        Assert.Equal(AgentApp.ExitUsage, await app.RunAsync(["autostart", "peut-être"]));
+        Assert.False(autostart.IsEnabled);
+    }
+
+    [Fact]
+    public async Task Autostart_is_refused_where_the_system_has_none()
     {
         using var h = new Harness();
         var app = new AgentApp(new AgentEnvironment { HomeDirectory = h.Home, Out = h.Out, Error = h.Error });
 
-        Assert.Equal(AgentApp.ExitUsage, await app.RunAsync(["watch"]));
+        Assert.Equal(AgentApp.ExitUsage, await app.RunAsync(["autostart", "on"]));
         Assert.Contains("n'est pas disponible", h.Error.ToString());
+    }
+
+    [Fact]
+    public async Task Watch_refuses_an_unknown_option()
+    {
+        using var h = new Harness();
+        var app = new AgentApp(new AgentEnvironment { HomeDirectory = h.Home, Out = h.Out, Error = h.Error });
+
+        Assert.Equal(AgentApp.ExitUsage, await app.RunAsync(["watch", "--dry-run"]));
+        Assert.Contains("Option inconnue", h.Error.ToString());
     }
 
     [Fact]

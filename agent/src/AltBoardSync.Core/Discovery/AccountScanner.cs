@@ -46,6 +46,14 @@ public static class AccountScanner
         return sources;
     }
 
+    /// <summary>Dossiers <c>WTF\Account</c> de chaque client sous <paramref name="wowPath"/> : ce que surveille « watch ».</summary>
+    public static IReadOnlyList<string> AccountRoots(string wowPath)
+    {
+        if (!Directory.Exists(wowPath))
+            throw new DirectoryNotFoundException($"Dossier World of Warcraft introuvable : {wowPath}");
+        return [.. FlavorPaths(wowPath).Select(flavorPath => Path.Combine(flavorPath, "WTF", "Account"))];
+    }
+
     private static IEnumerable<string> FlavorPaths(string wowPath)
     {
         if (HasAccounts(wowPath))

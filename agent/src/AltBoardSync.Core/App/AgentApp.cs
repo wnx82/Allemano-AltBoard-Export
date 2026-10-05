@@ -27,11 +27,20 @@ public sealed record AgentEnvironment
     public string Hostname { get; init; } = Environment.MachineName;
 
     public Func<string, string?> GetEnvironmentVariable { get; init; } = Environment.GetEnvironmentVariable;
+
+    public WatchOptions? WatchOptions { get; init; }
+
+    public WatchControl? WatchControl { get; init; }
+
+    public Action<WatchEvent>? OnWatchEvent { get; init; }
+
+    /// <summary>Absent là où le démarrage automatique n'existe pas.</summary>
+    public IAutostart? Autostart { get; init; }
 }
 
 /// <summary>
-/// Ligne de commande de l'agent. La version 1 ne fait rien sans action humaine : chaque
-/// synchronisation est déclenchée par <c>AltBoardSync sync</c>.
+/// Ligne de commande de l'agent : <c>AltBoardSync sync</c> pour une synchronisation à la demande,
+/// <c>AltBoardSync watch</c> pour synchroniser à chaque écriture du jeu.
 /// </summary>
 public sealed class AgentApp(AgentEnvironment env)
 {
@@ -59,7 +68,8 @@ public sealed class AgentApp(AgentEnvironment env)
                 "config" => Config(rest),
                 "token" => Token(rest),
                 "version" or "--version" => Print(Version),
-                "watch" => Usage("La synchronisation automatique (watch) n'est pas disponible dans cette version."),
+                "watch" => await WatchAsync(rest, cancellationToken).ConfigureAwait(false),
+                "autostart" => Autostart(rest),
                 "help" or "--help" or "-h" => Help(),
                 _ => Usage($"Commande inconnue : {args[0]}"),
             };
@@ -93,16 +103,19 @@ public sealed class AgentApp(AgentEnvironment env)
             Commandes :
               sync [options]            lit les fichiers AltBoard.lua et les envoie au serveur
               scan [options]            lit et affiche, sans rien envoyer (équivaut à sync --dry-run)
+              watch [options]           synchronise à chaque écriture du jeu, jusqu'à l'arrêt
+              autostart [on|off]        lance watch à l'ouverture de session, ou l'arrête
               config                    affiche la configuration
               config set <clé> <valeur> modifie wowPath, serverUrl ou machineName
               token set                 enregistre le jeton d'agent (lu sur l'entrée standard)
               token clear               supprime le jeton enregistré
               version                   affiche la version
 
-            Options de sync et scan :
-              --dry-run                 n'envoie rien
+            Options de sync, scan et watch :
               --wow-path <dossier>      dossier World of Warcraft (remplace la configuration)
               --server <url>            URL de synchronisation (remplace la configuration)
+            Options de sync et scan :
+              --dry-run                 n'envoie rien
               --out <fichier>           écrit le document JSON produit dans un fichier
 
             Configuration : {_configStore.ConfigPath}
@@ -230,7 +243,72 @@ public sealed class AgentApp(AgentEnvironment env)
         return clean ? ExitOk : ExitFailed;
     }
 
-    private static string Plural(int count, string singular, string plural) => $"{count} {(count > 1 ? plural : singular)}";
+    internal static string Plural(int count, string singular, string plural) => $"{count} {(count > 1 ? plural : singular)}";
+
+    // ---------------------------------------------------------------------------
+    // watch / autostart
+    // ---------------------------------------------------------------------------
+
+    private async Task<int> WatchAsync(string[] args, CancellationToken cancellationToken)
+    {
+        string? wowPath = null, server = null;
+        for (var i = 0; i < args.Length; i++)
+        {
+            switch (args[i])
+            {
+                case "--wow-path" when i + 1 < args.Length: wowPath = args[++i]; break;
+                case "--server" when i + 1 < args.Length: server = args[++i]; break;
+                default: return Usage($"Option inconnue ou incomplète : {args[i]}");
+            }
+        }
+
+        var config = _configStore.LoadOrCreate();
+        var endpoint = SyncClient.ValidateEndpoint(server ?? config.ServerUrl);
+        var machineName = string.IsNullOrWhiteSpace(config.MachineName) ? env.Hostname : config.MachineName;
+
+        env.Out.WriteLine($"AltBoard Sync {Version} — synchronisation automatique");
+        env.Out.WriteLine();
+        env.Out.WriteLine($"Machine : {machineName}");
+        env.Out.WriteLine("Envoi à chaque écriture du jeu (déconnexion, /reload). Ctrl+C pour arrêter.");
+        env.Out.WriteLine();
+        _log.Info("synchronisation automatique démarrée");
+
+        try
+        {
+            await new WatchLoop(env, config, wowPath ?? config.WowPath, endpoint, _tokenStore, _log, Version).RunAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Arrêt demandé : la seule façon normale de sortir de la surveillance.
+        }
+
+        env.Out.WriteLine("Synchronisation automatique arrêtée.");
+        _log.Info("synchronisation automatique arrêtée");
+        return ExitOk;
+    }
+
+    private int Autostart(string[] args)
+    {
+        if (env.Autostart is not { } autostart) return Usage("Le démarrage automatique n'est pas disponible sur ce système.");
+        switch (args)
+        {
+            case []:
+                env.Out.WriteLine(autostart.IsEnabled ? "Démarrage automatique : activé." : "Démarrage automatique : désactivé.");
+                return ExitOk;
+            case ["on"]:
+                autostart.Enable();
+                env.Out.WriteLine("Démarrage automatique activé : la synchronisation automatique se lancera à l'ouverture de session.");
+                _log.Info("démarrage automatique activé");
+                return ExitOk;
+            case ["off"]:
+                autostart.Disable();
+                env.Out.WriteLine("Démarrage automatique désactivé.");
+                _log.Info("démarrage automatique désactivé");
+                return ExitOk;
+            default:
+                return Usage("Usage : autostart [on|off]");
+        }
+    }
 
     // ---------------------------------------------------------------------------
     // config / token

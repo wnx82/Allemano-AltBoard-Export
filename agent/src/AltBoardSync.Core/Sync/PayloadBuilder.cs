@@ -10,6 +10,12 @@ namespace AltBoardSync.Core.Sync;
 public sealed record AccountReadResult(AccountSource Source, AccountPayload? Payload, string? Error)
 {
     public bool Succeeded => Payload is not null;
+
+    /// <summary>
+    /// Empreinte de tout ce qui a été lu pour le compte, Allemano Ledger compris : « watch » ne
+    /// renvoie un compte que si elle a changé. Absente quand la lecture a échoué.
+    /// </summary>
+    public string? Fingerprint { get; init; }
 }
 
 public sealed class PayloadBuilder(StableFileReader reader)
@@ -21,18 +27,19 @@ public sealed class PayloadBuilder(StableFileReader reader)
         {
             var snapshot = await reader.ReadAsync(source.FilePath, cancellationToken).ConfigureAwait(false);
             var document = AltBoardReader.Read(SavedVariablesParser.Parse(snapshot.Content));
-            var (characters, ledgerWarnings) = await AttachLedgerAsync(source, document.Characters, cancellationToken).ConfigureAwait(false);
+            var fileHash = Convert.ToHexStringLower(SHA256.HashData(snapshot.Content));
+            var (characters, ledgerWarnings, ledgerHash) = await AttachLedgerAsync(source, document.Characters, cancellationToken).ConfigureAwait(false);
             var payload = new AccountPayload(
                 AccountKey.Compute(source.AccountFolder),
                 AccountKey.Hint(source.AccountFolder),
                 source.Flavor,
                 document.Schema,
                 AccountScanner.ReadAddonVersion(source.FlavorPath),
-                new SourceFilePayload(Convert.ToHexStringLower(SHA256.HashData(snapshot.Content)), snapshot.ModifiedAt, snapshot.Content.LongLength),
+                new SourceFilePayload(fileHash, snapshot.ModifiedAt, snapshot.Content.LongLength),
                 characters,
                 document.Items,
                 [.. document.Warnings, .. ledgerWarnings]);
-            return new AccountReadResult(source, payload, null);
+            return new AccountReadResult(source, payload, null) { Fingerprint = $"{fileHash}:{ledgerHash ?? "-"}" };
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException or LuaParseException or AltBoardFormatException)
         {
@@ -44,10 +51,10 @@ public sealed class PayloadBuilder(StableFileReader reader)
     /// Complète les personnages avec le temps de jeu et les sessions d'Allemano Ledger, quand son fichier existe.
     /// Source facultative : illisible ou absente, elle ne fait jamais échouer la synchronisation.
     /// </summary>
-    private async Task<(IReadOnlyList<CharacterPayload> Characters, IReadOnlyList<string> Warnings)> AttachLedgerAsync(
+    private async Task<(IReadOnlyList<CharacterPayload> Characters, IReadOnlyList<string> Warnings, string? FileHash)> AttachLedgerAsync(
         AccountSource source, IReadOnlyList<CharacterPayload> characters, CancellationToken cancellationToken)
     {
-        if (source.LedgerFilePath is null) return (characters, []);
+        if (source.LedgerFilePath is null) return (characters, [], null);
         try
         {
             var snapshot = await reader.ReadAsync(source.LedgerFilePath, cancellationToken).ConfigureAwait(false);
@@ -56,12 +63,12 @@ public sealed class PayloadBuilder(StableFileReader reader)
             var completed = characters
                 .Select(c => ledger.TryGetValue(c.Guid, out var known) ? c with { Playtime = known.Playtime, Sessions = known.Sessions.Count > 0 ? known.Sessions : null } : c)
                 .ToList();
-            return (completed, warnings);
+            return (completed, warnings, Convert.ToHexStringLower(SHA256.HashData(snapshot.Content)));
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException or LuaParseException)
         {
             var message = $"Allemano Ledger illisible, temps de jeu et sessions non transmis : {e.Message}";
-            return (characters, [message.Length > 300 ? message[..300] : message]);
+            return (characters, [message.Length > 300 ? message[..300] : message], null);
         }
     }
 

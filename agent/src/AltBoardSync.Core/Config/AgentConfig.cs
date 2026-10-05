@@ -20,6 +20,7 @@ public sealed record AgentConfig
 
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, WriteIndented = true)]
 [JsonSerializable(typeof(AgentConfig))]
+[JsonSerializable(typeof(WatchState))]
 public sealed partial class AgentJsonContext : JsonSerializerContext;
 
 /// <summary>Configuration locale (<c>%APPDATA%\AltBoardSync\config.json</c>). Ne contient aucun secret.</summary>

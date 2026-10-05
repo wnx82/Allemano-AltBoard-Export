@@ -176,7 +176,7 @@ très long, accentué, à apostrophes, hors alphabet latin ; base injoignable.
 | Empreinte conçue | ✅ (déjà calculée et stockée à chaque synchronisation) |
 | Service futur documenté | ✅ |
 
-Rien n'est implémenté ni activé : la commande `watch` répond qu'elle n'est pas disponible.
+Implémenté depuis l'agent 0.2.0 : `watch`, `autostart`, icône de la zone de notification.
 
 ## P13 — `wow.ekreativ.be`
 
@@ -202,7 +202,7 @@ Rien n'est implémenté ni activé : la commande `watch` répond qu'elle n'est p
 
 | Version | Contenu |
 |---|---|
-| V2 | `watch`, démarrage à l'ouverture de session, icône de zone de notification |
+| V2 | ✅ agent 0.2.0 : `watch`, démarrage à l'ouverture de session, icône de zone de notification |
 | V3 | historique détaillé, comparaison des métiers, activité |
 | V4 | n8n, notifications, rapports |
 | V5 | installation et mise à jour automatiques de l'agent |
