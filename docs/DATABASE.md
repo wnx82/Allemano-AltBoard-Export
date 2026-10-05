@@ -9,15 +9,15 @@
 | Environnement | État |
 |---|---|
 | PostgreSQL 17 local (Docker, `127.0.0.1:35432`) | ✅ migration appliquée et vérifiée dans l'instance |
-| Production (`pg-shared`, hôte contabo) | ✅ base `wow_altboard` créée le 2026-10-04, migration appliquée et vérifiée dans l'instance |
+| Production (PostgreSQL 17 de la pile, Proxmox) | ✅ base `wow_altboard` copiée de contabo le 2026-10-05 (22 tables), migrations à jour |
 
 ## Isolation
 
 - Base dédiée **`wow_altboard`** ; aucune table dans une base ou un schéma existant.
-- Un rôle `wow_altboard`, propriétaire de sa seule base : c'est la convention de l'hôte (une base,
-  un rôle par projet, créés par `pgdb`). Il ne peut se connecter à aucune base d'un autre projet
-  ni créer de base ; comme tout rôle de l'instance, il peut ouvrir la base de maintenance `postgres`.
-- L'application passe par PgBouncer (mode transaction), les migrations par une connexion directe.
+- En production, PostgreSQL appartient à la pile : une instance, une base, un rôle `wow_altboard`
+  qui l'administre, sans aucun autre projet. Elle n'est jamais publiée hors du réseau de la pile.
+- L'application et les migrations s'y connectent directement. Le code reste compatible avec
+  PgBouncer en mode transaction, utilisé sur l'ancien hôte.
 - Garde-fou applicatif (`web/src/db/env.ts`) : toute connexion vers une base dont le nom ne commence
   pas par `wow_altboard` est refusée avant même d'ouvrir une socket ; les tests n'acceptent que
   `wow_altboard*_test`.
@@ -131,10 +131,11 @@ npm run db:migrate           # applique sur WOW_DATABASE_URL_DIRECT, sinon WOW_D
 npm run db:migrate:test      # applique sur la base de test
 ```
 
-En production, depuis l'image : `docker compose run --rm tools node migrate.mjs`.
+En production, le service `migrate` de la pile les applique à chaque déploiement, avant le
+démarrage de l'application.
 Ne jamais passer de `statement_timeout` (ni aucun autre paramètre de session) dans les options du
 pool : PgBouncer refuse les paramètres de démarrage hors de sa liste. Un test le vérifie.
-Les migrations passent en connexion directe, jamais par PgBouncer. Le suivi est tenu dans
+Derrière PgBouncer, les migrations passent en connexion directe. Le suivi est tenu dans
 `drizzle.__drizzle_migrations`.
 
 | Migration | Contenu |

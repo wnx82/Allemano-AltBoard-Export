@@ -1,29 +1,168 @@
 # Déploiement
 
-Production : **`https://wow.ekreativ.be`**, hôte `contabo`. Première mise en ligne le 2026-10-04.
-
-Une pile Komodo pour Proxmox est prête dans `deploy/proxmox/` et doit remplacer contabo : voir
-[Passer sur Proxmox](#passer-sur-proxmox-komodo). Au 2026-10-05 elle n'est ni déployée ni
-basculée ; tout ce qui précède cette section décrit contabo.
+Production : **`https://wow.ekreativ.be`**, pile Komodo `wow-altboard` sur Proxmox. Première mise en
+ligne le 2026-10-04 sur l'hôte `contabo`, déplacée sur Proxmox le 2026-10-05. Sur contabo, le
+conteneur est arrêté et la base conservée : voir [Ancien hôte : contabo](#ancien-hôte--contabo).
 
 ## Ce qui existe en production
 
 | Élément | Valeur |
 |---|---|
-| Sources | `/etc/komodo/repos/wow-altboard/` (`web/`, `deploy/`, `REVISION` = commit déployé) |
-| Conteneur | `wow-altboard-web`, image `wow-altboard-web:<commit>`, port `127.0.0.1:3016` |
-| Configuration | `/etc/komodo/repos/wow-altboard/deploy/.env` (droits `600`) |
-| Base | `wow_altboard` sur `pg-shared` (PostgreSQL 17), rôle `wow_altboard`, créés par `pgdb` |
+| Pile | `wow-altboard` dans **komodoprox** (`https://komodo.example.com`), serveur `komodoprox` : le conteneur LXC 102 « docker », `10.0.0.15` |
+| Définition | `deploy/proxmox/compose.yaml` ; pile décrite par `deploy/proxmox/komodo.toml` |
+| Sources | `/etc/komodo/stacks/wow-altboard/`, clonées par Komodo (branche `feat/v1-pipeline`) |
+| Conteneurs | `wow-altboard-web`, `wow-altboard-db` (PostgreSQL 17), `migrate` (s'arrête après les migrations) |
+| Base | `wow_altboard` dans la pile, volume `wow-altboard_db-data`, jamais publiée hors de la pile |
+| Configuration | environnement de la pile, écrit par Komodo dans `deploy/proxmox/.env` (droits `600`) |
+| Secret | variable Komodo `WOW_ALTBOARD_DB_PASSWORD`, injectée dans `WOW_DB_PASSWORD` |
+| Port | `10.0.0.15:3016`, joignable du réseau local seulement |
+| Accès public | tunnel Cloudflare « proxmox » (cloudflared, LXC 101) ; DNS `wow.ekreativ.be` en CNAME proxifié vers le tunnel |
+| Cloudflare Access | `/api/sync` ouvert par l'application « wow-sync-bypass » ; tout le reste derrière « HomeTunnelGuard » |
+
+## Conventions suivies
+
+- **Komodo fait tout** : il clone le dépôt, écrit le `.env`, puis lance `docker compose up -d`. Le
+  fichier compose reconstruit l'image (`pull_policy: build`) et applique les migrations par un
+  service dédié, dont dépend le démarrage de `web`. Aucune option de construction sur la pile.
+- **Base dans la pile** : pas de PgBouncer, l'application se connecte directement. L'instance est
+  initialisée avec la locale ICU `fr`, pour que les listes triées en SQL suivent l'ordre
+  alphabétique (sur contabo, `C.UTF-8` triait par octets).
+- **Cloudflare** termine TLS et compresse : la compression reste désactivée dans l'application.
+  Les en-têtes de sécurité de l'application arrivent tels quels au navigateur.
+- **Cloudflare Access** : le tableau de bord exige une adresse autorisée par « HomeTunnelGuard »,
+  puis son propre mot de passe. `/api/sync` y échappe, l'agent ne sachant pas s'y authentifier :
+  seul son jeton le protège.
+- **Adresse du client** : l'en-tête de confiance est `cf-connecting-ip`, posé par Cloudflare. Le
+  port restant joignable du réseau local, un poste de ce réseau pourrait le falsifier et contourner
+  la limitation de débit ; pas un client d'Internet.
+- **autoheal** redémarre tout conteneur en mauvaise santé sur cet hôte, sans étiquette : les
+  services `migrate` et `tools` désactivent leur sonde.
+
+## Mettre à jour
+
+Pousser sur la branche, puis **Deploy** sur la pile dans Komodo. L'image est reconstruite à chaque
+déploiement, ce qui recrée `web` ; les migrations s'appliquent avant son démarrage.
+
+Une migration doit rester compatible avec la version précédente de l'application le temps du
+redémarrage (ajouts d'abord, suppressions dans une version ultérieure).
+
+## Revenir en arrière
+
+Fixer le champ **Commit** de la pile sur le commit précédent, puis **Deploy**. Les migrations ne
+sont pas annulées automatiquement : une migration destructive exige une sauvegarde préalable.
+
+## Comptes et jetons
+
+```bash
+# Compte d'accès au tableau de bord : mot de passe saisi sur le serveur, sans écho
+cd /etc/komodo/stacks/wow-altboard/deploy/proxmox
+docker compose run --rm -it tools node create-admin.mjs vous@exemple.test
+```
+
+Relancer la même commande change le mot de passe. Les jetons d'agent se créent et se révoquent
+dans l'interface, page **Machines**.
+
+Les commandes ponctuelles passent par le service `tools`, jamais par `web` : lancée depuis `web`,
+une commande hériterait de la sonde de santé, serait jugée en mauvaise santé (aucun serveur
+n'écoute) et redémarrée par autoheal au milieu de la saisie.
+
+## Sauvegarde
+
+La base vit dans le volume `wow-altboard_db-data` du conteneur LXC 102 et suit sa sauvegarde :
+aucun `pg_dumpall` global ne la couvre, contrairement à contabo. Pour une copie à part :
+
+```bash
+docker exec wow-altboard-db pg_dump -U wow_altboard -Fc --no-owner --no-acl wow_altboard > wow_altboard.dump
+```
+
+Les données sont reconstructibles par une nouvelle synchronisation, **sauf l'historique**
+(`character_snapshots`), qui n'existe nulle part ailleurs.
+
+Restaurer un dump remplace tout le contenu de la base, en une transaction : en cas d'erreur, rien
+n'est modifié.
+
+```bash
+cd /etc/komodo/stacks/wow-altboard/deploy/proxmox
+docker compose stop web
+docker exec -i wow-altboard-db pg_restore -U wow_altboard -d wow_altboard \
+  --clean --if-exists --no-owner --no-acl --single-transaction < wow_altboard.dump
+docker compose start web
+```
+
+## Recréer la pile
+
+1. Dans Komodo, **Settings > Variables** : créer `WOW_ALTBOARD_DB_PASSWORD`, case « secret »
+   cochée. Valeur hexadécimale uniquement, elle entre telle quelle dans l'URL de connexion :
+   `openssl rand -hex 24`. PostgreSQL ne la lit qu'à la création du volume.
+2. Créer la pile `wow-altboard` d'après `deploy/proxmox/komodo.toml`, puis **Deploy**. Depuis le
+   réseau local, `curl http://10.0.0.15:3016/api/health` répond `{"status":"ok"}`.
+3. Tunnel Cloudflare « proxmox » : entrée `wow.ekreativ.be` vers `http://10.0.0.15:3016`, avant
+   la règle finale `http_status:404`.
+4. DNS : `wow.ekreativ.be` en CNAME proxifié vers `<identifiant du tunnel>.cfargotunnel.com`.
+5. Cloudflare Access : application « wow-sync-bypass » sur `wow.ekreativ.be/api/sync`, politique
+   de contournement pour tous. Sans elle, l'agent reçoit une redirection vers la page de connexion
+   d'Access au lieu d'atteindre l'API.
+6. Restaurer une sauvegarde (voir [Sauvegarde](#sauvegarde)), ou créer un compte d'accès et des
+   jetons sur une base vide.
+
+## Changer d'adresse
+
+L'application ne contient aucune URL en dur : origine et préfixe viennent de la configuration.
+
+| Adresse | `WOW_APP_ORIGIN` | `WOW_BASE_PATH` | Routage |
+|---|---|---|---|
+| `https://wow.ekreativ.be` (actuelle) | `https://wow.ekreativ.be` | vide | hôte `wow.ekreativ.be` |
+| `https://ekreativ.be/wow` | `https://ekreativ.be` | `/wow` | hôte `ekreativ.be`, chemin `/wow` |
+
+Le routage se règle dans l'entrée du tunnel et dans le domaine de l'application Access.
+`WOW_BASE_PATH` est fixé à la construction de l'image. Le fonctionnement sous `/wow` a été vérifié
+de bout en bout sur contabo, derrière Traefik : liens, redirections, ressources, API, export,
+cookie. Après un changement d'adresse : redéployer, puis sur chaque PC
+`AltBoardSync.exe config set serverUrl <nouvelle adresse>/api/sync`. Les jetons restent valables ;
+les sessions du tableau de bord sont à rouvrir (le cookie est lié à l'hôte).
+
+Sous Git Bash pour Windows, préfixer les commandes par `MSYS_NO_PATHCONV=1` : sans cela `/wow` est
+réécrit en chemin Windows et la construction échoue.
+
+## Ancien hôte : contabo
+
+Arrêté le 2026-10-05 par `docker compose stop web`, après copie de la base vers Proxmox (22 tables,
+893 lignes, comptes identiques des deux côtés). Rien n'y a été supprimé :
+
+| Élément | Valeur |
+|---|---|
+| Sources | `/etc/komodo/repos/wow-altboard/` (`web/`, `deploy/`, `REVISION` = `479b332`) |
+| Conteneur | `wow-altboard-web`, image `wow-altboard-web:479b332`, port `127.0.0.1:3016`, arrêté |
+| Configuration | `/etc/komodo/repos/wow-altboard/deploy/.env` (droits `600`) ; définition : `deploy/docker-compose.yml` |
+| Base | `wow_altboard` sur `pg-shared` (PostgreSQL 17), rôle `wow_altboard`, créés par `pgdb` ; figée au 2026-10-05 |
 | Secret de la base | `/srv/shared-db/secrets/wow_altboard.env` (droits `600`) |
-| Réseau Docker | `shared-db` (externe) : `pgbouncer:6432` pour l'application, `pg-shared:5432` pour les migrations |
 | Reverse proxy | `/etc/traefik/dynamic/wow-altboard.yml` (copie de référence : `deploy/traefik/wow-altboard.yml`) |
-| DNS | `wow.ekreativ.be` A → adresse de l'hôte, **non proxifié** par Cloudflare, comme les autres sites de l'hôte |
-| Certificat | Let's Encrypt, par Traefik (défi DNS) |
 
-Le dépôt n'a pas de dépôt distant : les sources ont été copiées par archive (`git archive`), pas
-clonées par Komodo. Pour passer au flux Komodo habituel, pousser le dépôt puis déclarer la pile.
+### Y revenir
 
-## Conventions de l'hôte suivies
+Les données écrites depuis la bascule n'existent que sur Proxmox. Pour ne pas les perdre, copier
+la base dans l'autre sens avant de relancer, ou resynchroniser chaque PC ensuite : l'historique
+écrit entre-temps ne se reconstruit pas.
+
+1. Sur contabo : `cd /etc/komodo/repos/wow-altboard/deploy && docker compose start web`.
+2. DNS : remettre `wow.ekreativ.be` en enregistrement A **non proxifié** vers l'adresse de contabo.
+3. Retirer l'entrée `wow.ekreativ.be` du tunnel « proxmox » et l'application Access
+   « wow-sync-bypass ».
+
+### Copier sa base
+
+La copie du 2026-10-05, depuis un poste qui joint les deux hôtes en SSH, sans fichier
+intermédiaire sur contabo :
+
+```bash
+ssh root@<contabo> "docker exec --env-file /srv/shared-db/secrets/wow_altboard.env pg-shared \
+  sh -c 'pg_dump \"\$DATABASE_URL_DIRECT\" -Fc --no-owner --no-acl'" \
+  | ssh root@<proxmox> "pct exec 102 -- sh -c 'umask 077; cat > /tmp/wow_altboard.dump'"
+```
+
+Puis restauration dans le conteneur 102, comme dans [Sauvegarde](#sauvegarde).
+
+### Conventions de l'hôte
 
 - **Une base, un rôle** par projet, créés par l'outil `pgdb` (`pgdb create <projet>`), qui révoque
   l'accès public à la base et range les identifiants dans `/srv/shared-db/secrets/`. Le rôle
@@ -32,20 +171,20 @@ clonées par Komodo. Pour passer au flux Komodo habituel, pousser le dépôt pui
   pour un nouveau rôle. L'application n'utilise ni état de session ni requête préparée nommée ; son
   verrou de synchronisation est un verrou de transaction.
 - **Traefik** en fichiers dynamiques surveillés : un fichier par projet, chaîne `default-chain`
-  (CrowdSec + en-têtes) et `compress-br`. La compression est donc désactivée dans l'application.
+  (CrowdSec + en-têtes) et `compress-br`.
 - **Adresse du client** : le domaine n'étant pas proxifié, l'en-tête de confiance est `X-Real-Ip`,
-  posé par Traefik. `cf-connecting-ip` serait falsifiable ici.
+  posé par Traefik. `cf-connecting-ip` serait falsifiable sur cet hôte.
 - La chaîne `default-chain` remplace deux en-têtes de l'application (`X-Frame-Options: SAMEORIGIN`,
   `Referrer-Policy: strict-origin-when-cross-origin`). L'interdiction d'encadrement reste assurée
   par `frame-ancestors 'none'` dans la CSP, que Traefik ne touche pas.
 
-## Mettre à jour
+### Mettre à jour
 
-Sur le poste de développement :
+Les sources ne sont pas clonées sur cet hôte : elles y sont copiées par archive.
 
 ```bash
 git archive --format=tar.gz -o wow-altboard-src.tar.gz HEAD web deploy
-scp wow-altboard-src.tar.gz root@<hôte>:/tmp/
+scp wow-altboard-src.tar.gz root@<contabo>:/tmp/
 ```
 
 Sur l'hôte :
@@ -62,44 +201,14 @@ docker compose up -d
 docker compose ps                                # healthy attendu
 ```
 
-`deploy/.env` n'est pas dans l'archive : il n'est jamais écrasé. Une migration doit rester
-compatible avec la version précédente de l'application le temps du redémarrage (ajouts d'abord,
-suppressions dans une version ultérieure).
+`deploy/.env` n'est pas dans l'archive : il n'est jamais écrasé. Chaque image est étiquetée par son
+commit ; pour relancer la précédente :
+`sed -i 's/^WOW_IMAGE_TAG=.*/WOW_IMAGE_TAG=<commit précédent>/' .env && docker compose up -d`.
 
-## Revenir en arrière
+### Désinstaller
 
-Chaque image est étiquetée par son commit. Pour relancer la précédente :
-
-```bash
-cd /etc/komodo/repos/wow-altboard/deploy
-sed -i 's/^WOW_IMAGE_TAG=.*/WOW_IMAGE_TAG=<commit précédent>/' .env && docker compose up -d
-```
-
-Les migrations ne sont pas annulées automatiquement : une migration destructive exige une
-sauvegarde préalable de `wow_altboard`.
-
-## Comptes et jetons
-
-```bash
-# Compte d'accès au tableau de bord : mot de passe saisi sur le serveur, sans écho
-cd /etc/komodo/repos/wow-altboard/deploy
-docker compose run --rm -it tools node create-admin.mjs vous@exemple.test
-```
-
-Relancer la même commande change le mot de passe. Les jetons d'agent se créent et se révoquent
-dans l'interface, page **Machines**.
-
-Les commandes ponctuelles passent par le service `tools`, jamais par `web` : lancée depuis `web`,
-une commande hériterait de la sonde de santé et de l'étiquette autoheal, serait jugée en mauvaise
-santé (aucun serveur n'écoute) et redémarrée au milieu de la saisie.
-
-## Sauvegarde
-
-`wow_altboard` est une base ordinaire de `pg-shared` : elle est couverte par la sauvegarde globale
-de l'instance (`pg_dumpall`). Les données sont reconstructibles par une nouvelle synchronisation,
-**sauf l'historique** (`character_snapshots`), qui n'existe nulle part ailleurs.
-
-## Désinstaller
+`wow_altboard` reste couverte par la sauvegarde globale de `pg-shared` (`pg_dumpall`) tant qu'elle
+n'est pas supprimée.
 
 ```bash
 cd /etc/komodo/repos/wow-altboard/deploy && docker compose down
@@ -107,103 +216,4 @@ rm /etc/traefik/dynamic/wow-altboard.yml         # Traefik recharge seul
 pgdb drop wow_altboard --yes                     # sauvegarde la base avant de la supprimer
 ```
 
-Puis supprimer l'enregistrement DNS `wow.ekreativ.be` et le dossier des sources.
-
-## Changer d'adresse
-
-L'application ne contient aucune URL en dur : origine et préfixe viennent de la configuration.
-
-| Adresse | `WOW_APP_ORIGIN` | `WOW_BASE_PATH` | Traefik |
-|---|---|---|---|
-| `https://wow.ekreativ.be` (actuelle) | `https://wow.ekreativ.be` | vide | `Host(wow.ekreativ.be)` |
-| `https://ekreativ.be/wow` | `https://ekreativ.be` | `/wow` | `Host(ekreativ.be) && PathPrefix(/wow)` |
-
-`WOW_BASE_PATH` est fixé à la construction de l'image. Le fonctionnement sous `/wow` a été vérifié
-de bout en bout : liens, redirections, ressources, API, export, cookie. Après un changement
-d'adresse : reconstruire, redémarrer, puis sur chaque PC
-`AltBoardSync.exe config set serverUrl <nouvelle adresse>/api/sync`. Les jetons restent valables ;
-les sessions du tableau de bord sont à rouvrir (le cookie est lié à l'hôte).
-
-Sous Git Bash pour Windows, préfixer les commandes par `MSYS_NO_PATHCONV=1` : sans cela `/wow` est
-réécrit en chemin Windows et la construction échoue.
-
-## Passer sur Proxmox (Komodo)
-
-Cible : la pile `wow-altboard` de **komodoprox** (`https://komodo.example.com`), sur le
-conteneur LXC 102 « docker » (`10.0.0.15`). Komodo clone le dépôt, construit l'image, applique
-les migrations et démarre l'application : un déploiement se réduit à un bouton.
-
-| Élément | Valeur |
-|---|---|
-| Définition | `deploy/proxmox/compose.yaml` ; pile décrite par `deploy/proxmox/komodo.toml` |
-| Sources | `/etc/komodo/stacks/wow-altboard/`, clonées par Komodo (branche `feat/v1-pipeline`) |
-| Conteneurs | `wow-altboard-web`, `wow-altboard-db` (PostgreSQL 17), `migrate` (s'arrête après les migrations) |
-| Base | `wow_altboard` dans la pile, volume `wow-altboard_db-data`, jamais publiée hors de la pile |
-| Port | `10.0.0.15:3016`, joignable du réseau local seulement |
-| Accès public | tunnel Cloudflare « proxmox » (cloudflared, LXC 101), domaine proxifié |
-| Secret | variable Komodo `WOW_ALTBOARD_DB_PASSWORD`, injectée dans `WOW_DB_PASSWORD` |
-
-Différences avec contabo : pas de PgBouncer (connexion directe à la base de la pile), pas de
-Traefik (TLS et compression par Cloudflare), et l'en-tête de confiance devient `cf-connecting-ip`.
-Le port restant joignable du réseau local, un poste de ce réseau pourrait falsifier cet en-tête et
-contourner la limitation de débit ; pas un client d'Internet.
-
-### Créer la pile
-
-1. Dans Komodo, **Settings > Variables** : créer `WOW_ALTBOARD_DB_PASSWORD`, case « secret »
-   cochée. Valeur hexadécimale uniquement, elle entre telle quelle dans l'URL de connexion :
-   `openssl rand -hex 24`. PostgreSQL ne la lit qu'à la création du volume.
-2. Créer la pile `wow-altboard` d'après `deploy/proxmox/komodo.toml` : collé dans un Resource Sync
-   défini dans l'interface, ou reporté champ par champ.
-3. **Deploy**, puis vérifier depuis le réseau local :
-   `curl http://10.0.0.15:3016/api/health` répond `{"status":"ok"}`.
-
-### Copier la base de contabo
-
-La pile démarre avec une base vide. Pour reprendre comptes, jetons et historique, sur contabo :
-
-```bash
-docker run --rm --network shared-db --env-file /srv/shared-db/secrets/wow_altboard.env \
-  postgres:17-alpine sh -c 'pg_dump "$DATABASE_URL_DIRECT" -Fc --no-owner --no-acl' > /tmp/wow_altboard.dump
-```
-
-Transférer le fichier dans le conteneur 102 (`scp` vers l'hôte Proxmox, puis
-`pct push 102 /tmp/wow_altboard.dump /tmp/wow_altboard.dump`), et dans le conteneur :
-
-```bash
-cd /etc/komodo/stacks/wow-altboard/deploy/proxmox
-docker compose stop web
-docker exec -i wow-altboard-db pg_restore -U wow_altboard -d wow_altboard \
-  --clean --if-exists --no-owner --no-acl --single-transaction < /tmp/wow_altboard.dump
-docker compose start web
-rm /tmp/wow_altboard.dump
-```
-
-La restauration remplace tout le contenu de la base de la pile, en une transaction : en cas
-d'erreur, rien n'est modifié. Ne lancer aucune synchronisation entre la copie et la bascule : elle
-irait encore sur contabo et serait perdue.
-
-### Basculer
-
-1. Tunnel Cloudflare « proxmox » : ajouter l'entrée `wow.ekreativ.be` vers
-   `http://10.0.0.15:3016`, avant la règle finale `http_status:404`.
-2. DNS : remplacer l'enregistrement A `wow.ekreativ.be` (adresse de contabo, non proxifié) par un
-   CNAME proxifié vers `<identifiant du tunnel>.cfargotunnel.com`.
-3. Vérifier `https://wow.ekreativ.be/api/health`, la connexion au tableau de bord, puis
-   `AltBoardSync.exe sync` depuis un PC. L'adresse ne change pas : agents et jetons restent
-   valables. Si Cloudflare bloque l'agent (réponse 403), exempter `/api/sync` de ses règles
-   anti-robots.
-4. Arrêter contabo en suivant [Désinstaller](#désinstaller), en gardant sa base quelques jours
-   avant `pgdb drop`.
-
-### Exploiter
-
-- **Mettre à jour** : pousser sur la branche, puis **Deploy** sur la pile. L'image est toujours
-  reconstruite et `web` redémarré, même sans changement.
-- **Revenir en arrière** : fixer le champ **Commit** de la pile sur le commit précédent, puis
-  **Deploy**. Les migrations ne sont pas annulées.
-- **Compte d'accès** : dans `/etc/komodo/stacks/wow-altboard/deploy/proxmox`,
-  `docker compose run --rm -it tools node create-admin.mjs vous@exemple.test`.
-- **Sauvegarde** : aucun `pg_dumpall` global ne couvre cette base, contrairement à contabo. Elle
-  vit dans le volume du conteneur 102 et suit sa sauvegarde ; pour une copie à part :
-  `docker exec wow-altboard-db pg_dump -U wow_altboard -Fc wow_altboard > wow_altboard.dump`.
+Puis supprimer le dossier des sources.

@@ -1,5 +1,6 @@
-# Déploiement de production (hôte contabo). Les valeurs sensibles viennent du fichier .env voisin,
-# jamais versionné : voir deploy/.env.example et docs/DEPLOYMENT.md.
+# Ancien déploiement (hôte contabo), arrêté le 2026-10-05 : la production est deploy/proxmox/.
+# Les valeurs sensibles viennent du fichier .env voisin, jamais versionné : voir deploy/.env.example
+# et docs/DEPLOYMENT.md.
 name: wow-altboard
 
 x-app: &app

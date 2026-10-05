@@ -182,7 +182,8 @@ Rien n'est implémenté ni activé : la commande `watch` répond qu'elle n'est p
 
 | Étape | Statut | Note |
 |---|---|---|
-| Configuration du domaine | ✅ | DNS, routeur Traefik, certificat Let's Encrypt |
+| Configuration du domaine | ✅ | DNS proxifié, tunnel Cloudflare, Cloudflare Access (Traefik sur contabo jusqu'au 2026-10-05) |
+| Pile Komodo sur Proxmox | ✅ | base copiée de contabo, bascule vérifiée par une synchronisation réelle le 2026-10-05 |
 | URLs configurables | ✅ | vérifié à la racine et sous `/wow` |
 | Authentification compatible | ✅ | cookie lié à l'hôte, aucun domaine en dur |
 | Documentation | ✅ | [DEPLOYMENT](DEPLOYMENT.md) |
@@ -195,7 +196,7 @@ Rien n'est implémenté ni activé : la commande `watch` répond qu'elle n'est p
 | Recette après une vraie modification en jeu | joueur |
 | Icônes, temps par niveau, sessions et courbe d'expérience en production : déployer le serveur (voir [DEPLOYMENT § Mettre à jour](DEPLOYMENT.md)), puis republier l'agent et synchroniser | joueur |
 | Agent sur les autres PC : copier `AltBoardSync.exe`, créer un jeton par PC | joueur |
-| Pousser le dépôt vers un dépôt distant et déclarer la pile dans Komodo | à décider |
+| Désinstaller l'ancien hôte (voir [DEPLOYMENT § Ancien hôte](DEPLOYMENT.md)) | à décider |
 | Fusionner `feat/v1-pipeline` dans `main` | à décider |
 
 ## Suite

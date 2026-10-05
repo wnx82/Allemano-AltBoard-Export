@@ -99,8 +99,9 @@ pas versionné.
 ## Conteneur
 
 Utilisateur non privilégié, système de fichiers en lecture seule, toutes capacités retirées,
-`no-new-privileges`, port publié sur `127.0.0.1` uniquement. Seule connexion sortante hors base :
-le CDN d'icônes de Blizzard.
+`no-new-privileges`. Le port n'est publié que sur l'adresse du réseau local de l'hôte : le tunnel
+Cloudflare, dans un autre conteneur LXC, est le seul chemin depuis Internet. Seule connexion
+sortante hors base : le CDN d'icônes de Blizzard.
 
 ## Limites assumées
 
@@ -108,7 +109,6 @@ le CDN d'icônes de Blizzard.
 |---|---|---|
 | Limitation de débit en mémoire | remise à zéro au redémarrage ; non partagée entre instances | Redis partagé si l'application passe à plusieurs instances |
 | Un seul niveau d'accès | tout compte du tableau de bord voit tout et gère les jetons | rôles, si d'autres personnes y accèdent |
-| Pas de second facteur | la protection repose sur le mot de passe et la limitation des tentatives | accès restreint en amont (Cloudflare Access) ou TOTP |
-| Identité du client derrière le proxy | `X-Real-Ip`, posé par Traefik (domaine non proxifié par Cloudflare) | passer à `cf-connecting-ip` seulement si le domaine est proxifié et l'origine fermée |
-| En-têtes du proxy | la chaîne Traefik commune remplace `X-Frame-Options` (`SAMEORIGIN`) et `Referrer-Policy` | l'encadrement reste interdit par `frame-ancestors 'none'` |
-| Un seul rôle de base | le rôle applicatif est aussi propriétaire du schéma (convention de l'hôte) | séparer migration et application si le besoin apparaît |
+| Pas de second facteur dans l'application | le tableau de bord est derrière Cloudflare Access (adresses autorisées) puis le mot de passe ; `/api/sync`, exclu d'Access, n'est protégé que par le jeton d'agent | TOTP si Access est retiré |
+| Identité du client derrière le proxy | `cf-connecting-ip`, posé par Cloudflare ; le port de l'origine restant joignable du réseau local, un poste de ce réseau peut falsifier l'en-tête | fermer l'origine au réseau local (cloudflared dans la pile) |
+| Un seul rôle de base | le rôle applicatif administre l'instance PostgreSQL de la pile, dédiée à l'application | séparer migration et application si le besoin apparaît |
