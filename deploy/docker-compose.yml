@@ -1,4 +1,5 @@
-# Ancien déploiement (hôte contabo), arrêté le 2026-10-05 : la production est deploy/proxmox/.
+# Ancien déploiement (hôte contabo), désinstallé le 2026-10-05 : la production est deploy/proxmox/.
+# Gardé comme référence pour un hôte du même type (PostgreSQL mutualisé, PgBouncer, Traefik).
 # Les valeurs sensibles viennent du fichier .env voisin, jamais versionné : voir deploy/.env.example
 # et docs/DEPLOYMENT.md.
 name: wow-altboard

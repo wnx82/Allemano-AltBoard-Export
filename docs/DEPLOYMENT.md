@@ -1,8 +1,8 @@
 # Déploiement
 
 Production : **`https://wow.ekreativ.be`**, pile Komodo `wow-altboard` sur Proxmox. Première mise en
-ligne le 2026-10-04 sur l'hôte `contabo`, déplacée sur Proxmox le 2026-10-05. Sur contabo, le
-conteneur est arrêté et la base conservée : voir [Ancien hôte : contabo](#ancien-hôte--contabo).
+ligne le 2026-10-04 sur l'hôte `contabo`, déplacée sur Proxmox le 2026-10-05. L'ancien hôte a été
+désinstallé le même jour : voir [Ancien hôte : contabo](#ancien-hôte--contabo).
 
 ## Ce qui existe en production
 
@@ -128,41 +128,25 @@ réécrit en chemin Windows et la construction échoue.
 
 ## Ancien hôte : contabo
 
-Arrêté le 2026-10-05 par `docker compose stop web`, après copie de la base vers Proxmox (22 tables,
-893 lignes, comptes identiques des deux côtés). Rien n'y a été supprimé :
+Désinstallé le 2026-10-05, après copie de la base vers Proxmox (22 tables, 893 lignes, comptes
+identiques des deux côtés) : conteneur, image, sources, configuration Traefik, base et rôle y sont
+supprimés. `pgdb` a gardé un dernier dump,
+`/srv/backups/dumps/pgdb-drop-wow_altboard-2026-10-05-234106.dump`, et archivé le secret de la base.
+
+`deploy/docker-compose.yml`, `deploy/.env.example` et `deploy/traefik/` décrivent ce déploiement.
+Ils restent comme référence pour un hôte du même type : PostgreSQL mutualisé derrière PgBouncer,
+Traefik en frontal. La suite le décrit tel qu'il fonctionnait.
 
 | Élément | Valeur |
 |---|---|
-| Sources | `/etc/komodo/repos/wow-altboard/` (`web/`, `deploy/`, `REVISION` = `479b332`) |
-| Conteneur | `wow-altboard-web`, image `wow-altboard-web:479b332`, port `127.0.0.1:3016`, arrêté |
-| Configuration | `/etc/komodo/repos/wow-altboard/deploy/.env` (droits `600`) ; définition : `deploy/docker-compose.yml` |
-| Base | `wow_altboard` sur `pg-shared` (PostgreSQL 17), rôle `wow_altboard`, créés par `pgdb` ; figée au 2026-10-05 |
+| Sources | `/etc/komodo/repos/wow-altboard/` (`web/`, `deploy/`, `REVISION` = commit déployé) |
+| Conteneur | `wow-altboard-web`, image `wow-altboard-web:<commit>`, port `127.0.0.1:3016` |
+| Configuration | `/etc/komodo/repos/wow-altboard/deploy/.env` (droits `600`) |
+| Base | `wow_altboard` sur `pg-shared` (PostgreSQL 17), rôle `wow_altboard`, créés par `pgdb` |
 | Secret de la base | `/srv/shared-db/secrets/wow_altboard.env` (droits `600`) |
+| Réseau Docker | `shared-db` (externe) : `pgbouncer:6432` pour l'application, `pg-shared:5432` pour les migrations |
 | Reverse proxy | `/etc/traefik/dynamic/wow-altboard.yml` (copie de référence : `deploy/traefik/wow-altboard.yml`) |
-
-### Y revenir
-
-Les données écrites depuis la bascule n'existent que sur Proxmox. Pour ne pas les perdre, copier
-la base dans l'autre sens avant de relancer, ou resynchroniser chaque PC ensuite : l'historique
-écrit entre-temps ne se reconstruit pas.
-
-1. Sur contabo : `cd /etc/komodo/repos/wow-altboard/deploy && docker compose start web`.
-2. DNS : remettre `wow.ekreativ.be` en enregistrement A **non proxifié** vers l'adresse de contabo.
-3. Retirer l'entrée `wow.ekreativ.be` du tunnel « proxmox » et l'application Access
-   « wow-sync-bypass ».
-
-### Copier sa base
-
-La copie du 2026-10-05, depuis un poste qui joint les deux hôtes en SSH, sans fichier
-intermédiaire sur contabo :
-
-```bash
-ssh root@<contabo> "docker exec --env-file /srv/shared-db/secrets/wow_altboard.env pg-shared \
-  sh -c 'pg_dump \"\$DATABASE_URL_DIRECT\" -Fc --no-owner --no-acl'" \
-  | ssh root@<proxmox> "pct exec 102 -- sh -c 'umask 077; cat > /tmp/wow_altboard.dump'"
-```
-
-Puis restauration dans le conteneur 102, comme dans [Sauvegarde](#sauvegarde).
+| DNS | `wow.ekreativ.be` A → adresse de l'hôte, **non proxifié** par Cloudflare |
 
 ### Conventions de l'hôte
 
@@ -209,13 +193,10 @@ commit ; pour relancer la précédente :
 
 ### Désinstaller
 
-`wow_altboard` reste couverte par la sauvegarde globale de `pg-shared` (`pg_dumpall`) tant qu'elle
-n'est pas supprimée.
+Les commandes exécutées le 2026-10-05, puis suppression de l'image et du dossier des sources :
 
 ```bash
 cd /etc/komodo/repos/wow-altboard/deploy && docker compose down
 rm /etc/traefik/dynamic/wow-altboard.yml         # Traefik recharge seul
 pgdb drop wow_altboard --yes                     # sauvegarde la base avant de la supprimer
 ```
-
-Puis supprimer le dossier des sources.
