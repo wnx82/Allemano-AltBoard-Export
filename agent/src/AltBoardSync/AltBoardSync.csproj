@@ -4,6 +4,8 @@
     <OutputType>Exe</OutputType>
     <TargetFramework>net10.0</TargetFramework>
     <AssemblyName>AltBoardSync</AssemblyName>
+    <!-- Produite par tools/make-icon.mjs. -->
+    <ApplicationIcon>AltBoardSync.ico</ApplicationIcon>
   </PropertyGroup>
 
   <!-- dotnet publish : un seul exécutable autonome, aucun runtime .NET requis sur le PC cible. -->
