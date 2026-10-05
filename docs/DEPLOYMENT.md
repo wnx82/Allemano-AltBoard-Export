@@ -2,6 +2,10 @@
 
 Production : **`https://wow.ekreativ.be`**, hôte `contabo`. Première mise en ligne le 2026-10-04.
 
+Une pile Komodo pour Proxmox est prête dans `deploy/proxmox/` et doit remplacer contabo : voir
+[Passer sur Proxmox](#passer-sur-proxmox-komodo). Au 2026-10-05 elle n'est ni déployée ni
+basculée ; tout ce qui précède cette section décrit contabo.
+
 ## Ce qui existe en production
 
 | Élément | Valeur |
@@ -122,3 +126,84 @@ les sessions du tableau de bord sont à rouvrir (le cookie est lié à l'hôte).
 
 Sous Git Bash pour Windows, préfixer les commandes par `MSYS_NO_PATHCONV=1` : sans cela `/wow` est
 réécrit en chemin Windows et la construction échoue.
+
+## Passer sur Proxmox (Komodo)
+
+Cible : la pile `wow-altboard` de **komodoprox** (`https://komodo.example.com`), sur le
+conteneur LXC 102 « docker » (`10.0.0.15`). Komodo clone le dépôt, construit l'image, applique
+les migrations et démarre l'application : un déploiement se réduit à un bouton.
+
+| Élément | Valeur |
+|---|---|
+| Définition | `deploy/proxmox/compose.yaml` ; pile décrite par `deploy/proxmox/komodo.toml` |
+| Sources | `/etc/komodo/stacks/wow-altboard/`, clonées par Komodo (branche `feat/v1-pipeline`) |
+| Conteneurs | `wow-altboard-web`, `wow-altboard-db` (PostgreSQL 17), `migrate` (s'arrête après les migrations) |
+| Base | `wow_altboard` dans la pile, volume `wow-altboard_db-data`, jamais publiée hors de la pile |
+| Port | `10.0.0.15:3016`, joignable du réseau local seulement |
+| Accès public | tunnel Cloudflare « proxmox » (cloudflared, LXC 101), domaine proxifié |
+| Secret | variable Komodo `WOW_ALTBOARD_DB_PASSWORD`, injectée dans `WOW_DB_PASSWORD` |
+
+Différences avec contabo : pas de PgBouncer (connexion directe à la base de la pile), pas de
+Traefik (TLS et compression par Cloudflare), et l'en-tête de confiance devient `cf-connecting-ip`.
+Le port restant joignable du réseau local, un poste de ce réseau pourrait falsifier cet en-tête et
+contourner la limitation de débit ; pas un client d'Internet.
+
+### Créer la pile
+
+1. Dans Komodo, **Settings > Variables** : créer `WOW_ALTBOARD_DB_PASSWORD`, case « secret »
+   cochée. Valeur hexadécimale uniquement, elle entre telle quelle dans l'URL de connexion :
+   `openssl rand -hex 24`. PostgreSQL ne la lit qu'à la création du volume.
+2. Créer la pile `wow-altboard` d'après `deploy/proxmox/komodo.toml` : collé dans un Resource Sync
+   défini dans l'interface, ou reporté champ par champ.
+3. **Deploy**, puis vérifier depuis le réseau local :
+   `curl http://10.0.0.15:3016/api/health` répond `{"status":"ok"}`.
+
+### Copier la base de contabo
+
+La pile démarre avec une base vide. Pour reprendre comptes, jetons et historique, sur contabo :
+
+```bash
+docker run --rm --network shared-db --env-file /srv/shared-db/secrets/wow_altboard.env \
+  postgres:17-alpine sh -c 'pg_dump "$DATABASE_URL_DIRECT" -Fc --no-owner --no-acl' > /tmp/wow_altboard.dump
+```
+
+Transférer le fichier dans le conteneur 102 (`scp` vers l'hôte Proxmox, puis
+`pct push 102 /tmp/wow_altboard.dump /tmp/wow_altboard.dump`), et dans le conteneur :
+
+```bash
+cd /etc/komodo/stacks/wow-altboard/deploy/proxmox
+docker compose stop web
+docker exec -i wow-altboard-db pg_restore -U wow_altboard -d wow_altboard \
+  --clean --if-exists --no-owner --no-acl --single-transaction < /tmp/wow_altboard.dump
+docker compose start web
+rm /tmp/wow_altboard.dump
+```
+
+La restauration remplace tout le contenu de la base de la pile, en une transaction : en cas
+d'erreur, rien n'est modifié. Ne lancer aucune synchronisation entre la copie et la bascule : elle
+irait encore sur contabo et serait perdue.
+
+### Basculer
+
+1. Tunnel Cloudflare « proxmox » : ajouter l'entrée `wow.ekreativ.be` vers
+   `http://10.0.0.15:3016`, avant la règle finale `http_status:404`.
+2. DNS : remplacer l'enregistrement A `wow.ekreativ.be` (adresse de contabo, non proxifié) par un
+   CNAME proxifié vers `<identifiant du tunnel>.cfargotunnel.com`.
+3. Vérifier `https://wow.ekreativ.be/api/health`, la connexion au tableau de bord, puis
+   `AltBoardSync.exe sync` depuis un PC. L'adresse ne change pas : agents et jetons restent
+   valables. Si Cloudflare bloque l'agent (réponse 403), exempter `/api/sync` de ses règles
+   anti-robots.
+4. Arrêter contabo en suivant [Désinstaller](#désinstaller), en gardant sa base quelques jours
+   avant `pgdb drop`.
+
+### Exploiter
+
+- **Mettre à jour** : pousser sur la branche, puis **Deploy** sur la pile. L'image est toujours
+  reconstruite et `web` redémarré, même sans changement.
+- **Revenir en arrière** : fixer le champ **Commit** de la pile sur le commit précédent, puis
+  **Deploy**. Les migrations ne sont pas annulées.
+- **Compte d'accès** : dans `/etc/komodo/stacks/wow-altboard/deploy/proxmox`,
+  `docker compose run --rm -it tools node create-admin.mjs vous@exemple.test`.
+- **Sauvegarde** : aucun `pg_dumpall` global ne couvre cette base, contrairement à contabo. Elle
+  vit dans le volume du conteneur 102 et suit sa sauvegarde ; pour une copie à part :
+  `docker exec wow-altboard-db pg_dump -U wow_altboard -Fc wow_altboard > wow_altboard.dump`.

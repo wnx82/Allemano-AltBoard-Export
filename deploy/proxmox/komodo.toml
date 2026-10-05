@@ -1,0 +1,22 @@
+# Pile Komodo de komodoprox : copie de référence. À coller dans un Resource Sync défini dans
+# l'interface, ou à reporter champ par champ dans une nouvelle pile.
+# Préalable : le secret WOW_ALTBOARD_DB_PASSWORD (Settings > Variables, case « secret »).
+
+[[stack]]
+name = "wow-altboard"
+description = "Tableau de bord AltBoard et API de synchronisation — https://wow.ekreativ.be"
+
+[stack.config]
+server = "komodoprox"
+git_account = "wnx82"
+repo = "wnx82/Allemano-AltBoard-Export"
+branch = "feat/v1-pipeline"
+run_directory = "deploy/proxmox"
+file_paths = ["compose.yaml"]
+# « migrate » s'arrête après avoir appliqué les migrations : ce n'est pas une panne.
+ignore_services = ["migrate"]
+environment = """
+WOW_DB_PASSWORD = [[WOW_ALTBOARD_DB_PASSWORD]]
+WOW_APP_ORIGIN = https://wow.ekreativ.be
+WOW_BIND_IP = 10.0.0.15
+"""

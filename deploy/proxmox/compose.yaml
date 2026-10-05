@@ -1,0 +1,101 @@
+# Déploiement sur Proxmox (CT 102 « docker », 10.0.0.15), par la pile Komodo « wow-altboard » de
+# komodoprox. Autonome : PostgreSQL vit dans la pile. Les valeurs sensibles viennent de
+# l'environnement de la pile, que Komodo écrit dans le .env voisin, jamais du dépôt : voir
+# .env.example, komodo.toml et docs/DEPLOYMENT.md.
+name: wow-altboard
+
+x-app: &app
+  image: wow-altboard-web:${WOW_IMAGE_TAG:-latest}
+  build:
+    context: ../../web
+    args:
+      WOW_BASE_PATH: ${WOW_BASE_PATH:-}
+  # « docker compose up -d » reconstruit toujours l'image depuis les sources clonées : un
+  # déploiement Komodo suffit, sans option de construction à régler sur la pile.
+  pull_policy: build
+  environment:
+    # Le mot de passe entre tel quel dans l'URL : hexadécimal uniquement (openssl rand -hex 24).
+    WOW_DATABASE_URL: "postgresql://wow_altboard:${WOW_DB_PASSWORD:?mot de passe de la base manquant}@db:5432/wow_altboard"
+    WOW_APP_ORIGIN: ${WOW_APP_ORIGIN:-https://wow.ekreativ.be}
+    WOW_BASE_PATH: ${WOW_BASE_PATH:-}
+    # Posé par Cloudflare, devant le tunnel. Le port n'étant joignable que du réseau local, seul
+    # un poste du réseau local pourrait le falsifier.
+    WOW_TRUSTED_IP_HEADER: ${WOW_TRUSTED_IP_HEADER:-cf-connecting-ip}
+  read_only: true
+  tmpfs:
+    - /tmp
+    - /app/.next/cache
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  mem_limit: 512m
+
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: wow-altboard-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: wow_altboard
+      # Lu à la création du volume seulement : le changer ensuite ne change pas le rôle.
+      POSTGRES_PASSWORD: "${WOW_DB_PASSWORD:?mot de passe de la base manquant}"
+      POSTGRES_DB: wow_altboard
+      # Les listes triées par nom le sont en SQL : sans ICU, l'image alpine trie par octets et
+      # range « Écaille » après « Zèbre ».
+      POSTGRES_INITDB_ARGS: --locale-provider=icu --icu-locale=fr
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      # Par TCP : le serveur temporaire de l'initialisation n'écoute que sur le socket Unix et
+      # ferait passer la base pour prête trop tôt.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U wow_altboard -d wow_altboard"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 512m
+
+  # Applique les migrations puis s'arrête : « web » ne démarre qu'après son succès.
+  migrate:
+    <<: *app
+    command: ["node", "migrate.mjs"]
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      disable: true
+
+  web:
+    <<: *app
+    container_name: wow-altboard-web
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    # cloudflared tourne dans un autre conteneur LXC (CT 101) : la pile fixe WOW_BIND_IP sur
+    # l'adresse du réseau local, la boucle locale par défaut ne suffirait pas.
+    ports:
+      - "${WOW_BIND_IP:-127.0.0.1}:${WOW_HOST_PORT:-3016}:3000"
+
+  # Commandes ponctuelles : docker compose run --rm -it tools node create-admin.mjs <courriel>
+  # Service distinct de « web », sans sonde de santé : autoheal redémarrerait une commande
+  # interactive jugée en mauvaise santé (aucun serveur n'écoute) au milieu de la saisie.
+  tools:
+    <<: *app
+    profiles: ["tools"]
+    # L'image du dernier déploiement, jamais une reconstruction depuis des sources plus récentes.
+    pull_policy: never
+    restart: "no"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      disable: true
+
+volumes:
+  db-data:
