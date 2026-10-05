@@ -69,7 +69,9 @@ n'écoute) et redémarrée par autoheal au milieu de la saisie.
 ## Sauvegarde
 
 La base vit dans le volume `wow-altboard_db-data` du conteneur LXC 102 et suit sa sauvegarde :
-aucun `pg_dumpall` global ne la couvre, contrairement à contabo. Pour une copie à part :
+Proxmox Backup Server (`pbs-hdd`), lundi et jeudi, deux dernières conservées (constaté le
+2026-10-05). Aucun `pg_dumpall` global ne la couvre, contrairement à contabo. Pour une copie à
+part :
 
 ```bash
 docker exec wow-altboard-db pg_dump -U wow_altboard -Fc --no-owner --no-acl wow_altboard > wow_altboard.dump
