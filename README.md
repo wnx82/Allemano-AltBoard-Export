@@ -50,9 +50,12 @@ dotnet run --project src/AltBoardSync -- sync
 ## Vérifications
 
 ```bash
-cd agent && dotnet test                               # 121 tests
+cd agent && dotnet test                               # 143 tests
 cd web && npm run typecheck && npm run lint && npm test && npm run build   # 77 tests
 ```
+
+GitHub Actions relance ces contrôles à chaque push et à chaque pull request, construit l'image Docker
+et publie l'exécutable de l'agent en artefact : voir `.github/workflows/ci.yml`.
 
 Les tests web vident la base `wow_altboard_test`. Le code refuse toute base dont le nom ne commence
 pas par `wow_altboard` : voir `web/src/db/env.ts`.

@@ -1,0 +1,73 @@
+# Contrôles lancés à chaque push et à chaque pull request : ceux que README et docs/AGENT.md
+# demandent de lancer à la main avant un commit.
+name: CI
+
+on:
+  push:
+    branches: [main, "feat/**", "fix/**", "chore/**"]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    name: Web
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          # Version de l'image de production (web/Dockerfile).
+          node-version: 24
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+      # Le PostgreSQL du développement : db/dev-init y crée la base de test.
+      - name: PostgreSQL
+        working-directory: .
+        run: docker compose -f docker-compose.dev.yml up -d --wait
+      # Le fichier d'exemple ne porte que les identifiants de développement.
+      - name: Configuration
+        run: cp .env.example .env.local
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  # La production reconstruit cette image à chaque déploiement : un Dockerfile cassé doit échouer
+  # ici, pas sur le serveur.
+  image:
+    name: Image Docker
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: docker build --tag wow-altboard-web:ci web
+
+  agent:
+    name: Agent
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: agent
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet test
+      - name: Publication
+        run: dotnet publish src/AltBoardSync -c Release -o ../dist
+      - uses: actions/upload-artifact@v7
+        with:
+          name: AltBoardSync
+          path: dist/AltBoardSync.exe
+          if-no-files-found: error
+          retention-days: 14
