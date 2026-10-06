@@ -387,7 +387,7 @@ export default async function CharacterPage({ params }: PageProps<"/characters/[
         ) : (
           <>
             <LevelTimeChart levels={levelTimes} />
-            <details className="panel mt-4 overflow-hidden">
+            <details open className="panel mt-4 overflow-hidden">
               <summary className="cursor-pointer px-5 py-3 text-sm text-muted hover:text-text">Tableau des temps par niveau</summary>
               <div className="overflow-x-auto">
                 <table className="data-table">
