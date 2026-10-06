@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState, useSyncExternalStore } from "react";
+import { groupByAccount } from "@/lib/dashboard/account-groups";
 import type { CharacterListItem } from "@/lib/dashboard/queries";
 import { classKey, classLabel, formatDateTime, formatItemLevel, formatRelative, progressPercent } from "@/lib/wow/format";
 import { ClassAvatar, EmptyState, FactionBadge, Meter, Money, ProfessionIcon, SectionTitle } from "./ui";
@@ -23,32 +24,42 @@ const collator = new Intl.Collator("fr", { sensitivity: "base", numeric: true })
 /** Minuscules sans accents : « elodie » trouve « Élodie ». */
 const fold = (text: string) => text.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
 
-// Le mode d'affichage est mémorisé dans le navigateur ; le rendu serveur part toujours des cartes.
-const VIEW_KEY = "altboard:view";
-const viewListeners = new Set<() => void>();
-function subscribeView(listener: () => void) {
-  viewListeners.add(listener);
-  window.addEventListener("storage", listener);
-  return () => {
-    viewListeners.delete(listener);
-    window.removeEventListener("storage", listener);
+// Préférence mémorisée dans le navigateur ; le rendu serveur part toujours de la valeur par défaut.
+function browserPreference(key: string) {
+  const listeners = new Set<() => void>();
+  // Stockage indisponible (navigation privée) : le choix vaut pour la page seulement.
+  let fallback: string | null = null;
+  return {
+    subscribe(listener: () => void) {
+      listeners.add(listener);
+      window.addEventListener("storage", listener);
+      return () => {
+        listeners.delete(listener);
+        window.removeEventListener("storage", listener);
+      };
+    },
+    read(): string | null {
+      try {
+        return window.localStorage.getItem(key);
+      } catch {
+        return fallback;
+      }
+    },
+    write(value: string) {
+      fallback = value;
+      try {
+        window.localStorage.setItem(key, value);
+      } catch {
+        // Voir fallback.
+      }
+      listeners.forEach((listener) => listener());
+    },
   };
 }
-function readView(): View {
-  try {
-    return window.localStorage.getItem(VIEW_KEY) === "table" ? "table" : "cards";
-  } catch {
-    return "cards";
-  }
-}
-function storeView(view: View) {
-  try {
-    window.localStorage.setItem(VIEW_KEY, view);
-  } catch {
-    // Stockage indisponible (navigation privée) : le choix vaut pour la page seulement.
-  }
-  viewListeners.forEach((listener) => listener());
-}
+const viewPreference = browserPreference("altboard:view");
+/** Identifiants des comptes repliés, séparés par des virgules. */
+const collapsedPreference = browserPreference("altboard:collapsed-accounts");
+const serverPreference = () => null;
 
 type Filters = {
   account: string;
@@ -91,7 +102,9 @@ export function CharacterBrowser({ characters, now }: { characters: CharacterLis
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
   const [sort, setSort] = useState<{ key: SortKey; descending: boolean }>({ key: "level", descending: true });
-  const view = useSyncExternalStore<View>(subscribeView, readView, () => "cards");
+  const view: View = useSyncExternalStore(viewPreference.subscribe, viewPreference.read, serverPreference) === "table" ? "table" : "cards";
+  const collapsedIds = useSyncExternalStore(collapsedPreference.subscribe, collapsedPreference.read, serverPreference);
+  const collapsed = useMemo(() => new Set(collapsedIds ? collapsedIds.split(",") : []), [collapsedIds]);
   const reference = useMemo(() => new Date(now), [now]);
 
   const options = useMemo(
@@ -137,16 +150,13 @@ export function CharacterBrowser({ characters, now }: { characters: CharacterLis
     });
   }, [characters, filters, query, sort]);
 
-  // Un bloc par compte, rangés par libellé : le tri choisi s'applique à l'intérieur de chaque bloc.
-  const groups = useMemo(() => {
-    const byAccount = new Map<number, { account: CharacterListItem["account"]; members: CharacterListItem[] }>();
-    for (const character of visible) {
-      const group = byAccount.get(character.account.id);
-      if (group) group.members.push(character);
-      else byAccount.set(character.account.id, { account: character.account, members: [character] });
-    }
-    return [...byAccount.values()].sort((a, b) => collator.compare(a.account.label, b.account.label) || a.account.id - b.account.id);
-  }, [visible]);
+  // Le tri choisi s'applique à l'intérieur de chaque bloc.
+  const groups = useMemo(() => groupByAccount(visible, collator.compare), [visible]);
+  const toggleAccount = (id: number) => {
+    const next = new Set(collapsed);
+    if (!next.delete(String(id))) next.add(String(id));
+    collapsedPreference.write([...next].join(","));
+  };
 
   const filtered = query.trim() !== "" || Object.values(filters).some(Boolean);
   const setFilter = (key: keyof Filters) => (event: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) =>
@@ -201,10 +211,10 @@ export function CharacterBrowser({ characters, now }: { characters: CharacterLis
             {sort.descending ? "↓" : "↑"}
           </button>
           <div className="flex gap-1" role="group" aria-label="Mode d'affichage">
-            <button type="button" className="button" aria-pressed={view === "cards"} onClick={() => storeView("cards")}>
+            <button type="button" className="button" aria-pressed={view === "cards"} onClick={() => viewPreference.write("cards")}>
               ▦ Cartes
             </button>
-            <button type="button" className="button" aria-pressed={view === "table"} onClick={() => storeView("table")}>
+            <button type="button" className="button" aria-pressed={view === "table"} onClick={() => viewPreference.write("table")}>
               ☰ Tableau
             </button>
           </div>
@@ -275,22 +285,54 @@ export function CharacterBrowser({ characters, now }: { characters: CharacterLis
         <EmptyState title="Aucun personnage ne correspond">Modifiez la recherche ou les filtres.</EmptyState>
       ) : (
         <div className="space-y-8">
-          {groups.map(({ account, members }) => (
-            <section key={account.id} aria-label={account.label}>
-              <SectionTitle aside={`${members.length} personnage${members.length > 1 ? "s" : ""}`}>{account.label}</SectionTitle>
-              {view === "cards" ? (
-                <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                  {members.map((character) => (
-                    <li key={character.id}>
-                      <CharacterCard character={character} now={reference} />
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <CharacterTable characters={members} now={reference} />
-              )}
-            </section>
-          ))}
+          {groups.map(({ account, members, totalCopper, topLevel }) => {
+            const folded = collapsed.has(String(account.id));
+            return (
+              <section key={account.id} aria-label={account.label}>
+                <SectionTitle
+                  aside={
+                    <p className="flex flex-wrap items-baseline justify-end gap-x-4 gap-y-1">
+                      <span>
+                        {members.length} personnage{members.length > 1 ? "s" : ""}
+                      </span>
+                      {topLevel !== null && <span>Niveau le plus haut {topLevel}</span>}
+                      {totalCopper !== null && (
+                        <span>
+                          Or total <Money copper={totalCopper} />
+                        </span>
+                      )}
+                    </p>
+                  }
+                >
+                  <button
+                    type="button"
+                    className="flex items-center gap-2 text-left"
+                    aria-expanded={!folded}
+                    aria-controls={`account-${account.id}`}
+                    onClick={() => toggleAccount(account.id)}
+                  >
+                    <span aria-hidden="true" className="w-3 text-sm text-muted">
+                      {folded ? "▸" : "▾"}
+                    </span>
+                    {account.label}
+                  </button>
+                </SectionTitle>
+                <div id={`account-${account.id}`} hidden={folded}>
+                  {view === "cards" ? (
+                    <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                      {members.map((character) => (
+                        <li key={character.id}>
+                          <CharacterCard character={character} now={reference} />
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <CharacterTable characters={members} now={reference} />
+                  )}
+                </div>
+              </section>
+            );
+          })}
         </div>
       )}
     </section>
