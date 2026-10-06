@@ -1,6 +1,7 @@
-import { asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { asc, desc, eq, gte, inArray, or, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import * as t from "@/db/schema";
+import type { ActivitySnapshot } from "./activity";
 
 // Chaque page lit ses données en un nombre fixe de requêtes, indépendant du nombre de personnages.
 
@@ -228,6 +229,45 @@ export async function getCharacterDetail(db: Database, id: number) {
 }
 
 export type CharacterDetail = NonNullable<Awaited<ReturnType<typeof getCharacterDetail>>>;
+
+/** Période couverte par la page Activité. */
+export const ACTIVITY_DAYS = 30;
+
+/**
+ * Relevés de tous les personnages depuis `since`, plus, pour chacun, le dernier relevé d'avant :
+ * sans lui, le premier changement de la période n'aurait rien à quoi se comparer.
+ */
+export async function listRecentSnapshots(db: Database, since: Date): Promise<ActivitySnapshot[]> {
+  const lastBefore = sql`${t.characterSnapshots.id} in (
+    select distinct on (earlier.character_id) earlier.id
+    from ${t.characterSnapshots} earlier
+    where earlier.captured_at < ${since.toISOString()}::timestamptz
+    order by earlier.character_id, earlier.captured_at desc
+  )`;
+  const rows = await db
+    .select({
+      capturedAt: t.characterSnapshots.capturedAt,
+      level: t.characterSnapshots.level,
+      moneyCopper: t.characterSnapshots.moneyCopper,
+      itemLevel: t.characterSnapshots.itemLevel,
+      data: t.characterSnapshots.data,
+      id: t.characters.id,
+      name: t.characters.name,
+      class: t.characters.class,
+      accountDisplayName: t.wowAccounts.displayName,
+      accountFolderHint: t.wowAccounts.folderHint,
+    })
+    .from(t.characterSnapshots)
+    .innerJoin(t.characters, eq(t.characters.id, t.characterSnapshots.characterId))
+    .innerJoin(t.wowAccounts, eq(t.wowAccounts.id, t.characters.accountId))
+    .where(or(gte(t.characterSnapshots.capturedAt, since), lastBefore))
+    .orderBy(asc(t.characterSnapshots.characterId), asc(t.characterSnapshots.capturedAt));
+
+  return rows.map(({ id, name, class: classToken, accountDisplayName, accountFolderHint, ...snapshot }) => ({
+    ...snapshot,
+    character: { id, name, class: classToken, account: accountLabel({ displayName: accountDisplayName, folderHint: accountFolderHint }) },
+  }));
+}
 
 export async function listAccounts(db: Database) {
   const [accounts, seenBy] = await Promise.all([

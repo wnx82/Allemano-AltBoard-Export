@@ -10,7 +10,8 @@ import { hashPassword, verifyAgainstDummy, verifyPassword } from "@/lib/auth/pas
 import { createSession, deleteSession, findSession } from "@/lib/auth/session";
 import { processSync } from "@/lib/sync/process";
 import type { SyncPayload } from "@/lib/sync/schema";
-import { getCharacterDetail, getOverview, listAccounts, listCharacters, listMachines, listRecentRuns } from "./queries";
+import { buildActivity } from "./activity";
+import { getCharacterDetail, getOverview, listAccounts, listCharacters, listMachines, listRecentRuns, listRecentSnapshots } from "./queries";
 
 const BASE: SyncPayload = JSON.parse(
   readFileSync(path.resolve(import.meta.dirname, "../../../../tests/fixtures/payloads/two-accounts.json"), "utf8"),
@@ -146,6 +147,46 @@ describe("lecture du tableau de bord", () => {
 
     assert.equal(characters[0].account.label, "Compte principal");
     assert.deepEqual(characters[0].machines.map((m) => m.label), ["PC du salon"]);
+  });
+
+  test("l'activité lit les relevés de la période et, par personnage, le dernier d'avant", async () => {
+    await sync(BASE);
+    const [first, second] = await database.db.select({ id: t.characters.id, name: t.characters.name }).from(t.characters).orderBy(t.characters.id);
+    await database.db.delete(t.characterSnapshots);
+    const at = (characterId: number, capturedAt: string, level: number) => ({
+      characterId,
+      capturedAt: new Date(capturedAt),
+      snapshotHash: `${characterId}-${capturedAt}`,
+      level,
+      data: {},
+    });
+    await database.db.insert(t.characterSnapshots).values([
+      at(first.id, "2026-06-01T10:00:00Z", 10),
+      at(first.id, "2026-08-20T10:00:00Z", 15),
+      at(first.id, "2026-09-20T10:00:00Z", 20),
+      at(first.id, "2026-10-01T10:00:00Z", 21),
+      // Aucun relevé dans la période : son dernier relevé d'avant est lu, et ne donnera aucun changement.
+      at(second.id, "2026-07-01T10:00:00Z", 5),
+    ]);
+
+    queries = 0;
+    const snapshots = await listRecentSnapshots(database.db, new Date("2026-09-04T14:00:00Z"));
+
+    assert.equal(queries, 1);
+    assert.deepEqual(
+      snapshots.map((snapshot) => [snapshot.character.name, snapshot.level]),
+      [
+        [first.name, 15],
+        [first.name, 20],
+        [first.name, 21],
+        [second.name, 5],
+      ],
+    );
+    assert.equal(snapshots[0].character.account, "Compte 11…#1");
+    assert.deepEqual(
+      buildActivity(snapshots, new Date("2026-09-04T14:00:00Z")).flatMap((day) => day.entries.map((entry) => entry.changes[0].text)),
+      ["Niveau 20 → 21", "Niveau 15 → 20"],
+    );
   });
 });
 

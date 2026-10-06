@@ -204,7 +204,7 @@ Depuis l'agent 0.3.0 : fenêtre (démarrage avec Windows, journal des envois et 
 | Version | Contenu |
 |---|---|
 | V2 | ✅ agent 0.2.0 : `watch`, démarrage à l'ouverture de session, icône de zone de notification ; agent 0.3.0 : fenêtre et journal des modifications |
-| V3 | historique détaillé, comparaison des métiers, activité |
+| V3 | ✅ comparaison des métiers (page **Métiers**) et activité des 30 derniers jours (page **Activité**) ; reste l'historique détaillé |
 | V4 | n8n, notifications, rapports |
 | V5 | installation et mise à jour automatiques de l'agent |
 
