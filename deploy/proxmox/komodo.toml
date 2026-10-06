@@ -20,3 +20,45 @@ WOW_DB_PASSWORD = [[WOW_ALTBOARD_DB_PASSWORD]]
 WOW_APP_ORIGIN = https://wow.ekreativ.be
 WOW_BIND_IP = 10.0.0.15
 """
+
+# Déploiement automatique : pousser sur la branche suffit. L'action interroge le dépôt au lieu
+# d'attendre un webhook, Komodo n'étant pas joignable depuis GitHub (Cloudflare Access).
+# Préalable : la variable WOW_ALTBOARD_AUTO_DEPLOY_ATTEMPTED (Settings > Variables), vide.
+[[action]]
+name = "wow-altboard-auto-deploy"
+description = "Déploie la pile wow-altboard quand sa branche a avancé."
+
+[action.config]
+schedule_format = "English"
+schedule = "Every 5 minutes"
+schedule_enabled = true
+# Une alerte par passage n'apprendrait rien ; un échec, si.
+schedule_alert = false
+failure_alert = true
+file_contents = """
+const STACK = "wow-altboard";
+// Dernier commit dont le déploiement a été tenté : un échec n'est pas rejoué toutes les cinq minutes.
+const ATTEMPTED = "WOW_ALTBOARD_AUTO_DEPLOY_ATTEMPTED";
+
+await komodo.write("RefreshStackCache", { stack: STACK });
+const { info } = await komodo.read("GetStack", { stack: STACK });
+const latest = info?.latest_hash;
+const deployed = info?.deployed_hash;
+const attempted = (await komodo.read("GetVariable", { name: ATTEMPTED })).value;
+
+if (!latest) {
+  console.log("Dernier commit inconnu (dépôt injoignable ?) : rien n'est fait.");
+} else if (latest === deployed) {
+  console.log(`À jour : ${latest}`);
+} else if (latest === attempted) {
+  console.log(`${latest} déjà tenté sans succès : pousser un correctif, ou lancer Deploy à la main.`);
+} else {
+  console.log(`Déploiement de ${latest} (en place : ${deployed ?? "rien"})`);
+  await komodo.write("UpdateVariableValue", { name: ATTEMPTED, value: latest });
+  const update = await komodo.execute_and_poll("DeployStack", { stack: STACK });
+  if (!("success" in update) || !update.success) {
+    throw new Error(`Le déploiement de ${latest} a échoué : voir la dernière mise à jour de la pile.`);
+  }
+  console.log(`Déployé : ${latest}`);
+}
+"""

@@ -40,8 +40,17 @@ désinstallé le même jour : voir [Ancien hôte : contabo](#ancien-hôte--conta
 
 ## Mettre à jour
 
-Pousser sur la branche, puis **Deploy** sur la pile dans Komodo. L'image est reconstruite à chaque
-déploiement, ce qui recrée `web` ; les migrations s'appliquent avant son démarrage.
+Pousser sur la branche suffit. L'action Komodo `wow-altboard-auto-deploy` interroge le dépôt toutes
+les cinq minutes et lance **Deploy** quand le dernier commit de la branche n'est pas celui en place.
+L'image est reconstruite à chaque déploiement, ce qui recrée `web` si elle a changé ; les migrations
+s'appliquent avant son démarrage.
+
+- Un commit dont le déploiement a échoué n'est pas retenté : pousser un correctif, ou lancer
+  **Deploy** à la main sur la pile. L'échec lève une alerte Komodo.
+- La CI ne conditionne pas le déploiement : ne pousser sur cette branche que ce qui est passé au
+  vert sur une autre.
+- Pour suspendre le déploiement automatique, désactiver le planning de l'action. Sa définition est
+  dans `deploy/proxmox/komodo.toml`.
 
 Une migration doit rester compatible avec la version précédente de l'application le temps du
 redémarrage (ajouts d'abord, suppressions dans une version ultérieure).
