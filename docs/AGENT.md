@@ -13,9 +13,20 @@ dotnet test
 dotnet publish src/AltBoardSync -c Release -o ../dist     # dist/AltBoardSync.exe, ~12 Mo, win-x64
 ```
 
+## Publier une version
+
+La version vit dans `agent/Directory.Build.props`. Une étiquette `agent-vX.Y.Z` poussée sur GitHub
+lance `.github/workflows/release-agent.yml` : tests, publication, puis GitHub Release portant
+`AltBoardSync.exe` et son empreinte SHA-256. L'étiquette doit correspondre à la version du fichier,
+sinon la release est refusée.
+
+```bash
+git tag agent-v0.3.0 && git push origin agent-v0.3.0
+```
+
 ## Installer sur un PC
 
-1. Copier `AltBoardSync.exe` où l'on veut.
+1. Copier `AltBoardSync.exe` où l'on veut, ou le télécharger depuis la dernière release du dépôt.
 2. Créer un jeton dans le tableau de bord (page **Machines**) : il n'est affiché qu'une fois.
 3. Configurer :
 

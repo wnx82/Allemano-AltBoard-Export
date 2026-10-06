@@ -1,0 +1,43 @@
+# Publie l'exécutable de l'agent en GitHub Release quand une étiquette agent-vX.Y.Z est poussée :
+#   git tag agent-v0.3.0 && git push origin agent-v0.3.0
+name: Release de l'agent
+
+on:
+  push:
+    tags: ["agent-v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: AltBoardSync.exe
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: agent
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      # L'étiquette doit porter la version compilée dans l'exécutable (Directory.Build.props).
+      - name: Version
+        run: |
+          $version = ([xml](Get-Content Directory.Build.props)).Project.PropertyGroup.Version
+          if ("agent-v$version" -ne $env:GITHUB_REF_NAME) {
+            throw "Étiquette $env:GITHUB_REF_NAME, mais Directory.Build.props annonce $version."
+          }
+      - run: dotnet test
+      - name: Publication
+        run: dotnet publish src/AltBoardSync -c Release -o ../dist
+      - name: Empreinte
+        working-directory: dist
+        run: |
+          $hash = (Get-FileHash AltBoardSync.exe -Algorithm SHA256).Hash.ToLower()
+          "$hash  AltBoardSync.exe" | Set-Content -Encoding ascii AltBoardSync.exe.sha256
+      - name: Release
+        working-directory: dist
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create $env:GITHUB_REF_NAME AltBoardSync.exe AltBoardSync.exe.sha256 --title "Agent $($env:GITHUB_REF_NAME -replace '^agent-v', '')" --generate-notes --verify-tag
