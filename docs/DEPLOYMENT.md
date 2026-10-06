@@ -10,7 +10,7 @@ désinstallé le même jour : voir [Ancien hôte : contabo](#ancien-hôte--conta
 |---|---|
 | Pile | `wow-altboard` dans **komodoprox** (`https://komodo.example.com`), serveur `komodoprox` : le conteneur LXC 102 « docker », `10.0.0.15` |
 | Définition | `deploy/proxmox/compose.yaml` ; pile décrite par `deploy/proxmox/komodo.toml` |
-| Sources | `/etc/komodo/stacks/wow-altboard/`, clonées par Komodo (branche `feat/v1-pipeline`) |
+| Sources | `/etc/komodo/stacks/wow-altboard/`, clonées par Komodo (branche `main`) |
 | Conteneurs | `wow-altboard-web`, `wow-altboard-db` (PostgreSQL 17), `migrate` (s'arrête après les migrations) |
 | Base | `wow_altboard` dans la pile, volume `wow-altboard_db-data`, jamais publiée hors de la pile |
 | Configuration | environnement de la pile, écrit par Komodo dans `deploy/proxmox/.env` (droits `600`) |
@@ -40,7 +40,7 @@ désinstallé le même jour : voir [Ancien hôte : contabo](#ancien-hôte--conta
 
 ## Mettre à jour
 
-Pousser sur la branche suffit. L'action Komodo `wow-altboard-auto-deploy` interroge le dépôt toutes
+Pousser sur `main` suffit. L'action Komodo `wow-altboard-auto-deploy` interroge le dépôt toutes
 les cinq minutes et lance **Deploy** quand le dernier commit de la branche n'est pas celui en place.
 L'image est reconstruite à chaque déploiement, ce qui recrée `web` si elle a changé ; les migrations
 s'appliquent avant son démarrage.

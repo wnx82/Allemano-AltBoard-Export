@@ -10,7 +10,7 @@ description = "Tableau de bord AltBoard et API de synchronisation — https://wo
 server = "komodoprox"
 git_account = "wnx82"
 repo = "wnx82/Allemano-AltBoard-Export"
-branch = "feat/v1-pipeline"
+branch = "main"
 run_directory = "deploy/proxmox"
 file_paths = ["compose.yaml"]
 # « migrate » s'arrête après avoir appliqué les migrations : ce n'est pas une panne.

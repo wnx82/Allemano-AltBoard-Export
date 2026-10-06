@@ -197,7 +197,7 @@ Depuis l'agent 0.3.0 : fenêtre (démarrage avec Windows, journal des envois et 
 | Recette après une vraie modification en jeu | joueur |
 | Icônes, temps par niveau, sessions et courbe d'expérience en production : déployer le serveur (voir [DEPLOYMENT § Mettre à jour](DEPLOYMENT.md)), puis republier l'agent et synchroniser | joueur |
 | Agent sur les autres PC : copier `AltBoardSync.exe`, créer un jeton par PC | joueur |
-| Fusionner `feat/v1-pipeline` dans `main` | à décider |
+| Supprimer les anciennes branches (`feat/v1-pipeline`, `feat/agent-watch`…), `main` étant la branche de production depuis le 2026-10-06 | à décider |
 
 ## Suite
 
