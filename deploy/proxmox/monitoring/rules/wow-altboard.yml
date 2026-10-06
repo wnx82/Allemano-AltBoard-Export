@@ -1,0 +1,56 @@
+# Regles Prometheus de wow-altboard : copie de reference de
+# /opt/observability/prometheus/rules/wow-altboard.yml (conteneur LXC 107 « observability »).
+# Les metriques viennent de deploy/proxmox/backup/wow-altboard-backup.sh, par le collecteur
+# textfile de node_exporter sur le conteneur LXC 102. La disponibilite du site, elle, passe par
+# la regle generale BlackboxProbeFailed. Voir docs/DEPLOYMENT.md, section « Surveillance ».
+# Annotations sans accents, comme les autres regles de cette instance.
+groups:
+  - name: wow-altboard
+    rules:
+      - alert: WowAltboardSauvegardeJamaisExecutee
+        expr: absent(wow_altboard_backup_last_run_timestamp_seconds)
+        for: 2h
+        labels:
+          severity: warning
+          app: wow-altboard
+        annotations:
+          summary: "wow-altboard : la sauvegarde n'a jamais tourne"
+          description: "Aucune metrique de wow-altboard-backup.service. Minuteur desactive, unite jamais lancee, ou collecteur textfile absent."
+      - alert: WowAltboardSauvegardeEchec
+        expr: wow_altboard_backup_success == 0
+        for: 10m
+        labels:
+          severity: critical
+          app: wow-altboard
+        annotations:
+          summary: "wow-altboard : la derniere sauvegarde a echoue"
+          description: "wow-altboard-backup.service n'a pas produit de dump lisible : l'historique des personnages n'est plus couvert que par la sauvegarde du conteneur."
+      - alert: WowAltboardSauvegardeSilencieuse
+        expr: time() - wow_altboard_backup_last_run_timestamp_seconds > 172800
+        for: 30m
+        labels:
+          severity: critical
+          app: wow-altboard
+        annotations:
+          summary: "wow-altboard : aucune sauvegarde depuis {{ $value | humanizeDuration }}"
+          description: "Le minuteur est quotidien ; un ecart de plus de 48 h signale un minuteur arrete. Meme seuil que les regles de fraicheur de sauvegarde."
+      # Pas de regle « jamais copiee » : le depot restic vit sur un hote intermittent, la
+      # metrique n'apparait qu'a la premiere copie reussie.
+      - alert: WowAltboardCopieHorsHoteEnRetard
+        expr: time() - wow_altboard_backup_offsite_last_success_timestamp_seconds > 1209600
+        for: 1h
+        labels:
+          severity: warning
+          app: wow-altboard
+        annotations:
+          summary: "wow-altboard : aucune copie hors de l'hote depuis {{ $value | humanizeDuration }}"
+          description: "Le dump quotidien reste sur le conteneur 102 : backup-gateway n'a pas repondu a 03:45 depuis plus de 14 jours."
+      - alert: WowAltboardSynchronisationEnRetard
+        expr: time() - wow_altboard_last_sync_timestamp_seconds > 1209600
+        for: 1h
+        labels:
+          severity: warning
+          app: wow-altboard
+        annotations:
+          summary: "wow-altboard : aucune synchronisation depuis {{ $value | humanizeDuration }}"
+          description: "Aucun agent n'a envoye de donnees depuis plus de 14 jours, tous PC confondus. Normal apres une pause de jeu ; sinon voir la fenetre de l'agent et le contournement Access de /api/sync."

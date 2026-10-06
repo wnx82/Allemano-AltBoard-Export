@@ -111,6 +111,39 @@ docker exec -i wow-altboard-db pg_restore -U wow_altboard -d wow_altboard \
 docker compose start web
 ```
 
+## Surveillance
+
+Le site est suivi par le Prometheus du conteneur LXC 107 « observability » (`10.0.0.25`), avec
+les autres applications de l'hôte. Rien de propre à ce projet ne route les alertes : elles suivent
+Alertmanager, comme les autres.
+
+| Quoi | Comment | Alerte |
+|---|---|---|
+| Site joignable | sonde `http://10.0.0.15:3016/api/health`, job `blackbox-internal` de `prometheus.yml` | `BlackboxProbeFailed`, règle générale : 5 min sans réponse |
+| Sauvegarde | métriques écrites par `wow-altboard-backup.sh`, lues par node_exporter (collecteur textfile) | jamais lancée, en échec, ou silencieuse depuis 48 h |
+| Copie hors de l'hôte | idem, à partir de la première copie restic réussie | aucune depuis 14 jours |
+| Synchronisations | idem : fin du dernier envoi reçu, tous PC confondus, relevée chaque nuit | aucune depuis 14 jours |
+
+Les règles propres au projet sont dans `deploy/proxmox/monitoring/rules/wow-altboard.yml`, copie
+de référence de `/opt/observability/prometheus/rules/wow-altboard.yml`, et leurs essais dans
+`rules/tests/`. La CI rejoue ces essais. Après une modification :
+
+```bash
+# Sur le conteneur LXC 107, une fois les deux fichiers copiés sous /opt/observability/prometheus/rules
+docker exec prometheus promtool test rules /etc/prometheus/rules/tests/wow-altboard.test.yml
+docker exec prometheus promtool check config /etc/prometheus/prometheus.yml
+curl -X POST http://127.0.0.1:9090/-/reload
+```
+
+Ce que la surveillance ne voit pas :
+
+- **Le chemin public de l'agent.** La sonde vise l'origine. Une entrée de tunnel ou un contournement
+  Access de `/api/sync` cassés n'apparaissent que dans la fenêtre de l'agent, puis, quatorze jours
+  plus tard, dans l'alerte de synchronisation.
+- **Un PC parmi d'autres.** L'alerte de synchronisation regarde l'envoi le plus récent, tous PC
+  confondus : la page **Machines** donne le détail par PC. Après une pause de jeu, elle se déclenche
+  sans qu'il y ait de panne.
+
 ## Recréer la pile
 
 1. Dans Komodo, **Settings > Variables** : créer `WOW_ALTBOARD_DB_PASSWORD`, case « secret »
@@ -126,6 +159,8 @@ docker compose start web
    d'Access au lieu d'atteindre l'API.
 6. Restaurer une sauvegarde (voir [Sauvegarde](#sauvegarde)), ou créer un compte d'accès et des
    jetons sur une base vide.
+7. Installer le minuteur de sauvegarde (voir [Sauvegarde](#sauvegarde)). La sonde et les règles
+   d'alerte vivent sur le conteneur 107 et survivent à la pile (voir [Surveillance](#surveillance)).
 
 ## Changer d'adresse
 

@@ -1,0 +1,123 @@
+# Preuve des regles de wow-altboard, sans arreter le minuteur ni casser une sauvegarde reelle.
+# Chaque regle a un cas de declenchement ET un cas de non-declenchement.
+#   promtool test rules tests/wow-altboard.test.yml
+
+rule_files:
+  - ../wow-altboard.yml
+
+evaluation_interval: 1m
+
+tests:
+  # ------------------------------------------------ la sauvegarde n'a jamais tourne
+  - interval: 1m
+    input_series:
+      - series: 'up{job="node-lxc",instance="10.0.0.15:9100"}'
+        values: '1x200'
+    alert_rule_test:
+      - eval_time: 3h
+        alertname: WowAltboardSauvegardeJamaisExecutee
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              app: wow-altboard
+            exp_annotations:
+              summary: "wow-altboard : la sauvegarde n'a jamais tourne"
+              description: "Aucune metrique de wow-altboard-backup.service. Minuteur desactive, unite jamais lancee, ou collecteur textfile absent."
+      - eval_time: 3h
+        alertname: WowAltboardSauvegardeEchec
+        exp_alerts: []
+      - eval_time: 3h
+        alertname: WowAltboardCopieHorsHoteEnRetard
+        exp_alerts: []
+      - eval_time: 3h
+        alertname: WowAltboardSynchronisationEnRetard
+        exp_alerts: []
+
+  # ----------------------------------------------------- le dernier dump a echoue
+  - interval: 1m
+    input_series:
+      - series: 'wow_altboard_backup_success{job="node-lxc",instance="10.0.0.15:9100"}'
+        values: '0x60'
+      - series: 'wow_altboard_backup_last_run_timestamp_seconds{job="node-lxc",instance="10.0.0.15:9100"}'
+        values: '0x60'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: WowAltboardSauvegardeEchec
+        exp_alerts: []
+      - eval_time: 30m
+        alertname: WowAltboardSauvegardeEchec
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              app: wow-altboard
+              job: node-lxc
+              instance: 10.0.0.15:9100
+            exp_annotations:
+              summary: "wow-altboard : la derniere sauvegarde a echoue"
+              description: "wow-altboard-backup.service n'a pas produit de dump lisible : l'historique des personnages n'est plus couvert que par la sauvegarde du conteneur."
+      - eval_time: 30m
+        alertname: WowAltboardSauvegardeJamaisExecutee
+        exp_alerts: []
+
+  # ------------------------------------------ passage quotidien normal, puis arret
+  - interval: 1m
+    input_series:
+      - series: 'wow_altboard_backup_success{job="node-lxc",instance="10.0.0.15:9100"}'
+        values: '1x3000'
+      - series: 'wow_altboard_backup_last_run_timestamp_seconds{job="node-lxc",instance="10.0.0.15:9100"}'
+        values: '0x3000'
+    alert_rule_test:
+      - eval_time: 47h
+        alertname: WowAltboardSauvegardeSilencieuse
+        exp_alerts: []
+      - eval_time: 49h
+        alertname: WowAltboardSauvegardeSilencieuse
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              app: wow-altboard
+              job: node-lxc
+              instance: 10.0.0.15:9100
+            exp_annotations:
+              summary: "wow-altboard : aucune sauvegarde depuis 2d 1h 0m 0s"
+              description: "Le minuteur est quotidien ; un ecart de plus de 48 h signale un minuteur arrete. Meme seuil que les regles de fraicheur de sauvegarde."
+      - eval_time: 49h
+        alertname: WowAltboardSauvegardeEchec
+        exp_alerts: []
+
+  # ---------------------- copie hors de l'hote et synchronisation : seuil de 14 jours
+  - interval: 1m
+    input_series:
+      - series: 'wow_altboard_backup_offsite_last_success_timestamp_seconds{job="node-lxc",instance="10.0.0.15:9100"}'
+        values: '0x21700'
+      - series: 'wow_altboard_last_sync_timestamp_seconds{job="node-lxc",instance="10.0.0.15:9100"}'
+        values: '0x21700'
+    alert_rule_test:
+      - eval_time: 13d
+        alertname: WowAltboardCopieHorsHoteEnRetard
+        exp_alerts: []
+      - eval_time: 13d
+        alertname: WowAltboardSynchronisationEnRetard
+        exp_alerts: []
+      - eval_time: 15d
+        alertname: WowAltboardCopieHorsHoteEnRetard
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              app: wow-altboard
+              job: node-lxc
+              instance: 10.0.0.15:9100
+            exp_annotations:
+              summary: "wow-altboard : aucune copie hors de l'hote depuis 15d 0h 0m 0s"
+              description: "Le dump quotidien reste sur le conteneur 102 : backup-gateway n'a pas repondu a 03:45 depuis plus de 14 jours."
+      - eval_time: 15d
+        alertname: WowAltboardSynchronisationEnRetard
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              app: wow-altboard
+              job: node-lxc
+              instance: 10.0.0.15:9100
+            exp_annotations:
+              summary: "wow-altboard : aucune synchronisation depuis 15d 0h 0m 0s"
+              description: "Aucun agent n'a envoye de donnees depuis plus de 14 jours, tous PC confondus. Normal apres une pause de jeu ; sinon voir la fenetre de l'agent et le contournement Access de /api/sync."

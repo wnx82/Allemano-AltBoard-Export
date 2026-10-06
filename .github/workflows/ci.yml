@@ -51,6 +51,19 @@ jobs:
       - uses: actions/checkout@v7
       - run: docker build --tag wow-altboard-web:ci web
 
+  # Ce qui s'installe sur les serveurs hors de la pile : script de sauvegarde et règles d'alerte.
+  ops:
+    name: Exploitation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: shellcheck deploy/proxmox/backup/*.sh
+      # Version de Prometheus du conteneur « observability ».
+      - name: Règles d'alerte
+        run: >-
+          docker run --rm --volume "$PWD/deploy/proxmox/monitoring/rules:/rules:ro" --entrypoint promtool
+          prom/prometheus:v3.7.3 test rules /rules/tests/wow-altboard.test.yml
+
   agent:
     name: Agent
     runs-on: windows-latest
