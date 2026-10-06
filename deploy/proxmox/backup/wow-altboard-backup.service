@@ -1,0 +1,9 @@
+[Unit]
+Description=Sauvegarde de la base wow_altboard (pg_dump, puis restic)
+After=docker.service
+Wants=docker.service
+
+[Service]
+Type=oneshot
+# Le script est lu dans les sources clonées par Komodo : un déploiement le met à jour.
+ExecStart=/bin/bash /etc/komodo/stacks/wow-altboard/deploy/proxmox/backup/wow-altboard-backup.sh

@@ -68,17 +68,37 @@ n'écoute) et redémarrée par autoheal au milieu de la saisie.
 
 ## Sauvegarde
 
-La base vit dans le volume `wow-altboard_db-data` du conteneur LXC 102 et suit sa sauvegarde :
-Proxmox Backup Server (`pbs-hdd`), lundi et jeudi, deux dernières conservées (constaté le
-2026-10-05). Aucun `pg_dumpall` global ne la couvre, contrairement à contabo. Pour une copie à
-part :
+Les données sont reconstructibles par une nouvelle synchronisation, **sauf l'historique**
+(`character_snapshots`), qui n'existe nulle part ailleurs. Trois niveaux le couvrent :
+
+| Niveau | Fréquence | Où | Conservation |
+|---|---|---|---|
+| `pg_dump` | chaque nuit, 03:45 | `/opt/wow-altboard/backups/` sur le conteneur LXC 102 | 14 jours |
+| restic | à la suite du dump | dépôt `backup-gateway` de l'hôte, hors du conteneur | celle du dépôt, non gérée ici |
+| Conteneur entier | lundi et jeudi | Proxmox Backup Server (`pbs-hdd`) | deux dernières (constaté le 2026-10-05) |
+
+Le dump et l'envoi restic sont faits par `deploy/proxmox/backup/wow-altboard-backup.sh`, que
+`wow-altboard-backup.timer` lance sur le conteneur. Le script est lu dans les sources clonées par
+Komodo : un déploiement le met à jour. Seules les deux unités s'installent, une fois :
+
+```bash
+cd /etc/komodo/stacks/wow-altboard/deploy/proxmox/backup
+cp wow-altboard-backup.service wow-altboard-backup.timer /etc/systemd/system/
+systemctl daemon-reload && systemctl enable --now wow-altboard-backup.timer
+systemctl start wow-altboard-backup.service        # premier passage, sans attendre la nuit
+journalctl -u wow-altboard-backup.service -n 20    # résultat du dernier passage
+```
+
+`backup-gateway` tourne sur un hôte qui n'est pas toujours allumé : s'il ne répond pas, le dump
+local est fait quand même et l'envoi est reporté au passage suivant, qui emporte tout le dossier.
+Un dump que `pg_restore --list` ne sait pas lire fait échouer le service et n'est pas conservé.
+Dépôt et mot de passe restic restent dans `/root/backups/restic/backup-gateway.env`, sur l'hôte.
+
+Pour une copie à part, à la demande :
 
 ```bash
 docker exec wow-altboard-db pg_dump -U wow_altboard -Fc --no-owner --no-acl wow_altboard > wow_altboard.dump
 ```
-
-Les données sont reconstructibles par une nouvelle synchronisation, **sauf l'historique**
-(`character_snapshots`), qui n'existe nulle part ailleurs.
 
 Restaurer un dump remplace tout le contenu de la base, en une transaction : en cas d'erreur, rien
 n'est modifié.

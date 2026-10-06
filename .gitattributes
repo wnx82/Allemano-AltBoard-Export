@@ -1,4 +1,9 @@
 * text=auto
 
+# Exécutés sous Linux sur le serveur : jamais de CRLF, même extraits sous Windows.
+*.sh text eol=lf
+*.service text eol=lf
+*.timer text eol=lf
+
 # Les fixtures reproduisent octet pour octet le format écrit par le client WoW (CRLF, UTF-8 sans BOM)
 tests/fixtures/** -text
