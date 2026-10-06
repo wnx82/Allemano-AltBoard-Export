@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import type { CharacterListItem } from "@/lib/dashboard/queries";
 import { classKey, classLabel, formatDateTime, formatItemLevel, formatRelative, progressPercent } from "@/lib/wow/format";
-import { ClassAvatar, EmptyState, FactionBadge, Meter, Money, ProfessionIcon } from "./ui";
+import { ClassAvatar, EmptyState, FactionBadge, Meter, Money, ProfessionIcon, SectionTitle } from "./ui";
 
 type SortKey = "name" | "level" | "itemLevel" | "money" | "activity" | "progress";
 type View = "cards" | "table";
@@ -137,6 +137,17 @@ export function CharacterBrowser({ characters, now }: { characters: CharacterLis
     });
   }, [characters, filters, query, sort]);
 
+  // Un bloc par compte, rangés par libellé : le tri choisi s'applique à l'intérieur de chaque bloc.
+  const groups = useMemo(() => {
+    const byAccount = new Map<number, { account: CharacterListItem["account"]; members: CharacterListItem[] }>();
+    for (const character of visible) {
+      const group = byAccount.get(character.account.id);
+      if (group) group.members.push(character);
+      else byAccount.set(character.account.id, { account: character.account, members: [character] });
+    }
+    return [...byAccount.values()].sort((a, b) => collator.compare(a.account.label, b.account.label) || a.account.id - b.account.id);
+  }, [visible]);
+
   const filtered = query.trim() !== "" || Object.values(filters).some(Boolean);
   const setFilter = (key: keyof Filters) => (event: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) =>
     setFilters((current) => ({ ...current, [key]: event.target.value }));
@@ -262,16 +273,25 @@ export function CharacterBrowser({ characters, now }: { characters: CharacterLis
 
       {visible.length === 0 ? (
         <EmptyState title="Aucun personnage ne correspond">Modifiez la recherche ou les filtres.</EmptyState>
-      ) : view === "cards" ? (
-        <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-          {visible.map((character) => (
-            <li key={character.id}>
-              <CharacterCard character={character} now={reference} />
-            </li>
-          ))}
-        </ul>
       ) : (
-        <CharacterTable characters={visible} now={reference} />
+        <div className="space-y-8">
+          {groups.map(({ account, members }) => (
+            <section key={account.id} aria-label={account.label}>
+              <SectionTitle aside={`${members.length} personnage${members.length > 1 ? "s" : ""}`}>{account.label}</SectionTitle>
+              {view === "cards" ? (
+                <ul className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                  {members.map((character) => (
+                    <li key={character.id}>
+                      <CharacterCard character={character} now={reference} />
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <CharacterTable characters={members} now={reference} />
+              )}
+            </section>
+          ))}
+        </div>
       )}
     </section>
   );
@@ -365,12 +385,12 @@ function CharacterCard({ character, now }: { character: CharacterListItem; now: 
         </ul>
       )}
 
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-t border-line pt-3 text-xs text-muted">
-        <span className="truncate">{character.account.label}</span>
-        <span title={`Dernière donnée AltBoard connue : ${formatDateTime(character.sourceLastSeenAt)}`}>
-          Vu en jeu {formatRelative(character.sourceLastSeenAt, now)}
-        </span>
-      </div>
+      <p
+        className="mt-4 border-t border-line pt-3 text-xs text-muted"
+        title={`Dernière donnée AltBoard connue : ${formatDateTime(character.sourceLastSeenAt)}`}
+      >
+        Vu en jeu {formatRelative(character.sourceLastSeenAt, now)}
+      </p>
       {character.hidden && <p className="mt-2 text-xs text-faint">Masqué dans l&apos;addon</p>}
     </article>
   );
@@ -395,7 +415,6 @@ function CharacterTable({ characters, now }: { characters: CharacterListItem[]; 
             </th>
             <th scope="col">Métiers</th>
             <th scope="col">Royaume</th>
-            <th scope="col">Compte</th>
             <th scope="col">PC</th>
             <th scope="col">Vu en jeu</th>
           </tr>
@@ -438,7 +457,6 @@ function CharacterTable({ characters, now }: { characters: CharacterListItem[]; 
                 {character.realm}
                 <span className="block text-xs text-muted">{character.faction}</span>
               </td>
-              <td className="text-muted">{character.account.label}</td>
               <td className="text-muted">{character.machines.map((m) => m.label).join(", ") || "—"}</td>
               <td className="whitespace-nowrap text-muted" title={formatDateTime(character.sourceLastSeenAt)}>
                 {formatRelative(character.sourceLastSeenAt, now)}
