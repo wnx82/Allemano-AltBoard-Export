@@ -209,7 +209,7 @@ public sealed class AgentApp(AgentEnvironment env)
         var token = _tokenStore.Read();
         if (token is null)
         {
-            env.Error.WriteLine("Aucun jeton d'agent enregistré. Lancez « AltBoardSync token set ».");
+            env.Error.WriteLine(TokenStore.MissingMessage);
             return ExitUsage;
         }
 

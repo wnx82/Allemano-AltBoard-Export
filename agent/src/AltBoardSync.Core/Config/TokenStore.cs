@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -12,7 +13,24 @@ public sealed class TokenStore(string directory, Func<string, string?>? getEnvir
 {
     public const string EnvironmentVariable = "ALTBOARDSYNC_TOKEN";
 
+    /// <summary>Dit aussi où l'enregistrer : la fenêtre de l'agent, ou la ligne de commande.</summary>
+    public const string MissingMessage =
+        "Aucun jeton d'agent enregistré. Saisissez-le dans la fenêtre de l'agent (bouton Jeton), ou lancez « AltBoardSync token set ».";
+
+    private const string Prefix = "wab_";
+
     private static readonly byte[] Entropy = "AltBoardSync.AgentToken.v1"u8.ToArray();
+    private static readonly SearchValues<char> Base64Url = SearchValues.Create("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_");
+
+    /// <summary>
+    /// Forme des jetons émis par le serveur (web/src/lib/agent-tokens.ts) : « wab_ » puis 43
+    /// caractères base64url. Un texte d'une autre forme est une erreur de copie : la fenêtre le
+    /// refuse avant de l'enregistrer.
+    /// </summary>
+    public static bool IsWellFormed(string token) =>
+        token.Length == Prefix.Length + 43
+        && token.StartsWith(Prefix, StringComparison.Ordinal)
+        && !token.AsSpan(Prefix.Length).ContainsAnyExcept(Base64Url);
 
     public string TokenPath => Path.Combine(directory, "token.dat");
 
@@ -31,7 +49,7 @@ public sealed class TokenStore(string directory, Func<string, string?>? getEnvir
         }
         catch (CryptographicException e)
         {
-            throw new InvalidDataException("Jeton illisible : il a été enregistré par un autre utilisateur ou une autre machine. Relancez « token set ».", e);
+            throw new InvalidDataException("Jeton illisible : il a été enregistré par un autre utilisateur ou une autre machine. Enregistrez-le à nouveau, dans la fenêtre de l'agent ou par « token set ».", e);
         }
     }
 

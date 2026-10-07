@@ -6,25 +6,31 @@ using AltBoardSync.Core.Sync;
 using static Win32;
 
 /// <summary>
-/// Fenêtre de l'agent : état de la synchronisation, démarrage avec Windows, journal de ce qui a été
-/// envoyé et de ce qui a changé. Dessinée à la main, sans contrôle Windows, aux couleurs du tableau
-/// de bord (web/src/app/globals.css). Tout son code tourne sur le fil de l'icône de la zone de
-/// notification ; les méthodes publiques s'y reportent d'elles-mêmes.
+/// Fenêtre de l'agent : état de la synchronisation, démarrage avec Windows, saisie du jeton, journal
+/// de ce qui a été envoyé et de ce qui a changé. Dessinée à la main aux couleurs du tableau de bord
+/// (web/src/app/globals.css) ; son seul contrôle Windows est le champ du jeton, pour que coller,
+/// sélectionner et le menu contextuel s'y comportent comme partout. Tout son code tourne sur le fil
+/// de l'icône de la zone de notification ; les méthodes publiques s'y reportent d'elles-mêmes.
 /// </summary>
 [SupportedOSPlatform("windows")]
 internal sealed class MainWindow
 {
-    public sealed record Commands(Action SyncNow, Action OpenDashboard, Action OpenLog, Action Quit);
+    public sealed record Commands(Action SyncNow, Action OpenDashboard, Action OpenMachines, Action OpenLog, Action Quit);
 
     private enum Zone
     {
         None,
         Autostart,
         SyncNow,
+        Token,
         Dashboard,
         LogFile,
         Quit,
         ScrollThumb,
+        TokenPaste,
+        TokenMachines,
+        TokenCancel,
+        TokenSave,
     }
 
     private enum TokenState
@@ -44,11 +50,14 @@ internal sealed class MainWindow
     private const uint Accent = 0xFF6F9BFF, Ok = 0xFF5FD39A, Danger = 0xFFF0625F;
 
     private const string GlyphSync = "", GlyphGlobe = "", GlyphDocument = "";
+    private const string GlyphKey = "", GlyphPaste = "";
     private const nuint AnimationTimer = 1, RefreshTimer = 2, SyncTimeoutTimer = 3;
     private const float ClientWidth = 780, ClientHeight = 720, MinClientWidth = 640, MinClientHeight = 560;
     private const string ClassName = "AltBoardSyncWindow";
 
-    private static readonly Zone[] FocusOrder = [Zone.Autostart, Zone.SyncNow, Zone.Dashboard, Zone.LogFile, Zone.Quit];
+    private static readonly Zone[] FocusOrder = [Zone.Autostart, Zone.SyncNow, Zone.Token, Zone.Dashboard, Zone.LogFile, Zone.Quit];
+    // Dans le panneau du jeton, après le champ, qui ouvre la boucle.
+    private static readonly Zone[] TokenFocusOrder = [Zone.TokenPaste, Zone.TokenMachines, Zone.TokenCancel, Zone.TokenSave];
     private static readonly string[] Days = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
     private static readonly string[] Months =
         ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
@@ -61,7 +70,7 @@ internal sealed class MainWindow
     private readonly SyncJournal _journal;
     private readonly FileLog _log;
     // Gardé en champ : Windows détient un pointeur vers ce délégué tant que la fenêtre existe.
-    private readonly WindowProcedure _procedure;
+    private readonly WindowProcedure _procedure, _tokenEditProcedure;
     private readonly List<(Zone Zone, RectF Bounds)> _zones = [];
     private readonly List<Row> _rows = [];
 
@@ -74,6 +83,7 @@ internal sealed class MainWindow
     private TokenState _token;
     private bool _autostartOn;
     private float _togglePosition;
+    private bool _toggleMoving;
     private bool? _failing;
     private DateTimeOffset? _retryAt;
     private bool _syncRequested;
@@ -83,6 +93,11 @@ internal sealed class MainWindow
     private float _scroll, _contentHeight, _viewHeight, _layoutWidth = -1;
     private RectF _scrollTrack;
     private float _thumbHeight, _dragOffset;
+
+    // Panneau du jeton : le champ est créé à sa première ouverture.
+    private IntPtr _tokenEdit, _tokenEditPrevious, _tokenFieldBrush;
+    private bool _tokenOpen, _tokenAsked, _tokenFieldFocused;
+    private string? _tokenError;
 
     public MainWindow(Action<Action> post, string homeDirectory, IAutostart autostart, Commands commands, Action onHidden)
     {
@@ -94,6 +109,7 @@ internal sealed class MainWindow
         _journal = new SyncJournal(homeDirectory, () => DateTimeOffset.UtcNow);
         _log = new FileLog(homeDirectory, () => DateTimeOffset.UtcNow);
         _procedure = Handle;
+        _tokenEditProcedure = HandleTokenEdit;
     }
 
     /// <summary>Affiche la fenêtre et la met au premier plan ; la crée au premier appel.</summary>
@@ -104,6 +120,13 @@ internal sealed class MainWindow
         ShowWindow(_window, IsIconic(_window) ? SwRestore : SwShow);
         SetForegroundWindow(_window);
         SetTimer(_window, RefreshTimer, 20_000, 0);
+        // Sans jeton rien ne part : la fenêtre le demande d'elle-même, une fois par lancement.
+        if (_token != TokenState.Present && !_tokenAsked)
+        {
+            _tokenAsked = true;
+            OpenTokenPanel();
+        }
+
         Invalidate();
     });
 
@@ -160,8 +183,9 @@ internal sealed class MainWindow
         var (width, height) = OuterSize(ClientWidth, ClientHeight, dpi);
         width = Math.Min(width, work.Right - work.Left);
         height = Math.Min(height, work.Bottom - work.Top);
+        // WsClipChildren : le dessin de la fenêtre ne recouvre pas le champ du jeton.
         _window = CreateWindowExW(
-            0, ClassName, "AltBoard Sync", WsOverlappedWindow,
+            0, ClassName, "AltBoard Sync", WsOverlappedWindow | WsClipChildren,
             work.Left + (work.Right - work.Left - width) / 2, work.Top + (work.Bottom - work.Top - height) / 2, width, height,
             0, 0, instance, 0);
 
@@ -181,6 +205,8 @@ internal sealed class MainWindow
     {
         _fonts?.Dispose();
         _fonts = new Fonts(_scale);
+        // Le champ du jeton tenait l'ancienne police, qui vient d'être détruite.
+        if (_tokenEdit != 0) SendMessageW(_tokenEdit, WmSetFont, _fonts.Body, 1);
         if (_icon != 0) DestroyIcon(_icon);
         var size = (int)S(40);
         _icon = LoadImageW(GetModuleHandleW(null), IconResource, ImageIcon, size, size, 0);
@@ -203,7 +229,9 @@ internal sealed class MainWindow
         _failing ??= _entries.FirstOrDefault(e => e.Kind != JournalEntry.Info)?.Kind == JournalEntry.Failed;
 
         _autostartOn = _autostart.IsEnabled;
-        if (!Animating) _togglePosition = _autostartOn ? 1 : 0;
+        // Hors d'un glissement en cours, l'interrupteur montre l'état lu : à la première lecture
+        // comme après un « autostart on » lancé ailleurs.
+        if (!_toggleMoving) _togglePosition = _autostartOn ? 1 : 0;
 
         try
         {
@@ -242,8 +270,37 @@ internal sealed class MainWindow
                 case WmEraseBackground:
                     return 1;
                 case WmSize:
+                    if (_tokenOpen) PlaceTokenEdit();
                     InvalidateRect(window, 0, false);
                     return 0;
+                case WmSetFocus when _tokenOpen && !_focusVisible:
+                    // Revenue au premier plan, la fenêtre rend le clavier au champ du jeton.
+                    SetFocus(_tokenEdit);
+                    return 0;
+                case WmCommand when lParam == _tokenEdit && _tokenEdit != 0:
+                    switch ((uint)(((long)wParam >> 16) & 0xFFFF))
+                    {
+                        case EnChange:
+                            _tokenError = null;
+                            break;
+                        case EnSetFocus:
+                            _tokenFieldFocused = true;
+                            _focus = Zone.None;
+                            _focusVisible = false;
+                            break;
+                        case EnKillFocus:
+                            _tokenFieldFocused = false;
+                            break;
+                    }
+
+                    Invalidate();
+                    return 0;
+                case WmCtlColorEdit when lParam == _tokenEdit && _tokenEdit != 0:
+                    // Le champ se dessine lui-même : il reçoit ici les couleurs de la fenêtre.
+                    SetTextColor(wParam, (uint)ColorRef(Bright));
+                    SetBkColor(wParam, (uint)ColorRef(Ink));
+                    if (_tokenFieldBrush == 0) _tokenFieldBrush = CreateSolidBrush((uint)ColorRef(Ink));
+                    return _tokenFieldBrush;
                 case WmGetMinMaxInfo:
                     // MINMAXINFO.ptMinTrackSize : troisième POINT après ptReserved, ptMaxSize et ptMaxPosition.
                     var (minWidth, minHeight) = OuterSize(MinClientWidth, MinClientHeight, (uint)MathF.Round(_scale * 96));
@@ -277,10 +334,11 @@ internal sealed class MainWindow
                     }
 
                     return 0;
-                case WmMouseWheel:
+                case WmMouseWheel when !_tokenOpen:
                     ScrollBy(-(short)(((long)wParam >> 16) & 0xFFFF) / 120f * S(60));
                     return 0;
-                case WmSetCursor when ((long)lParam & 0xFFFF) == HtClient:
+                // Seulement pour la fenêtre elle-même : le champ du jeton garde son curseur de texte.
+                case WmSetCursor when ((long)lParam & 0xFFFF) == HtClient && wParam == window:
                     SetCursor(LoadCursorW(0, _hover is Zone.None or Zone.ScrollThumb ? CursorArrow : CursorHand));
                     return 1;
                 case WmKeyDown:
@@ -291,6 +349,7 @@ internal sealed class MainWindow
                     return 0;
                 case WmClose:
                     // Fermer la fenêtre ne quitte pas l'agent : il reste dans la zone de notification.
+                    if (_tokenOpen) CloseTokenPanel();
                     ShowWindow(window, SwHide);
                     KillTimer(window, RefreshTimer);
                     _onHidden();
@@ -387,6 +446,12 @@ internal sealed class MainWindow
 
     private void OnKey(int key)
     {
+        if (_tokenOpen)
+        {
+            OnTokenKey(key);
+            return;
+        }
+
         switch (key)
         {
             case VkTab:
@@ -436,7 +501,12 @@ internal sealed class MainWindow
                 var target = _autostartOn ? 1f : 0f;
                 // Environ 140 ms d'un bord à l'autre.
                 _togglePosition = target > _togglePosition ? MathF.Min(target, _togglePosition + 0.12f) : MathF.Max(target, _togglePosition - 0.12f);
-                if (!Animating) KillTimer(_window, AnimationTimer);
+                if (!Animating)
+                {
+                    _toggleMoving = false;
+                    KillTimer(_window, AnimationTimer);
+                }
+
                 Invalidate();
                 break;
             case RefreshTimer:
@@ -465,6 +535,24 @@ internal sealed class MainWindow
                 // La surveillance répond par un signalement ; à défaut, le bouton se libère seul.
                 SetTimer(_window, SyncTimeoutTimer, 20_000, 0);
                 _commands.SyncNow();
+                break;
+            case Zone.Token:
+                OpenTokenPanel();
+                break;
+            case Zone.TokenPaste:
+                // Le champ colle lui-même, à la place de ce qu'il contient.
+                SendMessageW(_tokenEdit, EmSetSel, 0, -1);
+                SendMessageW(_tokenEdit, WmPaste, 0, 0);
+                FocusTokenEdit();
+                break;
+            case Zone.TokenMachines:
+                Task.Run(_commands.OpenMachines);
+                break;
+            case Zone.TokenCancel:
+                CloseTokenPanel();
+                break;
+            case Zone.TokenSave:
+                SaveToken();
                 break;
             case Zone.Dashboard:
                 // Hors du fil de la fenêtre : lancer un navigateur peut prendre du temps.
@@ -498,7 +586,8 @@ internal sealed class MainWindow
 
         _entries = _journal.ReadLatest();
         _layoutWidth = -1;
-        if (Animating) SetTimer(_window, AnimationTimer, 16, 0);
+        _toggleMoving = Animating;
+        if (_toggleMoving) SetTimer(_window, AnimationTimer, 16, 0);
     }
 
     private void ScrollBy(float delta) => ScrollTo(_scroll + delta);
@@ -583,6 +672,8 @@ internal sealed class MainWindow
         canvas.Text(
             "Fermer cette fenêtre laisse la synchronisation active, dans la zone de notification.", fonts.Small, Faint,
             new RectF(left, height - S(42), contentWidth - quitWidth - S(12), S(30)), TextLayout.Middle | TextLayout.Ellipsis);
+
+        if (_tokenOpen) PaintTokenPanel(canvas, fonts, width, height);
     }
 
     /// <returns>Largeur de la pastille, pour que le titre s'arrête avant.</returns>
@@ -677,16 +768,27 @@ internal sealed class MainWindow
     {
         var x = left;
         x = PaintButton(canvas, fonts, Zone.SyncNow, x, top, GlyphSync, _syncRequested ? "Synchronisation…" : "Synchroniser maintenant", primary: true) + S(10);
+        x = PaintButton(canvas, fonts, Zone.Token, x, top, GlyphKey, _token == TokenState.Present ? "Jeton" : "Saisir le jeton", primary: false) + S(10);
         x = PaintButton(canvas, fonts, Zone.Dashboard, x, top, GlyphGlobe, "Tableau de bord", primary: false) + S(10);
         if (x + S(150) <= right) PaintButton(canvas, fonts, Zone.LogFile, x, top, GlyphDocument, "Fichier journal", primary: false);
     }
 
+    /// <param name="glyph">Null : bouton sans pictogramme.</param>
+    private float ButtonWidth(Canvas canvas, Fonts fonts, string? glyph, string label) =>
+        S(16) + (glyph is not null && fonts.Glyph != 0 ? S(24) : 0) + canvas.Measure(label, fonts.BodyBold).Width + S(18);
+
     /// <returns>Bord droit du bouton.</returns>
-    private float PaintButton(Canvas canvas, Fonts fonts, Zone zone, float x, float top, string glyph, string label, bool primary)
+    private float PaintButton(Canvas canvas, Fonts fonts, Zone zone, float x, float top, string? glyph, string label, bool primary)
     {
-        var glyphWidth = fonts.Glyph != 0 ? S(24) : 0;
-        var width = S(16) + glyphWidth + canvas.Measure(label, fonts.BodyBold).Width + S(18);
-        var button = new RectF(x, top, width, S(38));
+        var button = new RectF(x, top, ButtonWidth(canvas, fonts, glyph, label), S(38));
+        PaintButton(canvas, fonts, zone, button, glyph, label, primary);
+        return button.Right;
+    }
+
+    private void PaintButton(Canvas canvas, Fonts fonts, Zone zone, RectF button, string? glyph, string label, bool primary)
+    {
+        var glyphWidth = glyph is not null && fonts.Glyph != 0 ? S(24) : 0;
+        float x = button.X, top = button.Y, width = button.Width;
         _zones.Add((zone, button));
 
         bool hovered = _hover == zone, pressed = _pressed == zone && hovered, busy = zone == Zone.SyncNow && _syncRequested;
@@ -703,10 +805,198 @@ internal sealed class MainWindow
             foreground = Bright;
         }
 
-        if (fonts.Glyph != 0) canvas.Text(glyph, fonts.Glyph, foreground, new RectF(x + S(14), top, S(20), button.Height), TextLayout.Middle | TextLayout.Center);
+        if (glyph is not null && fonts.Glyph != 0) canvas.Text(glyph, fonts.Glyph, foreground, new RectF(x + S(14), top, S(20), button.Height), TextLayout.Middle | TextLayout.Center);
         canvas.Text(label, fonts.BodyBold, foreground, new RectF(x + S(16) + glyphWidth, top, width - glyphWidth - S(24), button.Height), TextLayout.Middle);
         PaintFocus(canvas, zone, button, S(10));
-        return button.Right;
+    }
+
+    // ---------------------------------------------------------------------------
+    // Jeton
+    // ---------------------------------------------------------------------------
+
+    /// <summary>Emplacements du panneau du jeton. Calculés sans surface de dessin : ils placent aussi le champ.</summary>
+    private (RectF Card, RectF Field, RectF Edit) LayoutTokenPanel(float width, float height)
+    {
+        float cardWidth = MathF.Min(S(520), width - S(48)), cardHeight = S(252);
+        var card = new RectF(MathF.Round((width - cardWidth) / 2), MathF.Max(S(16), MathF.Round((height - cardHeight) / 2) - S(16)), cardWidth, cardHeight);
+        // À droite du champ, la place du bouton « Coller ».
+        var field = new RectF(card.X + S(24), card.Y + S(102), card.Width - S(48) - S(112), S(40));
+        var edit = new RectF(field.X + S(14), field.Y + S(9), field.Width - S(24), S(22));
+        return (card, field, edit);
+    }
+
+    private void PaintTokenPanel(Canvas canvas, Fonts fonts, float width, float height)
+    {
+        // Ce qui est derrière le voile cesse de répondre.
+        _zones.Clear();
+        canvas.Fill(new RectF(0, 0, width, height), WithAlpha(Ink, 0xC8));
+        var (card, field, _) = LayoutTokenPanel(width, height);
+        canvas.FillRound(card, S(16), Surface);
+        canvas.StrokeRound(card, S(16), LineStrong);
+
+        float left = card.X + S(24), inner = card.Width - S(48), right = left + inner;
+        canvas.Text("Jeton d'agent", fonts.Heading, Bright, new RectF(left, card.Y + S(22), inner, S(24)), TextLayout.Middle);
+        // Espace insécable : le deux-points ne passe pas seul à la ligne.
+        var description = "Créez un jeton sur la page Machines du tableau de bord, puis collez-le ici. Un jeton par PC : il se lie au premier qui l'utilise.";
+        if (_token == TokenState.Present) description += " Celui qui est enregistré sera remplacé.";
+        canvas.Text(description, fonts.Small, Muted, new RectF(left, card.Y + S(54), inner, S(38)), TextLayout.Wrap);
+
+        canvas.FillRound(field, S(10), Ink);
+        canvas.StrokeRound(field, S(10), _tokenError is not null ? Danger : _tokenFieldFocused ? Accent : LineStrong, _tokenFieldFocused ? S(2) : 1);
+        var pasteWidth = ButtonWidth(canvas, fonts, GlyphPaste, "Coller");
+        PaintButton(canvas, fonts, Zone.TokenPaste, new RectF(right - pasteWidth, field.Y + S(1), pasteWidth, S(38)), GlyphPaste, "Coller", primary: false);
+        canvas.Text(
+            _tokenError ?? "Chiffré pour votre session Windows ; il n'apparaît dans aucun journal.", fonts.Small, _tokenError is null ? Faint : Danger,
+            new RectF(left, field.Bottom + S(8), inner, S(18)), TextLayout.Middle | TextLayout.Ellipsis);
+
+        var top = card.Y + S(190);
+        PaintButton(canvas, fonts, Zone.TokenMachines, left, top, GlyphGlobe, "Créer un jeton", primary: false);
+        float saveWidth = ButtonWidth(canvas, fonts, null, "Enregistrer"), cancelWidth = ButtonWidth(canvas, fonts, null, "Annuler");
+        PaintButton(canvas, fonts, Zone.TokenCancel, new RectF(right - saveWidth - S(10) - cancelWidth, top, cancelWidth, S(38)), null, "Annuler", primary: false);
+        PaintButton(canvas, fonts, Zone.TokenSave, new RectF(right - saveWidth, top, saveWidth, S(38)), null, "Enregistrer", primary: true);
+    }
+
+    private void OpenTokenPanel()
+    {
+        if (_window == 0 || _fonts is null) return;
+        if (_tokenEdit == 0)
+        {
+            _tokenEdit = CreateWindowExW(0, "EDIT", "", WsChild | EsAutoHScroll | EsPassword, 0, 0, 0, 0, _window, 0, GetModuleHandleW(null), 0);
+            SendMessageW(_tokenEdit, WmSetFont, _fonts.Body, 0);
+            SendMessageW(_tokenEdit, EmSetPasswordChar, (IntPtr)'●', 0);
+            SendMessageW(_tokenEdit, EmSetLimitText, 200, 0);
+            // Entrée, Échap et Tab sont des touches du panneau, pas du champ.
+            _tokenEditPrevious = SetWindowLongPtrW(_tokenEdit, GwlpWndProc, Marshal.GetFunctionPointerForDelegate(_tokenEditProcedure));
+        }
+
+        _tokenOpen = true;
+        _hover = _pressed = Zone.None;
+        SetWindowTextW(_tokenEdit, "");
+        _tokenError = null;
+        PlaceTokenEdit();
+        ShowWindow(_tokenEdit, SwShow);
+        FocusTokenEdit();
+        Invalidate();
+    }
+
+    private void CloseTokenPanel()
+    {
+        _tokenOpen = false;
+        _focus = Zone.None;
+        _focusVisible = false;
+        SetFocus(_window);
+        ShowWindow(_tokenEdit, SwHide);
+        // Rien de saisi ne reste dans un champ que l'on ne voit plus.
+        SetWindowTextW(_tokenEdit, "");
+        Invalidate();
+    }
+
+    private void PlaceTokenEdit()
+    {
+        if (_tokenEdit == 0 || !GetClientRect(_window, out var client)) return;
+        var edit = LayoutTokenPanel(client.Right, client.Bottom).Edit;
+        SetWindowPos(_tokenEdit, 0, (int)edit.X, (int)edit.Y, (int)edit.Width, (int)edit.Height, SwpNoZOrder | SwpNoActivate);
+    }
+
+    private void FocusTokenEdit()
+    {
+        _focus = Zone.None;
+        _focusVisible = false;
+        SetFocus(_tokenEdit);
+    }
+
+    private void SaveToken()
+    {
+        var text = new char[GetWindowTextLengthW(_tokenEdit) + 1];
+        var token = new string(text, 0, GetWindowTextW(_tokenEdit, text, text.Length)).Trim();
+        Array.Clear(text);
+        _tokenError = token.Length == 0 ? "Collez d'abord le jeton créé sur la page Machines."
+            : !TokenStore.IsWellFormed(token) ? "Ce n'est pas un jeton : il commence par « wab_ » et compte 47 caractères."
+            : null;
+        if (_tokenError is null)
+        {
+            try
+            {
+                new TokenStore(_homeDirectory).Save(token);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException or System.Security.Cryptography.CryptographicException)
+            {
+                _log.Error($"jeton non enregistré : {e.Message}");
+                _tokenError = $"Jeton non enregistré : {e.Message}";
+            }
+        }
+
+        if (_tokenError is not null)
+        {
+            FocusTokenEdit();
+            Invalidate();
+            return;
+        }
+
+        _log.Info("jeton d'agent enregistré depuis la fenêtre");
+        _journal.Info("Jeton d'agent enregistré.");
+        CloseTokenPanel();
+        Reload();
+        // Le jeton vient d'arriver : la surveillance n'attend pas son prochain essai.
+        Activate(Zone.SyncNow);
+    }
+
+    private void OnTokenKey(int key)
+    {
+        var inField = GetFocus() == _tokenEdit;
+        switch (key)
+        {
+            case VkEscape:
+                CloseTokenPanel();
+                break;
+            case VkReturn when inField:
+                SaveToken();
+                break;
+            case VkReturn or VkSpace when _focusVisible && _focus != Zone.None:
+                Activate(_focus);
+                break;
+            case VkTab:
+                // Le champ ouvre la boucle : lui seul porte le focus clavier de Windows.
+                var count = TokenFocusOrder.Length + 1;
+                var current = inField ? 0 : Array.IndexOf(TokenFocusOrder, _focus) + 1;
+                var next = (current + (GetKeyState(VkShift) < 0 ? -1 : 1) + count) % count;
+                if (next == 0)
+                {
+                    FocusTokenEdit();
+                }
+                else
+                {
+                    _focus = TokenFocusOrder[next - 1];
+                    _focusVisible = true;
+                    SetFocus(_window);
+                }
+
+                Invalidate();
+                break;
+        }
+    }
+
+    /// <summary>Procédure du champ du jeton, placée devant celle de Windows.</summary>
+    private IntPtr HandleTokenEdit(IntPtr window, uint message, IntPtr wParam, IntPtr lParam)
+    {
+        try
+        {
+            switch (message)
+            {
+                case WmKeyDown when (int)wParam is VkReturn or VkEscape or VkTab:
+                    OnTokenKey((int)wParam);
+                    return 0;
+                // Sans quoi le champ émet le bip des touches qu'il refuse.
+                case WmChar when (int)wParam is '\r' or '\t' or 0x1B:
+                    return 0;
+            }
+        }
+        catch (Exception e)
+        {
+            _log.Error($"champ du jeton : {e}");
+        }
+
+        return CallWindowProcW(_tokenEditPrevious, window, message, wParam, lParam);
     }
 
     private void PaintFocus(Canvas canvas, Zone zone, RectF bounds, float radius)

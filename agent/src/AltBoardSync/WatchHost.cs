@@ -46,7 +46,8 @@ internal sealed class WatchHost : IDisposable
             onClick: () => _window!.Show());
         _window = new MainWindow(
             _tray.Post, homeDirectory, autostart,
-            new MainWindow.Commands(Control.RequestSync, () => OpenDashboard(homeDirectory), OpenLog, () => Cancel(cancellation)),
+            new MainWindow.Commands(
+                Control.RequestSync, () => OpenDashboard(homeDirectory), () => OpenDashboard(homeDirectory, "/machines"), OpenLog, () => Cancel(cancellation)),
             OnWindowHidden);
 
         _show = new EventWaitHandle(false, EventResetMode.AutoReset, ShowName);
@@ -157,12 +158,13 @@ internal sealed class WatchHost : IDisposable
         }
     }
 
-    private static void OpenDashboard(string homeDirectory)
+    /// <param name="page">Chemin d'une page du tableau de bord ; vide : l'accueil.</param>
+    private static void OpenDashboard(string homeDirectory, string page = "")
     {
         try
         {
             var server = new Uri(new AgentConfigStore(homeDirectory).LoadOrCreate().ServerUrl);
-            Open(server.GetLeftPart(UriPartial.Authority));
+            Open(server.GetLeftPart(UriPartial.Authority) + page);
         }
         catch (Exception e) when (e is InvalidDataException or UriFormatException)
         {

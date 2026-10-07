@@ -1,5 +1,5 @@
 # Publie l'exécutable de l'agent en GitHub Release quand une étiquette agent-vX.Y.Z est poussée :
-#   git tag agent-v0.3.0 && git push origin agent-v0.3.0
+#   git tag agent-v0.4.0 && git push origin agent-v0.4.0
 name: Release de l'agent
 
 on:

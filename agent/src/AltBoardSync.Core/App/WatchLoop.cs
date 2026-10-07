@@ -155,7 +155,7 @@ internal sealed class WatchLoop(
         if (!force && readable.All(r => state.Fingerprints.GetValueOrDefault(StateKey(r)) == r.Fingerprint)) return null;
 
         var token = tokenStore.Read();
-        if (token is null) return "Aucun jeton d'agent enregistré. Lancez « AltBoardSync token set ».";
+        if (token is null) return TokenStore.MissingMessage;
 
         var document = PayloadBuilder.Build(
             new MachinePayload(config.MachineUuid, env.Hostname, config.MachineName), readable.Select(r => r.Payload!), version, env.Now());

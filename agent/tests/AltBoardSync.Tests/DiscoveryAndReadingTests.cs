@@ -252,4 +252,21 @@ public class AgentConfigStoreTests
 
         Assert.Equal("depuis-env", new TokenStore(temp.Path, name => name == TokenStore.EnvironmentVariable ? " depuis-env " : null).Read());
     }
+
+    [Theory]
+    [InlineData("wab_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopq", true)]
+    [InlineData("wab_0123456789-_ABCDEFGHIJKLMNOPQRSTUVWXYZabcde", true)]
+    // Copie tronquée, ou caractère de trop.
+    [InlineData("wab_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnop", false)]
+    [InlineData("wab_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqr", false)]
+    // Autre chose qu'un jeton : mot de passe, URL, texte voisin copié avec lui.
+    [InlineData("", false)]
+    [InlineData("WAB_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopq", false)]
+    [InlineData("wab_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmno q", false)]
+    [InlineData("wab_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmno+/", false)]
+    [InlineData("Bearer wab_ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijk", false)]
+    public void Token_shape_is_the_one_the_server_issues(string token, bool expected)
+    {
+        Assert.Equal(expected, TokenStore.IsWellFormed(token));
+    }
 }

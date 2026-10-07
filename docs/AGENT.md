@@ -21,30 +21,31 @@ lance `.github/workflows/release-agent.yml` : tests, publication, puis GitHub Re
 sinon la release est refusée.
 
 ```bash
-git tag agent-v0.3.0 && git push origin agent-v0.3.0
+git tag agent-v0.4.0 && git push origin agent-v0.4.0
 ```
 
 ## Installer sur un PC
 
 1. Copier `AltBoardSync.exe` où l'on veut, ou le télécharger depuis la dernière release du dépôt.
 2. Créer un jeton dans le tableau de bord (page **Machines**) : il n'est affiché qu'une fois.
-3. Configurer :
-
-```powershell
-AltBoardSync.exe config set serverUrl https://wow.ekreativ.be/api/sync
-AltBoardSync.exe token set          # saisie masquée
-AltBoardSync.exe sync
-```
+3. Double-cliquer sur `AltBoardSync.exe` : sa [fenêtre](#fenêtre) demande le jeton. Le coller, puis
+   **Enregistrer** : la première synchronisation part aussitôt.
 
 Le jeton se lie à la première machine qui l'utilise ; il est refusé ailleurs. Un jeton par PC.
 
-Ensuite, au choix :
+La fenêtre ouverte, la synchronisation est automatique tant que l'agent tourne ; son interrupteur
+**Démarrage avec Windows** le relance à chaque ouverture de session.
 
-- un double-clic sur `AltBoardSync.exe` : la [fenêtre](#fenêtre) s'ouvre et la synchronisation
-  devient automatique tant que l'agent tourne ; son interrupteur **Démarrage avec Windows** le
-  relance à chaque ouverture de session ;
-- `AltBoardSync.exe autostart on` : la même chose sans fenêtre, dès maintenant et à chaque ouverture
-  de session (voir [Synchronisation automatique](#synchronisation-automatique)).
+Tout reste faisable sans fenêtre :
+
+```powershell
+AltBoardSync.exe config set serverUrl https://wow.ekreativ.be/api/sync   # autre serveur que celui par défaut
+AltBoardSync.exe token set          # saisie masquée
+AltBoardSync.exe sync               # un envoi
+AltBoardSync.exe autostart on       # envoi automatique, dès maintenant et à chaque ouverture de session
+```
+
+Voir [Synchronisation automatique](#synchronisation-automatique).
 
 Le jeu n'écrit `AltBoard.lua` qu'à la déconnexion du personnage ou sur `/reload` : synchroniser
 avant ne voit pas les derniers changements.
@@ -73,7 +74,7 @@ Codes de sortie : `0` réussite, `1` synchronisation échouée ou partielle, `2`
 ## Exemple
 
 ```text
-AltBoard Sync 0.3.0
+AltBoard Sync 0.4.0
 
 Machine : PC-GAMING
 
@@ -204,8 +205,17 @@ notification ouvrent la fenêtre de l'agent :
 - **Démarrage avec Windows** : l'interrupteur inscrit ou retire le lancement à l'ouverture de
   session (voir [plus bas](#démarrage-à-louverture-de-session)) ;
 - **dernier envoi**, nombre de personnages, serveur et présence du jeton ;
-- **Synchroniser maintenant** (ou F5), **Tableau de bord**, **Fichier journal** ;
+- **Synchroniser maintenant** (ou F5), **Jeton**, **Tableau de bord**, **Fichier journal** ;
 - **journal** : chaque envoi, chaque panne, et ce qui a changé par personnage.
+
+**Jeton** ouvre la saisie du jeton d'agent : champ masqué, **Coller** (ou Ctrl+V, ou le menu du
+clic droit), **Créer un jeton** qui ouvre la page Machines du tableau de bord, **Enregistrer** (ou
+Entrée). Tant qu'aucun jeton n'est enregistré, la fenêtre l'ouvre d'elle-même, une fois par
+lancement. Un texte qui n'a pas la forme d'un jeton (`wab_` puis 43 caractères) est refusé avant
+d'être enregistré. Le jeton est chiffré comme par `token set` (voir
+[Fichiers locaux](#fichiers-locaux)) et remplace celui qui existait ; une synchronisation part
+aussitôt, et son résultat s'inscrit au journal : un jeton refusé par le serveur s'y lit tout de
+suite.
 
 La fermer ne quitte pas l'agent : il reste dans la zone de notification, et **Quitter** l'arrête.
 Une seule surveillance tourne par session Windows : un second double-clic rouvre la fenêtre de
@@ -213,9 +223,11 @@ celle qui tourne. Au clavier : Tab, Entrée ou Espace, flèches et Page précéd
 journal, Échap pour fermer.
 
 Elle est dessinée directement par l'API Windows, aux couleurs du tableau de bord : ni Windows Forms
-ni WPF, qui empêcheraient de réduire l'exécutable. Sur Windows 11 24H2 et suivants, aucune console
-n'apparaît au double-clic ni à l'ouverture de session (`consoleAllocationPolicy` du manifeste) ;
-sur les versions antérieures, une console s'ouvre un instant puis se referme.
+ni WPF, qui empêcheraient de réduire l'exécutable. Seul le champ du jeton est un contrôle de
+Windows : coller, sélectionner et lecteurs d'écran s'y comportent comme ailleurs. Sur Windows 11
+24H2 et suivants, aucune console n'apparaît au double-clic ni à l'ouverture de session
+(`consoleAllocationPolicy` du manifeste) ; sur les versions antérieures, une console s'ouvre un
+instant puis se referme.
 
 ### Journal
 

@@ -14,7 +14,7 @@ Dernière mise à jour : 2026-10-04.
 | Chaîne complète PC → agent → HTTPS → PostgreSQL → tableau de bord | ✅ sur les fichiers réels (2 comptes, 6 personnages) |
 | Recette après une vraie modification en jeu | ⬜ à faire par le joueur : jouer, `/reload`, `AltBoardSync.exe sync` |
 | Compte personnel d'accès au tableau de bord | ⬜ à créer par le joueur (mot de passe saisi sur le serveur) |
-| Tests automatisés | 121 (agent) + 77 (web), tous verts |
+| Tests automatisés | 152 (agent) + 98 (web), tous verts |
 
 Le critère de réussite de la V1 est rempli jusqu'à l'étape 5 (personnage vérifié dans le fichier, la
 base et la page). Les étapes 6 à 10 — modifier une donnée en jeu, resynchroniser, constater la mise
@@ -178,6 +178,7 @@ très long, accentué, à apostrophes, hors alphabet latin ; base injoignable.
 
 Implémenté depuis l'agent 0.2.0 : `watch`, `autostart`, icône de la zone de notification.
 Depuis l'agent 0.3.0 : fenêtre (démarrage avec Windows, journal des envois et de ce qui a changé).
+Depuis l'agent 0.4.0 : saisie du jeton dans la fenêtre, sans ligne de commande.
 
 ## P13 — `wow.ekreativ.be`
 
@@ -203,8 +204,8 @@ Depuis l'agent 0.3.0 : fenêtre (démarrage avec Windows, journal des envois et 
 
 | Version | Contenu |
 |---|---|
-| V2 | ✅ agent 0.2.0 : `watch`, démarrage à l'ouverture de session, icône de zone de notification ; agent 0.3.0 : fenêtre et journal des modifications |
-| V3 | ✅ comparaison des métiers (page **Métiers**) et activité des 30 derniers jours (page **Activité**) ; reste l'historique détaillé |
+| V2 | ✅ agent 0.2.0 : `watch`, démarrage à l'ouverture de session, icône de zone de notification ; agent 0.3.0 : fenêtre et journal des modifications ; agent 0.4.0 : jeton saisi dans la fenêtre |
+| V3 | ✅ comparaison des métiers (page **Métiers**), activité des 30 derniers jours (page **Activité**) et évolution des niveaux de tous les personnages (page **Niveaux**) ; reste l'historique détaillé |
 | V4 | n8n, notifications, rapports |
 | V5 | installation et mise à jour automatiques de l'agent |
 

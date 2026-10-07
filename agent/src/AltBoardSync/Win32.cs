@@ -6,8 +6,9 @@ using System.Runtime.InteropServices;
 /// </summary>
 internal static class Win32
 {
-    public const uint WmDestroy = 0x0002, WmSize = 0x0005, WmPaint = 0x000F, WmClose = 0x0010, WmEraseBackground = 0x0014;
-    public const uint WmSetCursor = 0x0020, WmGetMinMaxInfo = 0x0024, WmKeyDown = 0x0100, WmCommand = 0x0111, WmTimer = 0x0113;
+    public const uint WmDestroy = 0x0002, WmSize = 0x0005, WmSetFocus = 0x0007, WmPaint = 0x000F, WmClose = 0x0010, WmEraseBackground = 0x0014;
+    public const uint WmSetCursor = 0x0020, WmGetMinMaxInfo = 0x0024, WmSetFont = 0x0030, WmKeyDown = 0x0100, WmChar = 0x0102;
+    public const uint WmCommand = 0x0111, WmTimer = 0x0113, WmCtlColorEdit = 0x0133, WmPaste = 0x0302;
     public const uint WmMouseMove = 0x0200, WmLButtonDown = 0x0201, WmLButtonUp = 0x0202, WmLButtonDoubleClick = 0x0203, WmRButtonUp = 0x0205;
     public const uint WmMouseWheel = 0x020A, WmCaptureChanged = 0x0215, WmMouseLeave = 0x02A3, WmDpiChanged = 0x02E0;
 
@@ -15,7 +16,13 @@ internal static class Win32
     public const int SmCxSmIcon = 49, SmCySmIcon = 50;
     public const int SwHide = 0, SwShow = 5, SwRestore = 9;
     public const int CursorArrow = 32512, CursorHand = 32649;
-    public const uint WsOverlappedWindow = 0x00CF0000, CsDoubleClicks = 0x0008;
+    public const uint WsOverlappedWindow = 0x00CF0000, WsClipChildren = 0x02000000, WsChild = 0x40000000, CsDoubleClicks = 0x0008;
+
+    // Champ de saisie (classe EDIT) : styles, messages, notifications reçues par WmCommand.
+    public const uint EsPassword = 0x0020, EsAutoHScroll = 0x0080;
+    public const uint EmSetSel = 0x00B1, EmSetLimitText = 0x00C5, EmSetPasswordChar = 0x00CC;
+    public const uint EnSetFocus = 0x0100, EnKillFocus = 0x0200, EnChange = 0x0300;
+    public const int GwlpWndProc = -4;
     public const uint SwpNoZOrder = 0x0004, SwpNoActivate = 0x0010;
     public const uint SrcCopy = 0x00CC0020, DiNormal = 0x0003;
     public const int HtClient = 1, TransparentBackground = 1;
@@ -241,6 +248,24 @@ internal static class Win32
     public static extern bool PostMessageW(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
 
     [DllImport("user32.dll")]
+    public static extern IntPtr SendMessageW(IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr SetWindowLongPtrW(IntPtr window, int index, IntPtr value);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr CallWindowProcW(IntPtr previous, IntPtr window, uint message, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    public static extern int GetWindowTextLengthW(IntPtr window);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    public static extern int GetWindowTextW(IntPtr window, [Out] char[] text, int maxCount);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    public static extern bool SetWindowTextW(IntPtr window, string text);
+
+    [DllImport("user32.dll")]
     public static extern void PostQuitMessage(int exitCode);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
@@ -270,6 +295,12 @@ internal static class Win32
 
     [DllImport("user32.dll")]
     public static extern short GetKeyState(int key);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr SetFocus(IntPtr window);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr GetFocus();
 
     [DllImport("user32.dll")]
     public static extern nuint SetTimer(IntPtr window, nuint id, uint milliseconds, IntPtr callback);
@@ -358,6 +389,12 @@ internal static class Win32
 
     [DllImport("gdi32.dll")]
     public static extern int SetBkMode(IntPtr dc, int mode);
+
+    [DllImport("gdi32.dll")]
+    public static extern uint SetBkColor(IntPtr dc, uint color);
+
+    [DllImport("gdi32.dll")]
+    public static extern IntPtr CreateSolidBrush(uint color);
 
     [DllImport("gdi32.dll")]
     public static extern int SaveDC(IntPtr dc);
