@@ -11,7 +11,8 @@ import { createSession, deleteSession, findSession } from "@/lib/auth/session";
 import { processSync } from "@/lib/sync/process";
 import type { SyncPayload } from "@/lib/sync/schema";
 import { buildActivity } from "./activity";
-import { getCharacterDetail, getOverview, listAccounts, listCharacters, listMachines, listRecentRuns, listRecentSnapshots } from "./queries";
+import { buildLevelProgress } from "./levels";
+import { getCharacterDetail, getOverview, listAccounts, listCharacters, listLevelSnapshots, listMachines, listRecentRuns, listRecentSnapshots } from "./queries";
 
 const BASE: SyncPayload = JSON.parse(
   readFileSync(path.resolve(import.meta.dirname, "../../../../tests/fixtures/payloads/two-accounts.json"), "utf8"),
@@ -187,6 +188,53 @@ describe("lecture du tableau de bord", () => {
       buildActivity(snapshots, new Date("2026-09-04T14:00:00Z")).flatMap((day) => day.entries.map((entry) => entry.changes[0].text)),
       ["Niveau 20 → 21", "Niveau 15 → 20"],
     );
+  });
+
+  test("les niveaux lisent les relevés de la période, le dernier d'avant, et tout l'historique sans date de début", async () => {
+    await sync(BASE);
+    const [first, second] = await database.db.select({ id: t.characters.id, name: t.characters.name }).from(t.characters).orderBy(t.characters.id);
+    await database.db.delete(t.characterSnapshots);
+    const at = (characterId: number, capturedAt: string, level: number | null, xp: number | null = null) => ({
+      characterId,
+      capturedAt: new Date(capturedAt),
+      snapshotHash: `${characterId}-${capturedAt}`,
+      level,
+      xp,
+      xpMax: xp === null ? null : 1000,
+      data: {},
+    });
+    await database.db.insert(t.characterSnapshots).values([
+      at(first.id, "2026-06-01T10:00:00Z", 10),
+      at(first.id, "2026-08-20T10:00:00Z", 15, 250),
+      at(first.id, "2026-09-20T10:00:00Z", 20, 500),
+      // Niveau inconnu : rien à tracer.
+      at(first.id, "2026-09-25T10:00:00Z", null),
+      at(second.id, "2026-07-01T10:00:00Z", 5),
+    ]);
+    const since = new Date("2026-09-04T14:00:00Z");
+
+    queries = 0;
+    const rows = await listLevelSnapshots(database.db, since);
+
+    assert.equal(queries, 1);
+    assert.deepEqual(
+      rows.map((row) => [row.name, row.level, row.xp, row.xpMax]),
+      [
+        [first.name, 15, 250, 1000],
+        [first.name, 20, 500, 1000],
+        [second.name, 5, null, null],
+      ],
+    );
+    assert.equal(rows[0].account, "Compte 11…#1");
+    assert.deepEqual(
+      buildLevelProgress(rows, since, NOW).series.map((entry) => [entry.name, entry.startLevel, entry.endLevel, entry.gained]),
+      [
+        [first.name, 15, 20, 5],
+        [second.name, 5, 5, 0],
+      ],
+    );
+
+    assert.deepEqual((await listLevelSnapshots(database.db, null)).map((row) => row.level), [10, 15, 20, 5]);
   });
 });
 

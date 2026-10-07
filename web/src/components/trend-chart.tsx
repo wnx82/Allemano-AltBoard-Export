@@ -22,7 +22,7 @@ const HEIGHT = 200;
 const MARGIN = { top: 16, right: 64, bottom: 28, left: 46 };
 
 /** Graduations « rondes » couvrant [min, max]. */
-function niceTicks(min: number, max: number, integer: boolean): number[] {
+export function niceTicks(min: number, max: number, integer: boolean): number[] {
   if (min === max) {
     if (integer) return [min - 1, min, min + 1];
     return min === 0 ? [0, 1] : [min * 0.9, min, min * 1.1];

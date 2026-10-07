@@ -17,6 +17,7 @@ export default async function DashboardLayout({ children }: LayoutProps<"/">) {
           <nav aria-label="Navigation principale" className="flex flex-wrap items-center gap-1">
             <NavLink href="/">Personnages</NavLink>
             <NavLink href="/professions">Métiers</NavLink>
+            <NavLink href="/levels">Niveaux</NavLink>
             <NavLink href="/activity">Activité</NavLink>
             <NavLink href="/accounts">Comptes</NavLink>
             <NavLink href="/machines">Machines</NavLink>

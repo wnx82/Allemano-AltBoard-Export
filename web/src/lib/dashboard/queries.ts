@@ -1,7 +1,8 @@
-import { asc, desc, eq, gte, inArray, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNotNull, or, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import * as t from "@/db/schema";
 import type { ActivitySnapshot } from "./activity";
+import type { LevelRow } from "./levels";
 
 // Chaque page lit ses données en un nombre fixe de requêtes, indépendant du nombre de personnages.
 
@@ -233,17 +234,20 @@ export type CharacterDetail = NonNullable<Awaited<ReturnType<typeof getCharacter
 /** Période couverte par la page Activité. */
 export const ACTIVITY_DAYS = 30;
 
-/**
- * Relevés de tous les personnages depuis `since`, plus, pour chacun, le dernier relevé d'avant :
- * sans lui, le premier changement de la période n'aurait rien à quoi se comparer.
- */
-export async function listRecentSnapshots(db: Database, since: Date): Promise<ActivitySnapshot[]> {
-  const lastBefore = sql`${t.characterSnapshots.id} in (
+/** Le dernier relevé de chaque personnage avant `since`. */
+const lastSnapshotBefore = (since: Date) => sql`${t.characterSnapshots.id} in (
     select distinct on (earlier.character_id) earlier.id
     from ${t.characterSnapshots} earlier
     where earlier.captured_at < ${since.toISOString()}::timestamptz
     order by earlier.character_id, earlier.captured_at desc
   )`;
+
+/**
+ * Relevés de tous les personnages depuis `since`, plus, pour chacun, le dernier relevé d'avant :
+ * sans lui, le premier changement de la période n'aurait rien à quoi se comparer.
+ */
+export async function listRecentSnapshots(db: Database, since: Date): Promise<ActivitySnapshot[]> {
+  const lastBefore = lastSnapshotBefore(since);
   const rows = await db
     .select({
       capturedAt: t.characterSnapshots.capturedAt,
@@ -266,6 +270,42 @@ export async function listRecentSnapshots(db: Database, since: Date): Promise<Ac
   return rows.map(({ id, name, class: classToken, accountDisplayName, accountFolderHint, ...snapshot }) => ({
     ...snapshot,
     character: { id, name, class: classToken, account: accountLabel({ displayName: accountDisplayName, folderHint: accountFolderHint }) },
+  }));
+}
+
+/**
+ * Niveau et expérience de chaque relevé depuis `since` (null : depuis toujours), plus, pour chaque
+ * personnage, son dernier relevé d'avant : le point de départ de sa courbe. Par personnage, du plus
+ * ancien au plus récent. Sans la colonne `data` des relevés, de loin la plus lourde.
+ */
+export async function listLevelSnapshots(db: Database, since: Date | null): Promise<LevelRow[]> {
+  const rows = await db
+    .select({
+      characterId: t.characters.id,
+      name: t.characters.name,
+      class: t.characters.class,
+      accountDisplayName: t.wowAccounts.displayName,
+      accountFolderHint: t.wowAccounts.folderHint,
+      capturedAt: t.characterSnapshots.capturedAt,
+      level: t.characterSnapshots.level,
+      xp: t.characterSnapshots.xp,
+      xpMax: t.characterSnapshots.xpMax,
+    })
+    .from(t.characterSnapshots)
+    .innerJoin(t.characters, eq(t.characters.id, t.characterSnapshots.characterId))
+    .innerJoin(t.wowAccounts, eq(t.wowAccounts.id, t.characters.accountId))
+    .where(
+      and(
+        isNotNull(t.characterSnapshots.level),
+        since === null ? undefined : or(gte(t.characterSnapshots.capturedAt, since), lastSnapshotBefore(since)),
+      ),
+    )
+    .orderBy(asc(t.characterSnapshots.characterId), asc(t.characterSnapshots.capturedAt));
+
+  return rows.map(({ accountDisplayName, accountFolderHint, level, ...row }) => ({
+    ...row,
+    level: level!,
+    account: accountLabel({ displayName: accountDisplayName, folderHint: accountFolderHint }),
   }));
 }
 

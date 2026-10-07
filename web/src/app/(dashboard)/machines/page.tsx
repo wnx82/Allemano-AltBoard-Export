@@ -25,8 +25,8 @@ export default async function MachinesPage() {
       <p className="eyebrow text-gold">Synchronisation</p>
       <h1 className="display mt-1 text-3xl font-bold sm:text-4xl">Machines</h1>
       <p className="mt-2 max-w-3xl text-sm text-muted">
-        Chaque PC exécute l&apos;agent <code className="text-text">AltBoardSync</code>. La synchronisation est manuelle : rien n&apos;est envoyé tant
-        que la commande n&apos;est pas lancée.
+        Chaque PC exécute l&apos;agent <code className="text-text">AltBoardSync</code>. Tant qu&apos;il tourne, il envoie les données à chaque
+        écriture du jeu ; arrêté, rien n&apos;est envoyé.
       </p>
 
       <section className="mt-6" aria-label="Machines connues">
@@ -151,25 +151,32 @@ export default async function MachinesPage() {
               Copiez <code className="text-text">AltBoardSync.exe</code> sur le PC. Aucune installation, aucun prérequis.
             </li>
             <li>
-              Indiquez le serveur :
-              <code className="mt-1 block break-all rounded-lg bg-ink/70 px-3 py-2 text-xs text-text">
-                AltBoardSync.exe config set serverUrl {syncUrl}
-              </code>
+              Créez un jeton dans <strong className="font-semibold text-text">Ajouter un PC</strong> et copiez-le : il n&apos;est affiché qu&apos;une
+              fois. Un jeton par PC.
             </li>
             <li>
-              Enregistrez le jeton créé ici (il est chiffré pour votre session Windows) :
-              <code className="mt-1 block rounded-lg bg-ink/70 px-3 py-2 text-xs text-text">AltBoardSync.exe token set</code>
+              Double-cliquez sur <code className="text-text">AltBoardSync.exe</code> : sa fenêtre demande le jeton. Collez-le, puis{" "}
+              <strong className="font-semibold text-text">Enregistrer</strong>. Il est chiffré pour votre session Windows, et la première
+              synchronisation part aussitôt.
             </li>
             <li>
-              En jeu, faites <code className="text-text">/reload</code> ou déconnectez-vous : le jeu n&apos;écrit ses données qu&apos;à ce moment-là.
+              Dans la fenêtre, activez <strong className="font-semibold text-text">Démarrage avec Windows</strong> pour que l&apos;agent se
+              relance à chaque ouverture de session.
             </li>
             <li>
-              Lancez la synchronisation :
-              <code className="mt-1 block rounded-lg bg-ink/70 px-3 py-2 text-xs text-text">AltBoardSync.exe sync</code>
+              En jeu, faites <code className="text-text">/reload</code> ou déconnectez-vous : le jeu n&apos;écrit ses données qu&apos;à ce moment-là,
+              et l&apos;agent les envoie quelques secondes après.
             </li>
           </ol>
+          <details className="mt-2 text-xs text-muted">
+            <summary className="cursor-pointer hover:text-text">En ligne de commande, ou vers un autre serveur</summary>
+            <code className="mt-2 block break-all rounded-lg bg-ink/70 px-3 py-2 text-text">AltBoardSync.exe config set serverUrl {syncUrl}</code>
+            <code className="mt-1 block rounded-lg bg-ink/70 px-3 py-2 text-text">AltBoardSync.exe token set</code>
+            <code className="mt-1 block rounded-lg bg-ink/70 px-3 py-2 text-text">AltBoardSync.exe sync</code>
+          </details>
           <p className="mt-2 text-xs text-faint">
-            Un navigateur ne peut pas lire les fichiers du jeu : la synchronisation part toujours du PC, jamais de cette page.
+            Un navigateur ne peut pas lire les fichiers du jeu : la synchronisation part toujours du PC, jamais de cette page. Le jeton se
+            saisit dans la fenêtre à partir de l&apos;agent 0.4.0.
           </p>
         </div>
       </section>

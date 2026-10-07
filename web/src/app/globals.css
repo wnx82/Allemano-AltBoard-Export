@@ -259,7 +259,8 @@ body {
     transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
   }
   .button:hover { background: rgb(255 255 255 / 0.1); }
-  .button[aria-pressed="true"] { border-color: var(--gold); color: var(--gold); background: rgb(227 189 106 / 0.12); }
+  .button[aria-pressed="true"],
+  .button[aria-current="true"] { border-color: var(--gold); color: var(--gold); background: rgb(227 189 106 / 0.12); }
   .button[data-variant="primary"] {
     border-color: var(--gold-deep);
     background: linear-gradient(180deg, #edc878, #c89a45);
@@ -310,6 +311,41 @@ body {
   .trend-tooltip rect { fill: #0a0f1b; stroke: var(--line-strong); }
   .trend-tooltip-value { fill: var(--text); font-size: 12.5px; font-weight: 600; }
   .trend-tooltip-date { fill: var(--muted); font-size: 11px; }
+
+  /* Courbes de plusieurs personnages : une seule en couleur, les autres en contexte. Le gris de
+     contexte et le bleu de série dépassent 3:1 sur la surface (3,8:1 et 4,8:1). */
+  .levels-line { fill: none; stroke: var(--faint); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
+  .levels-line[data-active] { stroke: var(--series); stroke-width: 2; }
+  .levels-label {
+    fill: var(--text);
+    font-size: 12px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    /* Liseré de la couleur de la surface : le nom reste lisible par-dessus les autres courbes. */
+    paint-order: stroke;
+    stroke: #131b2c;
+    stroke-width: 4px;
+    stroke-linejoin: round;
+  }
+  .levels-legend { display: flex; flex-wrap: wrap; gap: 0.25rem 0.4rem; margin-top: 0.75rem; }
+  .levels-key {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    border: 1px solid transparent;
+    border-radius: 0.5rem;
+    padding: 0.25rem 0.6rem;
+    font-size: 0.8rem;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  /* Trait de la couleur de la courbe : l'identité vient de lui, jamais du texte. */
+  .levels-key::before { content: ""; width: 14px; height: 2px; border-radius: 1px; background: var(--faint); }
+  .levels-key:hover { background: rgb(255 255 255 / 0.05); }
+  .levels-key[data-active] { color: var(--text); }
+  .levels-key[data-active]::before { background: var(--series); }
+  .levels-key[aria-pressed="true"] { border-color: var(--line-strong); background: rgb(255 255 255 / 0.05); }
+  .levels-key:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
 
   .eyebrow {
     font-size: 0.7rem;

@@ -5,7 +5,8 @@ export type ActivitySnapshot = SnapshotLike & { character: ActivityCharacter };
 export type ActivityEntry = { at: Date; character: ActivityCharacter; changes: Change[] };
 export type ActivityDay = { day: string; entries: ActivityEntry[] };
 
-const dayKey = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Brussels" });
+/** Jour civil d'un instant, heure de Bruxelles : AAAA-MM-JJ. */
+export const dayKey = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Brussels" });
 
 /**
  * Changements de tous les personnages depuis `since`, du plus récent au plus ancien, regroupés
