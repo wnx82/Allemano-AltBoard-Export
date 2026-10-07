@@ -102,6 +102,8 @@ export function CharacterBrowser({ characters, now }: { characters: CharacterLis
   const [query, setQuery] = useState("");
   const [filters, setFilters] = useState<Filters>(NO_FILTERS);
   const [sort, setSort] = useState<{ key: SortKey; descending: boolean }>({ key: "level", descending: true });
+  // Repliés à l'arrivée : la recherche suffit le plus souvent, et les personnages remontent d'autant.
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const view: View = useSyncExternalStore(viewPreference.subscribe, viewPreference.read, serverPreference) === "table" ? "table" : "cards";
   const collapsedIds = useSyncExternalStore(collapsedPreference.subscribe, collapsedPreference.read, serverPreference);
   const collapsed = useMemo(() => new Set(collapsedIds ? collapsedIds.split(",") : []), [collapsedIds]);
@@ -158,7 +160,8 @@ export function CharacterBrowser({ characters, now }: { characters: CharacterLis
     collapsedPreference.write([...next].join(","));
   };
 
-  const filtered = query.trim() !== "" || Object.values(filters).some(Boolean);
+  const activeFilters = Object.values(filters).filter(Boolean).length;
+  const filtered = query.trim() !== "" || activeFilters > 0;
   const setFilter = (key: keyof Filters) => (event: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) =>
     setFilters((current) => ({ ...current, [key]: event.target.value }));
 
@@ -187,10 +190,23 @@ export function CharacterBrowser({ characters, now }: { characters: CharacterLis
             value={query}
             onChange={(event) => setQuery(event.target.value)}
           />
-          <label className="flex items-center gap-2 text-xs text-muted">
-            <span className="whitespace-nowrap">Trier par</span>
+          {/* Doré quand un filtre agit, même replié : un filtre oublié ne passe pas inaperçu. */}
+          <button
+            type="button"
+            className="button"
+            aria-expanded={filtersOpen}
+            aria-controls="character-filters"
+            data-active={activeFilters > 0 || undefined}
+            onClick={() => setFiltersOpen((open) => !open)}
+          >
+            Filtres{activeFilters > 0 && ` (${activeFilters})`}
+            <span aria-hidden="true">{filtersOpen ? "▴" : "▾"}</span>
+          </button>
+          {/* Sur téléphone le tri partage la rangée des filtres : son libellé visible cède la place. */}
+          <label className="flex min-w-0 flex-1 items-center gap-2 text-xs text-muted sm:flex-none">
+            <span className="sr-only whitespace-nowrap sm:not-sr-only">Trier par</span>
             <select
-              className="field w-auto"
+              className="field min-w-0 flex-1 sm:w-auto sm:flex-none"
               value={sort.key}
               onChange={(event) => setSort({ key: event.target.value as SortKey, descending: event.target.value !== "name" })}
             >
@@ -220,7 +236,7 @@ export function CharacterBrowser({ characters, now }: { characters: CharacterLis
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 2xl:grid-cols-9">
+        <div id="character-filters" className={filtersOpen ? "grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5 2xl:grid-cols-9" : "hidden"}>
           <FilterSelect label="Compte" value={filters.account} onChange={setFilter("account")} options={options.accounts} />
           <FilterSelect label="Royaume" value={filters.realm} onChange={setFilter("realm")} options={same(options.realms)} />
           <FilterSelect
@@ -369,7 +385,7 @@ function CharacterCard({ character, now }: { character: CharacterListItem; now: 
   return (
     <article className="panel character-card h-full p-5" data-class={classKey(character.class)}>
       <div className="flex items-start gap-4">
-        <ClassAvatar name={character.name} classToken={character.class} />
+        <ClassAvatar name={character.name} classToken={character.class} level={character.level} />
         <div className="min-w-0 flex-1">
           <h3 className="display truncate text-lg font-bold leading-tight class-text" title={character.name}>
             <Link href={`/characters/${character.id}`} prefetch={false} className="after:absolute after:inset-0 after:z-10 focus-visible:outline-none">

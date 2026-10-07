@@ -39,7 +39,7 @@ export function InventoryList({ items, label }: { items: InventoryItem[]; label:
               <span className="quality-text min-w-0 truncate" title={item.quality === null ? undefined : QUALITY_LABELS[item.quality]}>
                 {item.name ?? `Objet n° ${item.itemKey}`}
               </span>
-              <span className="tabular-nums text-muted">× {item.quantity}</span>
+              <span className="whitespace-nowrap tabular-nums text-muted">× {item.quantity}</span>
             </li>
           ))}
         </ul>

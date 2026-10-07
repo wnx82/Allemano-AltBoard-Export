@@ -10,11 +10,13 @@ export default async function DashboardLayout({ children }: LayoutProps<"/">) {
   return (
     <div className="flex min-h-dvh flex-col">
       <header className="sticky top-0 z-20 border-b border-line bg-ink/75 backdrop-blur-xl">
-        <div className="mx-auto flex w-full max-w-[1500px] flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3 sm:px-6">
-          <Link href="/" className="display text-xl font-bold text-gold">
+        {/* Une seule ligne, de hauteur fixe : le sommaire des longues pages se cale dessous. */}
+        <div className="mx-auto flex h-14 w-full max-w-[1500px] items-center gap-x-2 px-4 sm:gap-x-4 sm:px-6">
+          <Link href="/" className="display flex-none text-xl font-bold text-gold">
             AltBoard
           </Link>
-          <nav aria-label="Navigation principale" className="flex flex-wrap items-center gap-1">
+          {/* Trop étroite pour tous ses liens, la navigation défile de côté au lieu de s'empiler. */}
+          <nav aria-label="Navigation principale" className="scroll-row min-w-0 flex-1 items-center">
             <NavLink href="/">Personnages</NavLink>
             <NavLink href="/professions">Métiers</NavLink>
             <NavLink href="/levels">Niveaux</NavLink>
@@ -22,10 +24,26 @@ export default async function DashboardLayout({ children }: LayoutProps<"/">) {
             <NavLink href="/accounts">Comptes</NavLink>
             <NavLink href="/machines">Machines</NavLink>
           </nav>
-          <form action={logoutAction} className="ml-auto flex items-center gap-3">
-            <span className="hidden text-xs text-faint sm:inline">{session.email}</span>
-            <button className="button" type="submit">
-              Se déconnecter
+          <form action={logoutAction} className="flex flex-none items-center gap-3">
+            <span className="hidden text-xs text-faint lg:inline">{session.email}</span>
+            <button className="button" type="submit" aria-label="Se déconnecter" title="Se déconnecter">
+              <span className="hidden md:inline">Se déconnecter</span>
+              <svg
+                className="md:hidden"
+                viewBox="0 0 24 24"
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <path d="m16 17 5-5-5-5" />
+                <path d="M21 12H9" />
+              </svg>
             </button>
           </form>
         </div>

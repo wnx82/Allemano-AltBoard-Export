@@ -76,6 +76,11 @@ body {
   border-radius: 0.35rem;
 }
 
+/* Lien vers une section : son titre s'arrête sous l'en-tête et le sommaire, pas derrière eux. */
+:target {
+  scroll-margin-top: 7.5rem;
+}
+
 /* ---------------------------------------------------------------------------
    Couleurs de classe. --class : teinte standard (bordures, halos, avatars).
    --class-text : variante éclaircie quand la teinte standard manque de contraste sur fond sombre.
@@ -179,6 +184,28 @@ body {
   .avatar { position: relative; overflow: hidden; }
   .avatar img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 
+  /* Niveau en médaillon au coin de l'avatar, à la manière des portraits du jeu. */
+  .level-badge {
+    position: absolute;
+    right: -0.45rem;
+    bottom: -0.45rem;
+    display: grid;
+    place-items: center;
+    min-width: 1.55rem;
+    height: 1.55rem;
+    padding: 0 0.3rem;
+    border: 1px solid color-mix(in srgb, var(--gold) 55%, transparent);
+    border-radius: 999px;
+    background: #0b101c;
+    color: var(--gold);
+    font-size: 0.7rem;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+    box-shadow: 0 2px 6px rgb(0 0 0 / 0.55);
+  }
+  .level-badge[data-size="lg"] { min-width: 1.9rem; height: 1.9rem; font-size: 0.85rem; }
+
   .profession-icon {
     flex: none;
     display: inline-block;
@@ -260,7 +287,8 @@ body {
   }
   .button:hover { background: rgb(255 255 255 / 0.1); }
   .button[aria-pressed="true"],
-  .button[aria-current="true"] { border-color: var(--gold); color: var(--gold); background: rgb(227 189 106 / 0.12); }
+  .button[aria-current="true"],
+  .button[data-active] { border-color: var(--gold); color: var(--gold); background: rgb(227 189 106 / 0.12); }
   .button[data-variant="primary"] {
     border-color: var(--gold-deep);
     background: linear-gradient(180deg, #edc878, #c89a45);
@@ -346,6 +374,44 @@ body {
   .levels-key[data-active]::before { background: var(--series); }
   .levels-key[aria-pressed="true"] { border-color: var(--line-strong); background: rgb(255 255 255 / 0.05); }
   .levels-key:focus-visible { outline: 2px solid var(--gold); outline-offset: 1px; }
+
+  /* Rangée de liens qui défile de côté quand elle ne tient pas : pas de barre, un fondu aux bords
+     pour dire qu'il y a une suite. */
+  .scroll-row {
+    display: flex;
+    gap: 0.25rem;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding: 0.25rem 0.75rem;
+    mask-image: linear-gradient(90deg, transparent, #000 0.75rem, #000 calc(100% - 1.5rem), transparent);
+  }
+  .scroll-row::-webkit-scrollbar { display: none; }
+  .scroll-row > * { flex: none; }
+
+  /* Sommaire d'une longue page : il reste sous l'en-tête pendant la lecture. */
+  .section-nav {
+    position: sticky;
+    top: 4rem;
+    z-index: 10;
+    margin-top: 1.25rem;
+    border: 1px solid var(--line);
+    border-radius: 0.9rem;
+    background: rgb(11 16 28 / 0.86);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 12px 28px -20px rgb(0 0 0 / 0.9);
+  }
+  .section-link {
+    display: block;
+    border-radius: 0.5rem;
+    padding: 0.35rem 0.7rem;
+    font-size: 0.8rem;
+    font-weight: 500;
+    white-space: nowrap;
+    color: var(--muted);
+    transition: background 150ms ease, color 150ms ease;
+  }
+  .section-link:hover { color: var(--text); background: rgb(255 255 255 / 0.05); }
+  .section-link[aria-current="true"] { color: var(--gold); background: rgb(227 189 106 / 0.12); }
 
   .eyebrow {
     font-size: 0.7rem;

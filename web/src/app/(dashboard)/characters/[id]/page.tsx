@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { cache } from "react";
 import { InventoryList } from "@/components/inventory-list";
 import { LevelTimeChart, SessionXpChart } from "@/components/ledger-charts";
+import { SectionNav, type SectionLink } from "@/components/section-nav";
 import { TrendChart, type TrendPoint } from "@/components/trend-chart";
 import { ClassAvatar, FactionBadge, Meter, Money, ProfessionIcon, SectionTitle, StatTile } from "@/components/ui";
 import { getDatabase } from "@/db/client";
@@ -40,6 +41,18 @@ export async function generateMetadata({ params }: PageProps<"/characters/[id]">
   const character = await load(params);
   return { title: character?.name ?? "Personnage introuvable" };
 }
+
+// Sommaire de la fiche : les identifiants sont ceux des titres de section, plus bas.
+const SECTIONS: SectionLink[] = [
+  { id: "professions", label: "Métiers" },
+  { id: "equipment", label: "Équipement" },
+  { id: "stats", label: "Statistiques" },
+  { id: "reputations", label: "Réputations" },
+  { id: "inventory", label: "Inventaire" },
+  { id: "level-times", label: "Temps par niveau" },
+  { id: "sessions", label: "Sessions" },
+  { id: "history", label: "Progression" },
+];
 
 const percentFormat = new Intl.NumberFormat("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const percent = (value: number | null) => (value === null ? null : `${percentFormat.format(value)} %`);
@@ -119,7 +132,7 @@ export default async function CharacterPage({ params }: PageProps<"/characters/[
       </Link>
 
       <header className="panel character-card mt-4 flex flex-wrap items-center gap-5 p-6" data-class={classKey(character.class)}>
-        <ClassAvatar name={character.name} classToken={character.class} size="lg" />
+        <ClassAvatar name={character.name} classToken={character.class} size="lg" level={character.level} />
         <div className="min-w-0 flex-1">
           <h1 className="display break-words text-3xl font-bold leading-tight class-text sm:text-4xl">{character.name}</h1>
           <p className="mt-1 text-lg">
@@ -191,6 +204,8 @@ export default async function CharacterPage({ params }: PageProps<"/characters/[
           hint={character.bankAt ? `Relevée ${formatRelative(character.bankAt, now)}` : "Jamais relevée"}
         />
       </section>
+
+      <SectionNav label="Sections de la fiche" items={SECTIONS} />
 
       <div className="mt-8 grid grid-cols-1 gap-8 xl:grid-cols-2">
         <section aria-labelledby="professions">

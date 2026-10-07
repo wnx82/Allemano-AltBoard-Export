@@ -22,9 +22,20 @@ export function ProfessionIcon({ skillLine, size = 20 }: { skillLine: number | n
 
 /**
  * Avatar : icône de classe posée sur les initiales du personnage. Classe inconnue ou image
- * indisponible : les initiales restent visibles.
+ * indisponible : les initiales restent visibles. `level` ajoute le niveau en médaillon ; décoratif,
+ * il double un niveau toujours écrit à côté.
  */
-export function ClassAvatar({ name, classToken, size = "md" }: { name: string; classToken: string | null; size?: "sm" | "md" | "lg" }) {
+export function ClassAvatar({
+  name,
+  classToken,
+  size = "md",
+  level,
+}: {
+  name: string;
+  classToken: string | null;
+  size?: "sm" | "md" | "lg";
+  level?: number | null;
+}) {
   const initials = name
     .split(/[\s-]+/)
     .filter(Boolean)
@@ -33,10 +44,20 @@ export function ClassAvatar({ name, classToken, size = "md" }: { name: string; c
     .join("");
   const dimensions = { sm: "size-9 text-xs", md: "size-12 text-base", lg: "size-16 text-2xl" }[size];
   const icon = classIconUrl(classToken);
-  return (
+  const avatar = (
     <span className={`avatar ${dimensions}`} data-class={classKey(classToken)} aria-hidden="true">
       {initials}
       {icon && <GameIcon src={icon} size={{ sm: 36, md: 48, lg: 64 }[size]} />}
+    </span>
+  );
+  if (level === null || level === undefined) return avatar;
+  return (
+    // Le médaillon déborde de l'avatar, qui rogne son contenu : il lui faut un cadre à part.
+    <span className="relative flex-none" aria-hidden="true">
+      {avatar}
+      <span className="level-badge" data-size={size}>
+        {level}
+      </span>
     </span>
   );
 }
@@ -45,7 +66,8 @@ export function Money({ copper }: { copper: number | null }) {
   if (copper === null) return <span className="text-faint">—</span>;
   const money = splitMoney(copper);
   return (
-    <span className="inline-flex items-baseline gap-1.5 tabular-nums" title={formatMoney(copper)}>
+    // Trop large pour sa place (tuile sur téléphone), la somme passe à la ligne entre deux pièces au lieu d'être coupée.
+    <span className="inline-flex flex-wrap items-baseline gap-x-1.5 tabular-nums" title={formatMoney(copper)}>
       {money.gold > 0 && (
         <span className="coin-gold font-semibold">
           {new Intl.NumberFormat("fr-FR").format(money.gold)}
@@ -84,9 +106,9 @@ export function FactionBadge({ faction }: { faction: string | null }) {
 
 export function StatTile({ label, value, hint }: { label: string; value: React.ReactNode; hint?: React.ReactNode }) {
   return (
-    <div className="panel px-5 py-4">
+    <div className="panel px-4 py-4 sm:px-5">
       <div className="eyebrow">{label}</div>
-      <div className="mt-1.5 text-2xl font-semibold tabular-nums leading-tight">{value}</div>
+      <div className="mt-1.5 text-xl font-semibold tabular-nums leading-tight sm:text-2xl">{value}</div>
       {hint && <div className="mt-1 text-xs text-muted">{hint}</div>}
     </div>
   );
