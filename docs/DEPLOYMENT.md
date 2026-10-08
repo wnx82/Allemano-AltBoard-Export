@@ -153,6 +153,23 @@ Ce que la surveillance ne voit pas :
   confondus : la page **Machines** donne le détail par PC. Après une pause de jeu, elle se déclenche
   sans qu'il y ait de panne.
 
+## État des serveurs de jeu
+
+La page **Serveurs** n'affiche que « Inconnu » tant qu'aucune adresse n'est configurée : c'est
+l'état livré, faute d'adresse vérifiable des serveurs européens
+(voir [SERVER-STATUS](SERVER-STATUS.md)). Pour la mettre en service, ajouter à l'environnement de
+la pile, dans Komodo, puis **Deploy** :
+
+```text
+WOW_STATUS_AUTH_TARGETS = <hôte>:<port>
+WOW_STATUS_GAME_TARGETS = <hôte>:<port>,<hôte>:<port>
+```
+
+Le conteneur `web` sonde alors ces adresses chaque minute, en TCP sortant ; aucun port n'est à
+ouvrir. La table `server_status_checks` est créée par la migration `0003_server_status`. Cette
+surveillance est celle des serveurs de Blizzard, vue depuis ce conteneur : elle ne remplace pas la
+surveillance du site ci-dessus, et n'envoie aucune alerte.
+
 ## Recréer la pile
 
 1. Dans Komodo, **Settings > Variables** : créer `WOW_ALTBOARD_DB_PASSWORD`, case « secret »

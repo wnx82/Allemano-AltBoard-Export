@@ -24,7 +24,7 @@
 - Variables `WOW_DATABASE_URL`, `WOW_DATABASE_URL_DIRECT`, `WOW_TEST_DATABASE_URL` : jamais de nom
   générique, qui pourrait exister dans l'environnement pour un autre projet.
 
-## Tables (22)
+## Tables (23)
 
 Conventions : clés `bigint` générées, dates en `timestamptz`, argent en pièces de cuivre.
 
@@ -65,6 +65,12 @@ Colonnes volontairement absentes, faute de donnée dans AltBoard : genre, régio
 | `sync_runs` | Une ligne par synchronisation : machine, statut, compteurs, durée, versions |
 | `sync_errors` | Erreurs et avertissements de l'agent rattachés à une synchronisation |
 
+### Surveillance des serveurs de jeu
+
+| Table | Contenu |
+|---|---|
+| `server_status_checks` | Un contrôle d'un service (`auth`, `game`) par le serveur web : date, statut, constat, latence, adresses jointes sur adresses sondées, source, code d'erreur. Sans lien avec les autres tables ; lignes de plus de 8 jours purgées par l'application ([SERVER-STATUS](SERVER-STATUS.md)) |
+
 ### Accès au tableau de bord
 
 | Table | Contenu |
@@ -74,8 +80,9 @@ Colonnes volontairement absentes, faute de donnée dans AltBoard : genre, régio
 
 ## Contraintes
 
-22 clés primaires, 22 clés étrangères, 8 contraintes d'unicité, 7 contraintes de validation
-(`slot` entre 1 et 19, `location` ∈ `bags`/`bank`, quantités, or et durées positifs, statut de synchronisation).
+23 clés primaires, 22 clés étrangères, 8 contraintes d'unicité, 10 contraintes de validation
+(`slot` entre 1 et 19, `location` ∈ `bags`/`bank`, quantités, or et durées positifs, statut de
+synchronisation ; service, statut et nombre d'adresses jointes d'un contrôle de serveur).
 
 Suppression d'un personnage : ses tables filles et ses snapshots suivent (`ON DELETE CASCADE`).
 Un compte, un royaume ou une machine référencé ne peut pas être supprimé.
@@ -118,7 +125,8 @@ rejeu d'une synchronisation sans effet.
 ## Index
 
 Seuls existent les index des contraintes, plus `characters(account_id)`, `characters(realm_id)`,
-`sync_runs(machine_id, started_at)` et `sessions(expires_at)`. Les pages lisent leurs données en
+`sync_runs(machine_id, started_at)`, `sessions(expires_at)` et
+`server_status_checks(service, checked_at)`. Les pages lisent leurs données en
 un nombre fixe de requêtes (3 pour la liste, vérifié par test avec 1, 5 et 50 personnages) ; aucun
 autre index ne se justifie à ce volume. À réévaluer avec `EXPLAIN` si l'historique grossit.
 
@@ -143,6 +151,7 @@ Derrière PgBouncer, les migrations passent en connexion directe. Le suivi est t
 | `0000_init` | les 19 tables d'origine |
 | `0001_playtime` | `character_playtime`, `character_level_times` (ajouts seuls) |
 | `0002_sessions` | `character_sessions`, colonne `character_snapshots.xp_max` (ajouts seuls). Les relevés antérieurs reçoivent le `xp_max` de leur personnage quand il est encore au même niveau ; les autres restent sans valeur |
+| `0003_server_status` | `server_status_checks` et son index (ajout seul). Appliquée en local ; en production au prochain déploiement |
 
 ## Checkpoint B
 

@@ -407,6 +407,36 @@ export const characterSnapshots = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Surveillance des serveurs de jeu
+// ---------------------------------------------------------------------------
+
+// Un contrôle d'un service par ce serveur (voir docs/SERVER-STATUS.md). Rien n'est écrit tant
+// qu'aucune adresse n'est configurée : l'absence de ligne est une absence de mesure.
+export const serverStatusChecks = pgTable(
+  "server_status_checks",
+  {
+    id: id(),
+    checkedAt: ts("checked_at").notNull(),
+    service: text("service").notNull(),
+    status: text("status").notNull(),
+    // Ce qui a été constaté, plus fin que le statut : refus, délai dépassé, DNS…
+    outcome: text("outcome").notNull(),
+    // Adresse la plus rapide à répondre ; absente quand aucune ne répond.
+    latencyMs: integer("latency_ms"),
+    targetsUp: smallint("targets_up").notNull(),
+    targetsTotal: smallint("targets_total").notNull(),
+    source: text("source").notNull(),
+    error: text("error"),
+  },
+  (t) => [
+    index("server_status_checks_service_checked_idx").on(t.service, t.checkedAt),
+    check("server_status_checks_service_check", sql`${t.service} in ('auth', 'game')`),
+    check("server_status_checks_status_check", sql`${t.status} in ('up', 'degraded', 'down', 'unknown')`),
+    check("server_status_checks_targets_check", sql`${t.targetsUp} >= 0 and ${t.targetsUp} <= ${t.targetsTotal}`),
+  ],
+);
+
+// ---------------------------------------------------------------------------
 // Accès au tableau de bord
 // ---------------------------------------------------------------------------
 

@@ -23,6 +23,7 @@ export default async function DashboardLayout({ children }: LayoutProps<"/">) {
             <NavLink href="/activity">Activité</NavLink>
             <NavLink href="/accounts">Comptes</NavLink>
             <NavLink href="/machines">Machines</NavLink>
+            <NavLink href="/servers">Serveurs</NavLink>
           </nav>
           <form action={logoutAction} className="flex flex-none items-center gap-3">
             <span className="hidden text-xs text-faint lg:inline">{session.email}</span>

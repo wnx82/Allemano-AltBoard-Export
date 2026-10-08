@@ -78,6 +78,21 @@ Aussi : `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Po
 `Strict-Transport-Security`, `Cache-Control: private, no-store` sur les pages. Pas de CORS : l'API
 n'est pas appelée depuis un navigateur tiers.
 
+## Sondes vers les serveurs de jeu
+
+La page **Serveurs** fait ouvrir au serveur web des connexions TCP sortantes
+([SERVER-STATUS](SERVER-STATUS.md)).
+
+| Mesure | Détail |
+|---|---|
+| Cibles | uniquement celles de l'environnement du serveur (`WOW_STATUS_*_TARGETS`), validées, huit au plus par service |
+| Aucune cible fournie par un utilisateur | l'action du bouton **Actualiser** ne reçoit aucun paramètre ; aucune route n'accepte d'adresse |
+| Accès | page et action exigent une session, comme le reste du tableau de bord |
+| Débit | un tour à la fois ; deux demandes manuelles à moins de 10 s ne valent qu'un contrôle ; afficher la page ne sonde rien |
+| Contenu | aucun octet n'est envoyé aux serveurs sondés : la connexion est refermée dès qu'elle est acceptée |
+| Journal et base | code d'erreur seulement (`ECONNREFUSED`), jamais le message, qui contient l'adresse |
+| Navigateur | n'ouvre aucune connexion vers les serveurs de jeu : la CSP reste à `connect-src 'self'` |
+
 ## Base de données
 
 - Base et rôle dédiés ; le rôle n'a accès à aucune base d'un autre projet (vérifié en production).
@@ -100,8 +115,9 @@ pas versionné.
 
 Utilisateur non privilégié, système de fichiers en lecture seule, toutes capacités retirées,
 `no-new-privileges`. Le port n'est publié que sur l'adresse du réseau local de l'hôte : le tunnel
-Cloudflare, dans un autre conteneur LXC, est le seul chemin depuis Internet. Seule connexion
-sortante hors base : le CDN d'icônes de Blizzard.
+Cloudflare, dans un autre conteneur LXC, est le seul chemin depuis Internet. Connexions sortantes
+hors base : le CDN d'icônes de Blizzard et, si des adresses sont configurées, les sondes vers les
+serveurs de jeu.
 
 ## Limites assumées
 

@@ -19,6 +19,9 @@
                 PostgreSQL — base dédiée wow_altboard
 ```
 
+À part de ce flux, le serveur web sonde lui-même les serveurs de jeu pour la page `/servers` :
+voir [SERVER-STATUS](SERVER-STATUS.md).
+
 Trois notions sont strictement séparées, du fichier jusqu'à la base : **machine** (un PC),
 **compte** (un dossier `WTF\Account`), **personnage** (un GUID).
 
@@ -46,7 +49,9 @@ que le schéma du serveur. Toute décision métier (fraîcheur, historique) est 
 | `src/lib/dashboard` | Lectures en nombre fixe de requêtes, historique, export, actions serveur |
 | `src/lib/auth` | Mots de passe scrypt, sessions en base, cookie |
 | `src/lib/xlsx` | Écriture XLSX sans dépendance |
+| `src/lib/status` | État des serveurs de jeu : sonde TCP, moniteur périodique, historique ([SERVER-STATUS](SERVER-STATUS.md)) |
 | `src/app` | Pages et routes ; `src/proxy.ts` pose la CSP et filtre les requêtes sans session |
+| `src/instrumentation.ts` | Lance le moniteur d'état au démarrage du serveur |
 
 ## Décisions
 
@@ -64,9 +69,14 @@ que le schéma du serveur. Toute décision métier (fraîcheur, historique) est 
 | Authentification du tableau de bord **maison** | Un seul utilisateur ; moins de dépendances qu'une bibliothèque en version bêta |
 | Aucune image ni icône du jeu | Pas d'actif Blizzard ; les icônes d'AltBoard sont des identifiants de fichier inutilisables hors du jeu |
 | XLSX écrit sans bibliothèque | La seule bibliothèque courante embarque une dépendance signalée ; elle ne sert qu'aux tests, pour relire |
+| État des serveurs par **sonde TCP du serveur web**, adresses en configuration | Aucune API documentée pour WoW Forever ; un navigateur ne peut pas ouvrir de connexion TCP ; pas de dépendance à un site tiers ni de nouveau service à déployer |
+| Moniteur lancé par `instrumentation.ts`, état lu en base | Un seul processus web : pas d'ordonnanceur externe. La page ne dépend pas de la mémoire du moniteur |
 
 ## Ce qui est prévu mais non activé
 
 - Synchronisation automatique (`watch`), service Windows : conçus dans [AGENT](AGENT.md), absents de la V1.
 - n8n, notifications, API Battle.net : hors périmètre ; rien dans le pipeline n'en dépend.
-- Plusieurs instances web : la limitation de débit est en mémoire (voir [SECURITY](SECURITY.md)).
+- Plusieurs instances web : la limitation de débit est en mémoire (voir [SECURITY](SECURITY.md)),
+  et chaque instance lancerait son propre moniteur d'état.
+- Adresses des serveurs de jeu européens : non configurées, faute de source vérifiable
+  (voir [SERVER-STATUS](SERVER-STATUS.md)).

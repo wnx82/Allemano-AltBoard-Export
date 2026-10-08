@@ -21,6 +21,12 @@ x-app: &app
     # Posé par Cloudflare, devant le tunnel. Le port n'étant joignable que du réseau local, seul
     # un poste du réseau local pourrait le falsifier.
     WOW_TRUSTED_IP_HEADER: ${WOW_TRUSTED_IP_HEADER:-cf-connecting-ip}
+    # État des serveurs de jeu : adresses sondées en TCP par « web ». Vides, rien n'est sondé.
+    WOW_STATUS_AUTH_TARGETS: ${WOW_STATUS_AUTH_TARGETS:-}
+    WOW_STATUS_GAME_TARGETS: ${WOW_STATUS_GAME_TARGETS:-}
+    WOW_STATUS_INTERVAL_SECONDS: ${WOW_STATUS_INTERVAL_SECONDS:-}
+    WOW_STATUS_TIMEOUT_MS: ${WOW_STATUS_TIMEOUT_MS:-}
+    WOW_STATUS_DEGRADED_MS: ${WOW_STATUS_DEGRADED_MS:-}
   read_only: true
   tmpfs:
     - /tmp

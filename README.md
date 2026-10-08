@@ -51,7 +51,7 @@ dotnet run --project src/AltBoardSync -- sync
 
 ```bash
 cd agent && dotnet test                               # 143 tests
-cd web && npm run typecheck && npm run lint && npm test && npm run build   # 77 tests
+cd web && npm run typecheck && npm run lint && npm test && npm run build   # 156 tests
 ```
 
 GitHub Actions relance ces contrôles à chaque push et à chaque pull request, construit l'image Docker
@@ -71,6 +71,7 @@ pas par `wow_altboard` : voir `web/src/db/env.ts`.
 | [DATABASE](docs/DATABASE.md) | Schéma PostgreSQL, identifiants, snapshots |
 | [API](docs/API.md) | Contrat de `POST /api/sync` et des autres routes |
 | [AGENT](docs/AGENT.md) | Installation, commandes, automatisation future |
+| [SERVER-STATUS](docs/SERVER-STATUS.md) | État des serveurs WoW Forever EU : sondes, configuration, limites, diagnostic |
 | [SECURITY](docs/SECURITY.md) | Authentification, validation, confidentialité |
 | [DEPLOYMENT](docs/DEPLOYMENT.md) | Mise en production, domaine, migrations |
 | [ARCHITECTURE-CURRENT](docs/ARCHITECTURE-CURRENT.md) | Audit initial de l'existant |

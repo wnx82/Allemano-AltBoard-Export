@@ -413,6 +413,19 @@ body {
   .section-link:hover { color: var(--text); background: rgb(255 255 255 / 0.05); }
   .section-link[aria-current="true"] { color: var(--gold); background: rgb(227 189 106 / 0.12); }
 
+  /* État des serveurs. La pastille reprend la couleur du badge ; creuse pour « Inconnu ». */
+  .status-dot { flex: none; width: 0.5rem; height: 0.5rem; border-radius: 999px; background: currentColor; }
+  .badge[data-status="unknown"] .status-dot { background: transparent; box-shadow: 0 0 0 1.5px currentColor inset; }
+  /* Frise des 24 dernières heures : une case par heure, grise sans mesure. */
+  .status-strip { display: grid; grid-template-columns: repeat(24, minmax(0, 1fr)); gap: 2px; }
+  .status-cell { height: 1.6rem; border-radius: 0.2rem; background: rgb(255 255 255 / 0.07); }
+  .status-cell[data-status="up"] { background: color-mix(in srgb, var(--ok) 80%, transparent); }
+  .status-cell[data-status="degraded"] { background: color-mix(in srgb, var(--warn) 85%, transparent); }
+  .status-cell[data-status="down"] { background: color-mix(in srgb, var(--danger) 90%, transparent); }
+  /* Témoin d'actualisation : immobile au repos, il ne pulse que pendant une relecture. */
+  .refresh-dot { width: 0.4rem; height: 0.4rem; border-radius: 999px; background: var(--faint); }
+  .refresh-dot[data-busy] { background: var(--gold); animation: refresh-pulse 900ms ease-in-out infinite; }
+
   .eyebrow {
     font-size: 0.7rem;
     font-weight: 600;
@@ -420,6 +433,10 @@ body {
     text-transform: uppercase;
     color: var(--faint);
   }
+}
+
+@keyframes refresh-pulse {
+  50% { opacity: 0.35; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1,16 +1,27 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { CharacterBrowser } from "@/components/character-browser";
+import { StatusBadge } from "@/components/server-status";
 import { Money, StatTile } from "@/components/ui";
 import { getDatabase } from "@/db/client";
 import { getOverview, listCharacters } from "@/lib/dashboard/queries";
+import { isConfigured } from "@/lib/status/config";
+import { getStatusRuntime } from "@/lib/status/runtime";
+import { getServiceViews } from "@/lib/status/view";
 import { formatDateTime, formatRelative } from "@/lib/wow/format";
 
 export const metadata: Metadata = { title: "Mes personnages" };
 
 export default async function CharactersPage() {
   const db = getDatabase();
-  const [characters, overview] = await Promise.all([listCharacters(db), getOverview(db)]);
   const now = new Date();
+  const { config } = getStatusRuntime();
+  const [characters, overview, servers] = await Promise.all([
+    listCharacters(db),
+    getOverview(db),
+    // Sans serveur surveillé, ni requête ni ligne d'état : il n'y aurait que de l'« Inconnu » à montrer.
+    isConfigured(config) ? getServiceViews(db, config, now) : null,
+  ]);
 
   const levels = characters.map((character) => character.level).filter((level): level is number => level !== null);
   const averageLevel = levels.length > 0 ? levels.reduce((total, level) => total + level, 0) / levels.length : null;
@@ -45,6 +56,22 @@ export default async function CharactersPage() {
           )}
         </p>
       </div>
+
+      {servers && (
+        <p className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted">
+          <Link href="/servers" className="eyebrow hover:text-text">
+            Serveurs WoW Forever EU
+          </Link>
+          {servers
+            .filter((service) => service.targets > 0)
+            .map((service) => (
+              <span key={service.service} className="inline-flex items-center gap-2">
+                {service.label}
+                <StatusBadge status={service.status} />
+              </span>
+            ))}
+        </p>
+      )}
 
       <div className="mb-8 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         <StatTile label="Personnages" value={characters.length} />

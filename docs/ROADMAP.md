@@ -4,7 +4,7 @@ Statuts : ⬜ À faire · 🟡 En cours · ✅ Validé · 🔴 Bloqué
 
 Une étape n'est ✅ que si elle est implémentée, testée et vérifiée sur un résultat réel.
 
-Dernière mise à jour : 2026-10-04.
+Dernière mise à jour : 2026-10-08.
 
 ## Synthèse
 
@@ -14,7 +14,7 @@ Dernière mise à jour : 2026-10-04.
 | Chaîne complète PC → agent → HTTPS → PostgreSQL → tableau de bord | ✅ sur les fichiers réels (2 comptes, 6 personnages) |
 | Recette après une vraie modification en jeu | ⬜ à faire par le joueur : jouer, `/reload`, `AltBoardSync.exe sync` |
 | Compte personnel d'accès au tableau de bord | ⬜ à créer par le joueur (mot de passe saisi sur le serveur) |
-| Tests automatisés | 152 (agent) + 98 (web), tous verts |
+| Tests automatisés | 152 (agent) + 156 (web), tous verts |
 
 Le critère de réussite de la V1 est rempli jusqu'à l'étape 5 (personnage vérifié dans le fichier, la
 base et la page). Les étapes 6 à 10 — modifier une donnée en jeu, resynchroniser, constater la mise
@@ -190,10 +190,20 @@ Depuis l'agent 0.4.0 : saisie du jeton dans la fenêtre, sans ligne de commande.
 | Authentification compatible | ✅ | cookie lié à l'hôte, aucun domaine en dur |
 | Documentation | ✅ | [DEPLOYMENT](DEPLOYMENT.md) |
 
+## P14 — État des serveurs WoW Forever EU
+
+| Étape | Statut | Note |
+|---|---|---|
+| Sources de statut étudiées | ✅ | aucune API documentée pour WoW Forever ; voir [SERVER-STATUS](SERVER-STATUS.md) |
+| Sonde TCP, moniteur, historique, page **Serveurs** | 🟡 | implémentés et testés (58 tests) ; vérifiés en local sur des serveurs TCP de test, pas encore en production |
+| Adresses des serveurs européens de production | 🔴 | aucune source vérifiable au 2026-10-08 (seule la bêta existe) : configuration vide, statut « Inconnu » |
+| Maintenances annoncées | ⬜ | aucune source officielle documentée |
+
 ## Reste à faire
 
 | Quoi | Qui |
 |---|---|
+| État des serveurs : renseigner `WOW_STATUS_AUTH_TARGETS` et `WOW_STATUS_GAME_TARGETS` quand les adresses européennes seront vérifiables (voir [DEPLOYMENT § État des serveurs de jeu](DEPLOYMENT.md)) | joueur |
 | Créer son compte d'accès (voir [DEPLOYMENT § Comptes et jetons](DEPLOYMENT.md)) | joueur |
 | Recette après une vraie modification en jeu | joueur |
 | Icônes, temps par niveau, sessions et courbe d'expérience en production : déployer le serveur (voir [DEPLOYMENT § Mettre à jour](DEPLOYMENT.md)), puis republier l'agent et synchroniser | joueur |
