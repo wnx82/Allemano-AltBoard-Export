@@ -155,10 +155,12 @@ Ce que la surveillance ne voit pas :
 
 ## État des serveurs de jeu
 
-La page **Serveurs** n'affiche que « Inconnu » tant qu'aucune adresse n'est configurée : c'est
-l'état livré, faute d'adresse vérifiable des serveurs européens
-(voir [SERVER-STATUS](SERVER-STATUS.md)). Pour la mettre en service, ajouter à l'environnement de
-la pile, dans Komodo, puis **Deploy** :
+La page **Serveurs** n'affiche que « Inconnu » tant qu'aucune adresse n'est configurée. Depuis le
+2026-10-09, l'environnement de la pile porte les adresses de la bêta, faute d'adresse vérifiable
+des serveurs européens (voir [SERVER-STATUS § Adresses en service](SERVER-STATUS.md)). Le plus
+simple pour les changer : la page **Paramètres** du tableau de bord, sans redéploiement ; une
+adresse enregistrée là l'emporte sur l'environnement. Sinon, modifier l'environnement de la pile,
+dans Komodo, puis **Deploy** :
 
 ```text
 WOW_STATUS_AUTH_TARGETS = <hôte>:<port>

@@ -4,10 +4,12 @@ Page **Serveurs** du tableau de bord (`/servers`) : le serveur web sonde lui-mê
 connexion et de jeu, enregistre chaque contrôle et affiche statut, latence, disponibilité et
 changements d'état.
 
-**État au 2026-10-08 : aucune adresse n'est configurée.** Aucune source vérifiable ne publie les
-adresses des serveurs européens de production (le jeu sort le 4 novembre 2026, seule la bêta
-existe). Le module est livré complet, avec une configuration vide et un statut « Inconnu » : rien
-n'est sondé tant que les adresses ne sont pas renseignées.
+**État au 2026-10-09 : la production sonde les serveurs de la bêta.** Aucune source vérifiable ne
+publie les adresses des serveurs européens de production (le jeu sort le 4 novembre 2026, seule la
+bêta existe). Les adresses en service sont celles que le client de la bêta contacte (voir
+[Adresses en service](#adresses-en-service)). Elles sont hébergées hors d'Europe : le libellé
+« EU », affiché par défaut, se remplace par « Bêta » dans **Paramètres**. Sans adresse, le statut
+est « Inconnu » et rien n'est sondé.
 
 ## Provenance des données
 
@@ -28,13 +30,36 @@ Conséquences :
 - Les **maintenances annoncées ne sont pas relevées** : aucune source officielle documentée ne les
   publie pour WoW Forever. La page renvoie au calendrier des maintenances de Blizzard et aux deux
   sites ci-dessus.
-- Les adresses de la bêta ne sont pas configurées par défaut : rien n'établit que la production
-  européenne utilisera les mêmes.
+- Aucune adresse n'est configurée par défaut. Celles de la bêta sont en service en production
+  depuis le 2026-10-09 ; rien n'établit que la production européenne utilisera les mêmes : à
+  remplacer à la sortie du jeu.
 
 ## Configuration
 
-Variables d'environnement du serveur web. Elles ne viennent jamais d'un formulaire ni d'une
-requête : seul l'exploitant choisit ce qui est sondé.
+Deux sources, dans cet ordre : la page **Paramètres** du tableau de bord, puis les variables
+d'environnement du serveur web.
+
+### Page Paramètres
+
+`/settings`, bloc **Serveurs surveillés**. Les valeurs sont enregistrées en base (`app_settings`) et
+appliquées aussitôt : le moniteur en cours est arrêté, un autre repart sur la nouvelle
+configuration, sans redéployer.
+
+| Réglage | Effet |
+|---|---|
+| Environnement affiché | libellé écrit à côté des serveurs : titre de la page, « Serveurs de jeu … », résumé de l'accueil. Vide : « EU » |
+| Serveur de connexion, serveurs de jeu | `hôte:port`, une adresse par ligne, huit au plus par service. Enregistrer remplace les adresses de l'environnement ; une liste vide arrête la surveillance du service |
+| Effacer l'historique des contrôles | supprime les contrôles antérieurs à l'enregistrement : disponibilité et changements d'état repartent de zéro, utile quand les serveurs surveillés changent |
+| Revenir aux adresses de l'environnement | les variables ci-dessous s'appliquent de nouveau |
+
+Une adresse saisie ici doit être **publique** : voir [SECURITY](SECURITY.md). Une adresse IP locale
+ou privée est refusée à la saisie. Un nom d'hôte est jugé quand la sonde le résout : s'il désigne
+une adresse interne, rien n'est sondé et le constat est « Adresse refusée ».
+
+### Variables d'environnement
+
+Elles s'appliquent à un service tant que **Paramètres** ne définit pas ses adresses. Les durées ne
+se règlent qu'ici.
 
 | Variable | Défaut | Rôle |
 |---|---|---|
@@ -52,8 +77,33 @@ requête : seul l'exploitant choisit ce qui est sondé.
 
 En production, les saisir dans l'environnement de la pile Komodo (`deploy/proxmox/.env.example`).
 
-Pour trouver les adresses le moment venu : celles que le client du jeu contacte, relevées dans son
-journal `Logs\Connection.log` ou publiées par Blizzard. Ne renseigner qu'une adresse vérifiée.
+## Adresses en service
+
+Relevées le 2026-10-09 dans `_classic_beta_\Logs\Connection.log` d'un client de la bêta, puis
+sondées depuis le conteneur `web` de production :
+
+| Variable | Adresse | Rôle constaté |
+|---|---|---|
+| `WOW_STATUS_AUTH_TARGETS` | `test.actual.battle.net:1119` | portail Battle.net de la bêta (`Battle.net logon requested`) |
+| `WOW_STATUS_GAME_TARGETS` | `24.105.52.77:3724` | entrée du royaume, première connexion de jeu, quittée après 4 secondes |
+| | `24.105.52.94:3724` | ouverte après l'authentification au royaume, gardée jusqu'à la déconnexion |
+| | `66.40.179.219:3724` | connexion secondaire à l'entrée en jeu, quittée après 4 secondes |
+| | `66.40.178.65:3724` | ouverte à l'entrée en jeu, gardée jusqu'à la déconnexion |
+
+- Les quatre adresses de jeu appartiennent à Blizzard (RDAP) et envoient dès la connexion
+  `WORLD OF WARCRAFT CONNECTION - SERVER TO CLIENT - V2`. Aucune n'est un serveur de connexion.
+- Le portail n'apparaît pas dans les connexions d'un client en jeu : le client le quitte dès qu'il
+  est connecté au royaume. Seul le journal le nomme.
+- Hébergement hors d'Europe, vraisemblablement aux États-Unis : plages d'adresses nord-américaines
+  (ARIN), environ 160 ms de poignée de main depuis la Belgique, contre 60 ms vers
+  `eu.actual.battle.net`.
+- Le royaume annonce six adresses d'entrée, le journal ne nomme que celle qui a répondu. Blizzard
+  peut retirer une adresse : le service passe alors à « Dégradé » (`partial`) sans panne réelle.
+  Relever de nouveau les adresses dans ce cas.
+
+Pour relever les adresses : celles que le client du jeu contacte, lues dans son journal
+`Logs\Connection.log` (`logon requested host=…` pour le portail, `peerAddr=…` pour le jeu), ou
+publiées par Blizzard. Ne renseigner qu'une adresse vérifiée.
 
 ## Statuts
 
@@ -114,14 +164,16 @@ aucun pourcentage n'est affiché.
 
 | Fichier (`web/src`) | Rôle |
 |---|---|
-| `lib/status/config.ts` | lecture et validation des variables |
+| `lib/status/config.ts` | lecture et validation des variables, réglages du site compris |
+| `lib/status/guard.ts` | adresses publiques seulement, pour celles saisies sur le site |
 | `lib/status/probe.ts` | sonde TCP : connexion, mesure, fermeture, classement des erreurs |
 | `lib/status/status.ts` | des résultats de sonde au statut, libellés |
 | `lib/status/monitor.ts` | ordonnanceur : tour unique, backoff, demande manuelle, arrêt |
 | `lib/status/store.ts` | écritures et lectures en base |
 | `lib/status/view.ts` | ce que la page affiche |
-| `lib/status/runtime.ts`, `instrumentation.ts` | un moniteur par processus, lancé au démarrage du serveur |
+| `lib/status/runtime.ts`, `instrumentation.ts` | un moniteur par processus, lancé au démarrage du serveur, remplacé quand les réglages changent |
 | `lib/status/actions.ts` | action serveur du bouton **Actualiser** |
+| `lib/settings/*`, `components/settings-forms.tsx`, `app/(dashboard)/settings/page.tsx` | page **Paramètres** : validation, enregistrement, formulaire |
 | `components/server-status.tsx`, `status-refresh.tsx`, `app/(dashboard)/servers/page.tsx` | interface |
 
 L'accueil affiche un résumé des statuts quand au moins une adresse est configurée.
@@ -137,14 +189,17 @@ L'accueil affiche un résumé des statuts quand au moins une adresse est configu
   silence qu'un serveur arrêté. D'où le constat « panne probable, non confirmée ».
 - **Pas de maintenance annoncée**, faute de source officielle documentée.
 - **Une instance.** Chaque processus lance son moniteur : plusieurs instances web écriraient
-  chacune leurs contrôles. Même limite que la limitation de débit (voir [SECURITY](SECURITY.md)).
+  chacune leurs contrôles, et seule celle qui reçoit un enregistrement de **Paramètres**
+  l'appliquerait sans redémarrer. Même limite que la limitation de débit (voir
+  [SECURITY](SECURITY.md)).
 - **Mémoire du backoff perdue au redémarrage** : le rythme normal reprend, sans autre effet.
 
 ## Diagnostic
 
 | Symptôme | Cause probable | Vérification |
 |---|---|---|
-| « Inconnu — Aucune adresse configurée » | variables vides ou absentes du conteneur | `docker exec wow-altboard-web printenv WOW_STATUS_AUTH_TARGETS` |
+| « Inconnu — Aucune adresse configurée » | liste vide enregistrée dans **Paramètres**, ou variables vides ou absentes du conteneur | page **Paramètres**, puis `docker exec wow-altboard-web printenv WOW_STATUS_AUTH_TARGETS` |
+| « Adresse refusée : elle ne désigne pas un serveur public » | nom d'hôte saisi dans **Paramètres** qui se résout vers une adresse locale ou privée | corriger l'adresse dans **Paramètres** |
 | Avertissement en haut de page | adresse mal formée, durée hors bornes | corriger la variable, recréer le conteneur |
 | « Aucun contrôle enregistré pour l'instant » | serveur démarré depuis moins d'un intervalle, ou base injoignable | journal du conteneur, événement `server_status.store_failed` |
 | « Dernier contrôle trop ancien » | moniteur arrêté ou base injoignable | idem ; redémarrer `web` |
@@ -180,4 +235,6 @@ docker logs wow-altboard-web 2>&1 | grep server_status   # changements de statut
 `web/src/lib/status/*.test.ts` et `web/src/components/server-status.test.ts` : serveur accessible,
 connexion refusée, délai dépassé, erreur DNS, interruption et fermeture des connexions, contrôles
 simultanés, demande manuelle, backoff, arrêt et minuteurs, base indisponible, mesures périmées,
-absence de configuration, pondération par la durée, rendu de chaque état.
+absence de configuration, pondération par la durée, rendu de chaque état, réglages du site
+(remplacement des adresses, liste vide, libellé), adresses internes refusées à la saisie comme à
+la sonde. `web/src/lib/settings/*.test.ts` : validation des saisies, enregistrement.

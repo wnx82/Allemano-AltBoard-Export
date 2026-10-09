@@ -1,5 +1,6 @@
 import net from "node:net";
 import type { Target } from "./config";
+import { blockedAddressError, isPublicAddress, publicLookup } from "./guard";
 
 // Sonde TCP : ouvre une connexion, mesure le temps de la poignée de main, referme. Aucun octet
 // n'est envoyé. Une connexion acceptée prouve qu'un service écoute, pas que le jeu fonctionne.
@@ -43,10 +44,18 @@ export function classifyError(error: unknown): ProbeResult {
   return { outcome: "error", latencyMs: null, error: code };
 }
 
+function connectTcp(to: Target): ProbeSocket {
+  if (!to.publicOnly) return net.connect({ host: to.host, port: to.port });
+  // Adresse saisie sur le site : refusée avant toute connexion si elle n'est pas publique. Une
+  // adresse IP est jugée telle quelle, un nom d'hôte à sa résolution.
+  if (net.isIP(to.host) !== 0 && !isPublicAddress(to.host)) throw blockedAddressError();
+  return net.connect({ host: to.host, port: to.port, lookup: publicLookup });
+}
+
 export function probeTcp(target: Target, options: ProbeOptions): Promise<ProbeResult> {
   const { timeoutMs, signal } = options;
   const clock = options.clock ?? (() => performance.now());
-  const connect = options.connect ?? ((to: Target) => net.connect({ host: to.host, port: to.port }));
+  const connect = options.connect ?? connectTcp;
 
   return new Promise((resolve) => {
     if (signal?.aborted) {

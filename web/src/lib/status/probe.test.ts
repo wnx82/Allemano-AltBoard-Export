@@ -135,6 +135,29 @@ test("une connexion impossible à ouvrir est une erreur, pas une exception", asy
   assert.deepEqual(result, { outcome: "error", latencyMs: null, error: "ERR_SOCKET_BAD_PORT" });
 });
 
+test("adresse de la page Paramètres : une adresse interne n'est jamais contactée", async () => {
+  const server = net.createServer();
+  let connections = 0;
+  server.on("connection", (socket) => {
+    connections++;
+    socket.on("error", () => {});
+  });
+  const port = await listen(server);
+  try {
+    // Refusée telle quelle pour une adresse IP, à sa résolution pour un nom d'hôte.
+    const literal = await probeTcp({ host: "127.0.0.1", port, publicOnly: true }, { timeoutMs: 5_000 });
+    const named = await probeTcp({ host: "localhost", port, publicOnly: true }, { timeoutMs: 5_000 });
+
+    assert.deepEqual(literal, { outcome: "error", latencyMs: null, error: "EBLOCKED" });
+    assert.deepEqual(named, { outcome: "error", latencyMs: null, error: "EBLOCKED" });
+    assert.equal(connections, 0);
+    // La même adresse, choisie par l'exploitant dans l'environnement, reste sondée.
+    assert.equal((await probeTcp({ host: "127.0.0.1", port }, { timeoutMs: 5_000 })).outcome, "connected");
+  } finally {
+    await close(server);
+  }
+});
+
 test("les erreurs sont classées par code", () => {
   const outcome = (code: string | undefined) => classifyError(Object.assign(new Error("x"), { code })).outcome;
 

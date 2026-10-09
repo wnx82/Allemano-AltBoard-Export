@@ -437,6 +437,31 @@ export const serverStatusChecks = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Réglages du site
+// ---------------------------------------------------------------------------
+
+// Réglages de la page Paramètres. Une seule ligne (id = 1), créée à la première écriture : son
+// absence vaut « tout par défaut ».
+export const appSettings = pgTable(
+  "app_settings",
+  {
+    id: smallint("id").primaryKey().default(1),
+    // Adresses surveillées, « hôte:port » séparées par des virgules. Null : celles de
+    // l'environnement du serveur s'appliquent ; chaîne vide : rien n'est surveillé.
+    statusAuthTargets: text("status_auth_targets"),
+    statusGameTargets: text("status_game_targets"),
+    // Environnement affiché à côté des serveurs (« Bêta », « EU »). Null : libellé par défaut.
+    statusLabel: text("status_label"),
+    // Un personnage non vu en jeu depuis cette date est supprimé par la réinitialisation, puis
+    // ignoré par les synchronisations tant qu'il est inconnu (voir docs/API.md).
+    charactersCutoffAt: ts("characters_cutoff_at"),
+    charactersResetAt: ts("characters_reset_at"),
+    updatedAt: updatedAt(),
+  },
+  (t) => [check("app_settings_single_row_check", sql`${t.id} = 1`)],
+);
+
+// ---------------------------------------------------------------------------
 // Accès au tableau de bord
 // ---------------------------------------------------------------------------
 

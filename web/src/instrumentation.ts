@@ -5,6 +5,7 @@ import { PHASE_PRODUCTION_BUILD } from "next/constants";
 export async function register() {
   // Sondes TCP et base de données : runtime Node.js seulement, jamais pendant la construction.
   if (process.env.NEXT_RUNTIME !== "nodejs" || process.env.NEXT_PHASE === PHASE_PRODUCTION_BUILD) return;
-  const { getStatusRuntime } = await import("@/lib/status/runtime");
-  getStatusRuntime().monitor.start();
+  const { syncStatusRuntime } = await import("@/lib/status/runtime");
+  // Sans attendre : la lecture des réglages en base ne doit pas retarder le démarrage du serveur.
+  void syncStatusRuntime();
 }

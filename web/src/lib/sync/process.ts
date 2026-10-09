@@ -2,6 +2,7 @@ import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import * as t from "@/db/schema";
 import { canonicalHash } from "@/lib/hash";
+import { readSettings } from "@/lib/settings/store";
 import type { AccountPayload, CharacterPayload, SyncPayload } from "./schema";
 
 export type SyncResult = {
@@ -29,8 +30,9 @@ export class TokenMachineMismatchError extends Error {
 type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 // Les synchronisations sont sérialisées : deux PC envoyant le même personnage au même instant
-// ne peuvent pas se marcher dessus. Verrou de transaction, compatible PgBouncer.
-const SYNC_LOCK_KEY = 7_230_415_901;
+// ne peuvent pas se marcher dessus. Verrou de transaction, compatible PgBouncer. La
+// réinitialisation des personnages prend le même.
+export const SYNC_LOCK_KEY = 7_230_415_901;
 const BATCH = 1_000;
 
 const fromUnix = (seconds: number) => new Date(seconds * 1000);
@@ -138,9 +140,10 @@ export async function processSync(db: Database, payload: SyncPayload, context: S
       })
       .returning({ id: t.syncRuns.id });
 
+    const { charactersCutoffAt: cutoff } = await readSettings(tx);
     const counters = { created: 0, updated: 0, unchanged: 0, stale: 0, snapshots: 0, characters: 0 };
     for (const account of payload.accounts) {
-      await applyAccount(tx, account, { machineId: machine.id, runId: run.id, now }, counters);
+      await applyAccount(tx, account, { machineId: machine.id, runId: run.id, now, cutoff }, counters);
     }
 
     const warnings = payload.accounts.flatMap((account) =>
@@ -179,7 +182,8 @@ export async function processSync(db: Database, payload: SyncPayload, context: S
 }
 
 type Counters = { created: number; updated: number; unchanged: number; stale: number; snapshots: number; characters: number };
-type Scope = { machineId: number; runId: number; now: Date };
+/** cutoff : date limite posée par la dernière réinitialisation des personnages, s'il y en a eu une. */
+type Scope = { machineId: number; runId: number; now: Date; cutoff: Date | null };
 
 async function applyAccount(tx: Transaction, account: AccountPayload, scope: Scope, counters: Counters): Promise<void> {
   const { machineId, now } = scope;
@@ -234,16 +238,11 @@ async function applyAccount(tx: Transaction, account: AccountPayload, scope: Sco
       });
   }
 
-  const characters = uniqueBy(account.characters, (character) => character.guid);
-  counters.characters += characters.length;
-  if (characters.length === 0) return;
+  const received = uniqueBy(account.characters, (character) => character.guid);
+  counters.characters += received.length;
+  if (received.length === 0) return;
 
-  const realmNames = [...new Set(characters.map((character) => character.realm))];
-  await tx.insert(t.realms).values(realmNames.map((name) => ({ name }))).onConflictDoNothing({ target: t.realms.name });
-  const realmRows = await tx.select({ id: t.realms.id, name: t.realms.name }).from(t.realms).where(inArray(t.realms.name, realmNames));
-  const realmIds = new Map(realmRows.map((realm) => [realm.name, realm.id]));
-
-  const guids = characters.map((character) => character.guid);
+  const guids = received.map((character) => character.guid);
   const existingRows = await tx
     .select({
       id: t.characters.id,
@@ -257,6 +256,18 @@ async function applyAccount(tx: Transaction, account: AccountPayload, scope: Sco
     .from(t.characters)
     .where(inArray(t.characters.guid, guids));
   const existing = new Map(existingRows.map((character) => [character.guid, character]));
+
+  // Après une réinitialisation, un personnage inconnu et non vu en jeu depuis la date limite n'est
+  // pas recréé : un PC qui garde un ancien fichier (celui de la bêta) le renvoie à chaque envoi.
+  const cutoffMs = scope.cutoff?.getTime() ?? null;
+  const characters = received.filter((character) => cutoffMs === null || existing.has(character.guid) || character.lastSeen * 1000 >= cutoffMs);
+  counters.stale += received.length - characters.length;
+  if (characters.length === 0) return;
+
+  const realmNames = [...new Set(characters.map((character) => character.realm))];
+  await tx.insert(t.realms).values(realmNames.map((name) => ({ name }))).onConflictDoNothing({ target: t.realms.name });
+  const realmRows = await tx.select({ id: t.realms.id, name: t.realms.name }).from(t.realms).where(inArray(t.realms.name, realmNames));
+  const realmIds = new Map(realmRows.map((realm) => [realm.name, realm.id]));
 
   const latestSnapshots =
     existingRows.length === 0

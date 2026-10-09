@@ -48,6 +48,7 @@ hors limites, le serveur revalide tout.
 | Cookie | `HttpOnly`, `SameSite=Lax`, `Secure` et préfixe `__Host-` en HTTPS (aucun `Domain`) |
 | Connexion | 5 tentatives / 15 min par client et par adresse ; message identique quel que soit le motif ; un hachage est calculé même pour un compte inexistant, pour que la durée de réponse ne le révèle pas |
 | Redirection après connexion | chemin interne uniquement (pas de redirection ouverte) |
+| Réinitialisation des personnages | suppression définitive (**Paramètres**) : le mot de passe est redemandé, une session seule ne suffit pas ; 5 tentatives / 15 min par compte ; journalisée sans donnée de personnage (`settings.characters.reset`) |
 | CSRF | les actions serveur de Next.js vérifient l'origine ; cookie `SameSite=Lax` ; aucune mutation par `GET` |
 | XSS | échappement de React ; aucune insertion de HTML brut ; CSP à nonce |
 | Injection SQL | requêtes paramétrées (Drizzle) ; identifiants d'URL validés avant usage |
@@ -85,9 +86,10 @@ La page **Serveurs** fait ouvrir au serveur web des connexions TCP sortantes
 
 | Mesure | Détail |
 |---|---|
-| Cibles | uniquement celles de l'environnement du serveur (`WOW_STATUS_*_TARGETS`), validées, huit au plus par service |
-| Aucune cible fournie par un utilisateur | l'action du bouton **Actualiser** ne reçoit aucun paramètre ; aucune route n'accepte d'adresse |
-| Accès | page et action exigent une session, comme le reste du tableau de bord |
+| Cibles | celles de l'environnement du serveur (`WOW_STATUS_*_TARGETS`), choisies par l'exploitant, ou celles qu'un utilisateur connecté enregistre dans **Paramètres** ; validées, huit au plus par service |
+| Cibles saisies sur le site | **publiques seulement**. Une adresse IP de boucle locale, privée, de lien local, partagée par l'opérateur ou réservée est refusée à la saisie, y compris écrite en IPv6. Un nom d'hôte est résolu par la sonde elle-même, qui refuse de se connecter si une seule des adresses obtenues n'est pas publique (`EBLOCKED`) : la règle porte sur l'adresse jointe, pas sur le texte saisi. Sans elle, la sonde dirait à qui tient une session quels ports sont ouverts sur le réseau interne du serveur |
+| Aucune cible jointe à une demande | l'action du bouton **Actualiser** ne reçoit aucun paramètre ; aucune route n'accepte d'adresse à sonder sur-le-champ |
+| Accès | pages et actions exigent une session, comme le reste du tableau de bord |
 | Débit | un tour à la fois ; deux demandes manuelles à moins de 10 s ne valent qu'un contrôle ; afficher la page ne sonde rien |
 | Contenu | aucun octet n'est envoyé aux serveurs sondés : la connexion est refermée dès qu'elle est acceptée |
 | Journal et base | code d'erreur seulement (`ECONNREFUSED`), jamais le message, qui contient l'adresse |

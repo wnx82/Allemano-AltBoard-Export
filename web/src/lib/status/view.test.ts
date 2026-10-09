@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { loadStatusConfig } from "./config";
 import type { HourBucket } from "./store";
-import { buildAvailability, buildHours, buildTransitions, MIN_MEASURED_SECONDS } from "./view";
+import { buildAvailability, buildHours, buildServiceView, buildTransitions, MIN_MEASURED_SECONDS } from "./view";
 
 const NOW = new Date("2026-10-08T12:20:00Z");
 
@@ -63,6 +63,13 @@ test("la frise couvre 24 heures et montre le pire statut de chaque heure", () =>
   assert.deepEqual(hours.at(-2), { start: "2026-10-08T11:00:00.000Z", status: "down", availableSeconds: 3_000, downSeconds: 600 });
   // Vingt heures sans mesure : ni en ligne, ni en panne.
   assert.equal(hours.filter((cell) => cell.status === null).length, 21);
+});
+
+test("le libellé d'environnement réglé sur le site est repris par les services", () => {
+  const config = loadStatusConfig({}, { authTargets: null, gameTargets: null, label: "Bêta" });
+
+  assert.equal(buildServiceView("game", config, undefined, undefined, NOW).label, "Serveurs de jeu Bêta");
+  assert.equal(buildServiceView("game", loadStatusConfig({}), undefined, undefined, NOW).label, "Serveurs de jeu EU");
 });
 
 test("un changement est décrit avec le constat du nouvel état", () => {

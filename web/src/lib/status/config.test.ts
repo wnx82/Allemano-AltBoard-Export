@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { isConfigured, loadStatusConfig, MAX_TARGETS, parseTarget } from "./config";
+import { formatTarget, isConfigured, loadStatusConfig, MAX_TARGETS, parseTarget } from "./config";
 
 test("sans variable, aucun serveur n'est surveillé et les valeurs par défaut s'appliquent", () => {
   const config = loadStatusConfig({});
@@ -58,6 +58,32 @@ test("une durée hors bornes est remplacée par la valeur par défaut et signal�
 
   assert.deepEqual([config.intervalMs, config.timeoutMs, config.degradedMs], [60_000, 3_000, 250]);
   assert.equal(config.errors.length, 2);
+});
+
+test("les adresses de la page Paramètres remplacent celles de l'environnement, service par service", () => {
+  const env = { WOW_STATUS_AUTH_TARGETS: "login.example.test:1119", WOW_STATUS_GAME_TARGETS: "192.0.2.10:3724" };
+  const config = loadStatusConfig(env, { authTargets: null, gameTargets: "203.0.113.5:3724\n203.0.113.6:3724; [2001:db8::1]:3724", label: " Bêta " });
+
+  // Sans réglage pour ce service, l'environnement s'applique, sans restriction d'adresse.
+  assert.deepEqual(config.targets.auth, [{ host: "login.example.test", port: 1119 }]);
+  // Une adresse venue du site n'est sondée que si elle est publique.
+  assert.deepEqual(config.targets.game, [
+    { host: "203.0.113.5", port: 3724, publicOnly: true },
+    { host: "203.0.113.6", port: 3724, publicOnly: true },
+    { host: "2001:db8::1", port: 3724, publicOnly: true },
+  ]);
+  assert.deepEqual(config.fromSite, { auth: false, game: true });
+  assert.equal(config.label, "Bêta");
+  assert.deepEqual(config.targets.game.map(formatTarget), ["203.0.113.5:3724", "203.0.113.6:3724", "[2001:db8::1]:3724"]);
+  assert.deepEqual(config.errors, []);
+});
+
+test("une liste vide enregistrée arrête la surveillance, sans retomber sur l'environnement", () => {
+  const config = loadStatusConfig({ WOW_STATUS_GAME_TARGETS: "192.0.2.10:3724" }, { authTargets: "", gameTargets: "", label: null });
+
+  assert.equal(isConfigured(config), false);
+  assert.deepEqual(config.fromSite, { auth: true, game: true });
+  assert.equal(config.label, "EU");
 });
 
 test("la péremption suit un intervalle long", () => {

@@ -15,10 +15,13 @@ run_directory = "deploy/proxmox"
 file_paths = ["compose.yaml"]
 # « migrate » s'arrête après avoir appliqué les migrations : ce n'est pas une panne.
 ignore_services = ["migrate"]
+# WOW_STATUS_* : adresses de la bêta, relevées le 2026-10-09 (docs/SERVER-STATUS.md).
 environment = """
 WOW_DB_PASSWORD = [[WOW_ALTBOARD_DB_PASSWORD]]
 WOW_APP_ORIGIN = https://wow.ekreativ.be
 WOW_BIND_IP = 10.0.0.15
+WOW_STATUS_AUTH_TARGETS = test.actual.battle.net:1119
+WOW_STATUS_GAME_TARGETS = 24.105.52.77:3724,24.105.52.94:3724,66.40.178.65:3724,66.40.179.219:3724
 """
 
 # Déploiement automatique : pousser sur la branche suffit. L'action interroge le dépôt au lieu

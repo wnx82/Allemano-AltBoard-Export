@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { ProbeResult } from "./probe";
-import { describeOutcome, evaluateService, formatCheckTime, formatLatency } from "./status";
+import { describeOutcome, evaluateService, formatCheckTime, formatLatency, serviceLabel } from "./status";
 
 const connected = (latencyMs: number): ProbeResult => ({ outcome: "connected", latencyMs, error: null });
 const refused: ProbeResult = { outcome: "refused", latencyMs: null, error: "ECONNREFUSED" };
@@ -58,6 +58,14 @@ test("le constat dit ce que le statut ne dit pas", () => {
   assert.match(describe([dns]), /DNS/);
   assert.match(describe([network]), /Réseau injoignable depuis ce serveur/);
   assert.equal(describe([{ outcome: "error", latencyMs: null, error: "EPIPE" }]), "Erreur réseau (EPIPE)");
+  // Adresse de la page Paramètres qui ne désigne pas un serveur public : dit en clair, pas en code.
+  assert.match(describe([{ outcome: "error", latencyMs: null, error: "EBLOCKED" }]), /^Adresse refusée .* rien n'a été sondé$/);
+});
+
+test("les serveurs de jeu portent l'environnement surveillé", () => {
+  assert.equal(serviceLabel("game", "Bêta"), "Serveurs de jeu Bêta");
+  assert.equal(serviceLabel("game", "EU"), "Serveurs de jeu EU");
+  assert.equal(serviceLabel("auth", "Bêta"), "Authentification Blizzard");
 });
 
 test("latence et heure sont mises en forme pour la Belgique", () => {

@@ -1,6 +1,6 @@
 import type { Database } from "@/db/client";
 import { SERVICE_KEYS, type ServiceKey, type StatusConfig } from "./config";
-import { describeOutcome, isStatus, SERVICE_LABELS, type Status } from "./status";
+import { describeOutcome, isStatus, serviceLabel, type Status } from "./status";
 import { hourlyBuckets, lastAnswers, latestChecks, listTransitions, type CheckRow, type HourBucket, type TransitionRow } from "./store";
 
 // Ce que la page affiche, calculé à partir de la base. Les fonctions build* sont pures.
@@ -29,7 +29,7 @@ export function buildServiceView(
 ): ServiceView {
   const base = {
     service,
-    label: SERVICE_LABELS[service],
+    label: serviceLabel(service, config.label),
     targets: config.targets[service].length,
     latencyMs: null,
     checkedAt: latest ? latest.checkedAt.toISOString() : null,
@@ -129,7 +129,7 @@ export function buildTransitions(rows: TransitionRow[], config: StatusConfig): T
     .map((row) => ({
       at: row.checkedAt.toISOString(),
       service: row.service,
-      label: SERVICE_LABELS[row.service],
+      label: serviceLabel(row.service, config.label),
       from: isStatus(row.previous) ? row.previous : "unknown",
       to: isStatus(row.status) ? row.status : "unknown",
       detail: describeOutcome(row, config),
@@ -180,7 +180,7 @@ export async function getServerStatusView(db: Database, config: StatusConfig, no
     const own = buckets.filter((bucket) => bucket.service === service);
     return {
       service,
-      label: SERVICE_LABELS[service],
+      label: serviceLabel(service, config.label),
       availability: [buildAvailability(own, "24h", now), buildAvailability(own, "7d", now)],
       hours: buildHours(own, now),
     };

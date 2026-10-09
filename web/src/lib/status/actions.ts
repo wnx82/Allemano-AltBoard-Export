@@ -2,17 +2,17 @@
 
 import { revalidatePath } from "next/cache";
 import { requireSession } from "@/lib/auth/session";
-import { getStatusRuntime } from "./runtime";
+import { syncStatusRuntime } from "./runtime";
 
 export type RefreshState = { message?: string; error?: string };
 
 /**
  * Contrôle à la demande. L'action ne reçoit aucun paramètre : les adresses sondées sont celles de
- * la configuration du serveur, jamais une valeur venue du navigateur.
+ * la configuration en service, jamais une valeur jointe à la demande.
  */
 export async function refreshServerStatusAction(): Promise<RefreshState> {
   await requireSession();
-  const result = await getStatusRuntime().monitor.refresh();
+  const result = await (await syncStatusRuntime()).monitor.refresh();
   revalidatePath("/servers");
   switch (result) {
     case "unconfigured":

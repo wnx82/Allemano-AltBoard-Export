@@ -52,10 +52,10 @@ export function evaluateService(results: ProbeResult[], degradedMs: number): Eva
   return { ...base, status: "unknown", outcome: "error", latencyMs: null, error: results[0]?.error ?? null };
 }
 
-export const SERVICE_LABELS: Record<ServiceKey, string> = {
-  auth: "Authentification Blizzard",
-  game: "Serveurs de jeu EU",
-};
+/** Libellé d'un service. Les serveurs de jeu portent l'environnement surveillé (« EU », « Bêta »). */
+export function serviceLabel(service: ServiceKey, label: string): string {
+  return service === "auth" ? "Authentification Blizzard" : `Serveurs de jeu ${label}`;
+}
 
 export const STATUS_LABELS: Record<Status, string> = {
   up: "En ligne",
@@ -119,6 +119,8 @@ export function describeOutcome(
     case "network":
       return "Réseau injoignable depuis ce serveur : le serveur visé n'a pas été joint";
     default:
+      // Code posé par guard.ts : l'adresse saisie dans Paramètres ne désigne pas un serveur public.
+      if (check.error === "EBLOCKED") return "Adresse refusée : elle ne désigne pas un serveur public, rien n'a été sondé";
       return check.error ? `Erreur réseau (${check.error})` : "Erreur réseau";
   }
 }

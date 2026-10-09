@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { ServerStatusTable, ServiceHistoryPanel, StatusLegend, TransitionsTable } from "@/components/server-status";
 import { StatusRefresh } from "@/components/status-refresh";
 import { SectionTitle } from "@/components/ui";
 import { getDatabase } from "@/db/client";
 import { refreshServerStatusAction } from "@/lib/status/actions";
-import { getStatusRuntime } from "@/lib/status/runtime";
+import { syncStatusRuntime } from "@/lib/status/runtime";
 import { formatCheckTime, formatLatency } from "@/lib/status/status";
 import { getServerStatusView, TRANSITIONS_SHOWN } from "@/lib/status/view";
 
@@ -31,7 +32,7 @@ const REFERENCES = [
 ];
 
 export default async function ServersPage() {
-  const { config } = getStatusRuntime();
+  const { config } = await syncStatusRuntime();
   const view = await getServerStatusView(getDatabase(), config, new Date());
   const intervalSeconds = config.intervalMs / 1000;
   const lastCheck = view.services
@@ -43,7 +44,7 @@ export default async function ServersPage() {
   return (
     <>
       <p className="eyebrow text-gold">World of Warcraft Forever</p>
-      <h1 className="display mt-1 text-3xl font-bold sm:text-4xl">WoW Forever — État des serveurs EU</h1>
+      <h1 className="display mt-1 text-3xl font-bold sm:text-4xl">WoW Forever — État des serveurs {config.label}</h1>
       <p className="mt-2 max-w-3xl text-sm text-muted">
         Ce serveur ouvre une connexion TCP vers chaque adresse configurée, toutes les {intervalSeconds} secondes, mesure le temps de
         réponse et referme. Une connexion acceptée prouve qu&apos;un service écoute, pas que le jeu fonctionne : file d&apos;attente,
@@ -82,10 +83,13 @@ export default async function ServersPage() {
           <div className="panel mt-4 p-5 text-sm text-muted">
             <p className="display text-base font-bold text-gold">Aucun serveur n&apos;est surveillé</p>
             <p className="mt-2 max-w-3xl">
-              Sans adresse configurée, rien n&apos;est sondé et l&apos;état reste « Inconnu » plutôt que supposé. Les adresses des
-              serveurs européens se renseignent dans l&apos;environnement du serveur, sous la forme{" "}
-              <code className="text-text">hôte:port</code> séparées par des virgules. Une adresse de bêta n&apos;est pas celle de la
-              production : ne renseigner que des adresses vérifiées.
+              Sans adresse configurée, rien n&apos;est sondé et l&apos;état reste « Inconnu » plutôt que supposé. Les adresses se
+              renseignent dans{" "}
+              <Link className="text-text underline decoration-line-strong underline-offset-4 hover:text-gold" href="/settings">
+                Paramètres
+              </Link>
+              , sous la forme <code className="text-text">hôte:port</code>, ou dans l&apos;environnement du serveur. Une adresse de bêta
+              n&apos;est pas celle de la production : ne renseigner que des adresses vérifiées.
             </p>
             <code className="mt-3 block break-all rounded-lg bg-ink/70 px-3 py-2 text-text">WOW_STATUS_AUTH_TARGETS=</code>
             <code className="mt-1 block break-all rounded-lg bg-ink/70 px-3 py-2 text-text">WOW_STATUS_GAME_TARGETS=</code>

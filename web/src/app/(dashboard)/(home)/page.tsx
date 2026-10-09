@@ -6,7 +6,7 @@ import { Money, StatTile } from "@/components/ui";
 import { getDatabase } from "@/db/client";
 import { getOverview, listCharacters } from "@/lib/dashboard/queries";
 import { isConfigured } from "@/lib/status/config";
-import { getStatusRuntime } from "@/lib/status/runtime";
+import { syncStatusRuntime } from "@/lib/status/runtime";
 import { getServiceViews } from "@/lib/status/view";
 import { formatDateTime, formatRelative } from "@/lib/wow/format";
 
@@ -15,7 +15,7 @@ export const metadata: Metadata = { title: "Mes personnages" };
 export default async function CharactersPage() {
   const db = getDatabase();
   const now = new Date();
-  const { config } = getStatusRuntime();
+  const { config } = await syncStatusRuntime();
   const [characters, overview, servers] = await Promise.all([
     listCharacters(db),
     getOverview(db),
@@ -60,7 +60,7 @@ export default async function CharactersPage() {
       {servers && (
         <p className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted">
           <Link href="/servers" className="eyebrow hover:text-text">
-            Serveurs WoW Forever EU
+            Serveurs WoW Forever {config.label}
           </Link>
           {servers
             .filter((service) => service.targets > 0)

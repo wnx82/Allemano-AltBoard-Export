@@ -111,7 +111,10 @@ Le schéma complet, avec ses bornes, est `web/src/lib/sync/schema.ts` ; son miro
 }
 ```
 
-`charactersStale` : personnages dont ce PC détient un fichier plus ancien que l'état déjà connu.
+`charactersStale` : personnages dont ce PC détient un fichier plus ancien que l'état déjà connu,
+et personnages inconnus du serveur, non vus en jeu depuis la date limite de la dernière
+réinitialisation (voir [DATABASE § Réinitialisation des personnages](DATABASE.md)) : ils ne sont
+pas recréés.
 
 ### Refus
 

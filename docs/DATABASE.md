@@ -24,7 +24,7 @@
 - Variables `WOW_DATABASE_URL`, `WOW_DATABASE_URL_DIRECT`, `WOW_TEST_DATABASE_URL` : jamais de nom
   générique, qui pourrait exister dans l'environnement pour un autre projet.
 
-## Tables (23)
+## Tables (24)
 
 Conventions : clés `bigint` générées, dates en `timestamptz`, argent en pièces de cuivre.
 
@@ -71,6 +71,12 @@ Colonnes volontairement absentes, faute de donnée dans AltBoard : genre, régio
 |---|---|
 | `server_status_checks` | Un contrôle d'un service (`auth`, `game`) par le serveur web : date, statut, constat, latence, adresses jointes sur adresses sondées, source, code d'erreur. Sans lien avec les autres tables ; lignes de plus de 8 jours purgées par l'application ([SERVER-STATUS](SERVER-STATUS.md)) |
 
+### Réglages du site
+
+| Table | Contenu |
+|---|---|
+| `app_settings` | Réglages de la page **Paramètres**, sur une seule ligne (`id = 1`), créée à la première écriture. Adresses surveillées par service (vide : rien n'est surveillé ; absente : l'environnement du serveur s'applique) et libellé d'environnement ([SERVER-STATUS](SERVER-STATUS.md)) ; date limite et date de la dernière réinitialisation des personnages |
+
 ### Accès au tableau de bord
 
 | Table | Contenu |
@@ -80,12 +86,31 @@ Colonnes volontairement absentes, faute de donnée dans AltBoard : genre, régio
 
 ## Contraintes
 
-23 clés primaires, 22 clés étrangères, 8 contraintes d'unicité, 10 contraintes de validation
+24 clés primaires, 22 clés étrangères, 8 contraintes d'unicité, 11 contraintes de validation
 (`slot` entre 1 et 19, `location` ∈ `bags`/`bank`, quantités, or et durées positifs, statut de
-synchronisation ; service, statut et nombre d'adresses jointes d'un contrôle de serveur).
+synchronisation ; service, statut et nombre d'adresses jointes d'un contrôle de serveur ; ligne
+unique des réglages).
 
 Suppression d'un personnage : ses tables filles et ses snapshots suivent (`ON DELETE CASCADE`).
 Un compte, un royaume ou une machine référencé ne peut pas être supprimé.
+
+## Réinitialisation des personnages
+
+Prévue pour la sortie officielle du jeu : les personnages de la bêta n'existent plus chez Blizzard,
+mais leurs fichiers restent sur les PC. Elle se lance dans **Paramètres**, mot de passe à l'appui,
+avec une **date limite** (par défaut : l'instant de la demande).
+
+| Étape | Effet |
+|---|---|
+| Suppression | tout personnage dont `source_last_seen_at` est antérieur à la date limite, avec ses tables filles et ses snapshots |
+| Royaumes | un royaume resté sans personnage est supprimé |
+| Date limite | retenue dans `app_settings.characters_cutoff_at` ; la date de la demande dans `characters_reset_at` |
+| Conservés | comptes, machines, jetons, journal des synchronisations, référentiel d'objets, historique des serveurs |
+
+Une transaction, sous le verrou des synchronisations : aucune ne s'intercale. La suppression est
+définitive ; seule une sauvegarde de la base permet de revenir en arrière
+(voir [DEPLOYMENT](DEPLOYMENT.md)). Relancer avec une date plus ancienne n'efface rien de plus et
+réadmet les personnages vus en jeu depuis cette date.
 
 ## Règles d'écriture
 
@@ -95,6 +120,7 @@ En cas d'erreur, tout est annulé, puis l'échec est journalisé à part (`sync_
 | Situation | Effet |
 |---|---|
 | GUID inconnu | Personnage créé, premier snapshot |
+| GUID inconnu, `lastSeen` antérieur à la date limite de la dernière réinitialisation | Rien n'est créé (`characters_stale`) : un PC qui garde le fichier de la bêta le renvoie à chaque envoi. Un personnage déjà connu n'est pas concerné |
 | `lastSeen` reçu **plus ancien** que celui stocké | Rien n'est modifié (`characters_stale`) : un PC en retard n'écrase pas un état plus récent |
 | Contenu identique (hash canonique) | Rien n'est modifié (`characters_unchanged`) |
 | Contenu différent | Personnage mis à jour ; tables filles remplacées |
@@ -151,7 +177,8 @@ Derrière PgBouncer, les migrations passent en connexion directe. Le suivi est t
 | `0000_init` | les 19 tables d'origine |
 | `0001_playtime` | `character_playtime`, `character_level_times` (ajouts seuls) |
 | `0002_sessions` | `character_sessions`, colonne `character_snapshots.xp_max` (ajouts seuls). Les relevés antérieurs reçoivent le `xp_max` de leur personnage quand il est encore au même niveau ; les autres restent sans valeur |
-| `0003_server_status` | `server_status_checks` et son index (ajout seul). Appliquée en local ; en production au prochain déploiement |
+| `0003_server_status` | `server_status_checks` et son index (ajout seul) |
+| `0004_app_settings` | `app_settings` (ajout seul) |
 
 ## Checkpoint B
 
