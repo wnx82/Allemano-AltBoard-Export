@@ -66,6 +66,36 @@ export function buildLevelTimes(rows: LevelRow[], playtime: Playtime, characterL
   ];
 }
 
+/** Au-delà, le niveau lu est aberrant : la liste n'est pas complétée (même borne que l'agent). */
+const LEVELS_FILLED_MAX = 200;
+
+/**
+ * Tous les niveaux, du premier à celui du personnage : ceux que l'addon n'a pas relevés apparaissent
+ * sans durée ni date. Sans aucun relevé, la liste reste vide : il n'y a rien à compléter.
+ */
+export function fillLevelTimes(levels: LevelTime[], characterLevel: number | null): LevelTime[] {
+  if (levels.length === 0) return levels;
+  const known = new Map(levels.map((entry) => [entry.level, entry]));
+  const first = Math.min(1, ...known.keys());
+  const last = Math.max(characterLevel ?? 0, ...known.keys());
+  if (last > LEVELS_FILLED_MAX) return levels;
+
+  return Array.from({ length: last - first + 1 }, (_, index) => {
+    const level = first + index;
+    return (
+      known.get(level) ?? {
+        level,
+        playedSeconds: null,
+        wallSeconds: null,
+        reachedAt: null,
+        zone: null,
+        // En cours seulement s'il clôt la liste : aucun niveau terminé ne le suit.
+        current: level === characterLevel && level === last,
+      }
+    );
+  });
+}
+
 /** « 45 s », « 12 min », « 3 h 05 », « 2 j 4 h ». */
 export function formatDuration(seconds: number | null): string {
   if (seconds === null) return "—";

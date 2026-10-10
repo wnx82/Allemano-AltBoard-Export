@@ -9,7 +9,7 @@ import { TrendChart, type TrendPoint } from "@/components/trend-chart";
 import { ClassAvatar, FactionBadge, Meter, Money, ProfessionIcon, SectionTitle, StatTile } from "@/components/ui";
 import { getDatabase } from "@/db/client";
 import { buildHistory } from "@/lib/dashboard/history";
-import { buildLevelTimes, formatDuration } from "@/lib/dashboard/level-times";
+import { buildLevelTimes, fillLevelTimes, formatDuration } from "@/lib/dashboard/level-times";
 import { buildSessions, sessionTagLabel, summarizeSessions } from "@/lib/dashboard/sessions";
 import { getCharacterDetail, SESSIONS_SHOWN, type CharacterDetail } from "@/lib/dashboard/queries";
 import {
@@ -67,6 +67,8 @@ export default async function CharacterPage({ params }: PageProps<"/characters/[
   const stats = character.stats;
   const history = buildHistory(character.snapshots);
   const levelTimes = buildLevelTimes(character.levelTimes, character.playtime, character.level);
+  // Le graphique ne trace que les niveaux relevés ; le tableau les liste tous.
+  const allLevelTimes = fillLevelTimes(levelTimes, character.level);
   const totalPlayed = character.playtime?.totalSeconds ?? null;
   const sessions = buildSessions(character.sessions);
   const sessionTotals = summarizeSessions(sessions);
@@ -420,8 +422,8 @@ export default async function CharacterPage({ params }: PageProps<"/characters/[
                     </tr>
                   </thead>
                   <tbody>
-                    {[...levelTimes].reverse().map((entry) => (
-                      <tr key={entry.level}>
+                    {[...allLevelTimes].reverse().map((entry) => (
+                      <tr key={entry.level} className={entry.playedSeconds === null && entry.wallSeconds === null ? "text-muted" : undefined}>
                         <td className="whitespace-nowrap">
                           {entry.current ? `${entry.level} (en cours)` : `${entry.level} → ${entry.level + 1}`}
                         </td>

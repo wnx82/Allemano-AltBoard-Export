@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildLevelTimes, formatDuration } from "./level-times";
+import { buildLevelTimes, fillLevelTimes, formatDuration } from "./level-times";
 
 const at = (iso: string) => new Date(iso);
 const row = (level: number, playedSeconds: number | null, wallSeconds: number | null = null) => ({
@@ -55,6 +55,49 @@ test("le niveau en cours n'est affiché que s'il est connu et cohérent", () => 
   assert.equal(buildLevelTimes([row(25, 900)], playtime(25, 100, 50), 25).length, 1);
   // Horloge incohérente : jamais de durée négative.
   assert.equal(buildLevelTimes([], playtime(25, 50, 100), 25)[0].playedSeconds, 0);
+});
+
+test("le tableau liste tous les niveaux, les non relevés sans durée", () => {
+  const levels = fillLevelTimes(buildLevelTimes([row(3, 600)], playtime(5, 4000, 3000), 5), 5);
+
+  assert.deepEqual(
+    levels.map((entry) => [entry.level, entry.playedSeconds, entry.current]),
+    [
+      [1, null, false],
+      [2, null, false],
+      [3, 600, false],
+      [4, null, false],
+      [5, 1000, true],
+    ],
+  );
+  assert.deepEqual([levels[0].wallSeconds, levels[0].reachedAt, levels[0].zone], [null, null, null]);
+  assert.equal(levels[2].zone, "Forêt d'Elwynn");
+});
+
+test("le niveau du personnage clôt la liste, même sans relevé du niveau en cours", () => {
+  // Relevé de temps de jeu antérieur au passage de niveau : le niveau en cours n'a aucune mesure.
+  const levels = fillLevelTimes(buildLevelTimes([row(2, 300)], playtime(3, 900, 600), 4), 4);
+
+  assert.deepEqual(
+    levels.map((entry) => [entry.level, entry.playedSeconds, entry.current]),
+    [
+      [1, null, false],
+      [2, 300, false],
+      [3, null, false],
+      [4, null, true],
+    ],
+  );
+});
+
+test("la liste n'est complétée que si elle a un sens", () => {
+  // Aucun relevé : rien à compléter.
+  assert.equal(fillLevelTimes([], 25).length, 0);
+  // Niveau du personnage inconnu : jusqu'au dernier niveau relevé.
+  assert.deepEqual(fillLevelTimes(buildLevelTimes([row(3, 600)], null, null), null).map((entry) => entry.level), [1, 2, 3]);
+  // Niveau relevé au-delà de celui du personnage : il reste affiché.
+  assert.deepEqual(fillLevelTimes(buildLevelTimes([row(3, 600)], null, 2), 2).map((entry) => entry.level), [1, 2, 3]);
+  // Niveau aberrant : la liste reste celle des relevés.
+  assert.deepEqual(fillLevelTimes(buildLevelTimes([row(3, 600)], null, 30_000), 30_000).map((entry) => entry.level), [3]);
 });
 
 test("les durées sont lisibles à toutes les échelles", () => {
