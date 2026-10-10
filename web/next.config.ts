@@ -1,11 +1,23 @@
 import type { NextConfig } from "next";
+import { readBuildInfo } from "./src/lib/build-info.ts";
 
 // Aujourd'hui servie à la racine d'un sous-domaine dédié. WOW_BASE_PATH (ex. "/wow") permet de la
 // servir sous un préfixe sans modifier le code : liens, assets et routes d'API suivent.
 const basePath = process.env.WOW_BASE_PATH || undefined;
 
+// Versions affichées en pied de page. Le dépôt est le dossier parent, sauf dans l'image Docker où
+// il est monté à part (WOW_REPO_DIR, voir Dockerfile) : le contexte de construction se limite à web/.
+const build = readBuildInfo(process.cwd(), process.env.WOW_REPO_DIR || "..", new Date());
+
 const nextConfig: NextConfig = {
   basePath,
+  // Figées dans le code à la construction : l'image en service ne contient pas le dépôt.
+  env: {
+    WOW_SITE_VERSION: build.siteVersion ?? "",
+    WOW_BUILD_COMMIT: build.commit ?? "",
+    WOW_BUILD_TIME: build.builtAt,
+    WOW_AGENT_VERSION: build.agentVersion ?? "",
+  },
   output: "standalone",
   poweredByHeader: false,
   // La compression (brotli) est faite par le reverse proxy.

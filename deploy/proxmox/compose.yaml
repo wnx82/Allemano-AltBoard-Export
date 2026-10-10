@@ -8,6 +8,10 @@ x-app: &app
   image: wow-altboard-web:${WOW_IMAGE_TAG:-latest}
   build:
     context: ../../web
+    # Le dépôt cloné, réduit par son .dockerignore au commit extrait et à la version de l'agent :
+    # le site les affiche en pied de page.
+    additional_contexts:
+      repo: ../..
     args:
       WOW_BASE_PATH: ${WOW_BASE_PATH:-}
   # « docker compose up -d » reconstruit toujours l'image depuis les sources clonées : un

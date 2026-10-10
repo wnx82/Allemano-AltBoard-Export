@@ -55,6 +55,17 @@ s'appliquent avant son démarrage.
 Une migration doit rester compatible avec la version précédente de l'application le temps du
 redémarrage (ajouts d'abord, suppressions dans une version ultérieure).
 
+### Vérifier la version en service
+
+Le pied de page du tableau de bord affiche ce qui tourne : version du site (`web/package.json`),
+commit construit, date de construction, et version de l'agent (`agent/Directory.Build.props`). Un
+commit poussé est en ligne quand le pied de page le montre.
+
+Ces valeurs sont figées à la construction (`web/next.config.ts`). L'image ne recevant que `web/`,
+`compose.yaml` fournit le dépôt cloné comme contexte nommé `repo`, que le `.dockerignore` de la
+racine réduit à `.git/HEAD`, aux références et à `agent/Directory.Build.props`. Sans ce contexte
+(`docker build web`), le commit et la version de l'agent ne sont simplement pas affichés.
+
 ## Revenir en arrière
 
 Fixer le champ **Commit** de la pile sur le commit précédent, puis **Deploy**. Les migrations ne

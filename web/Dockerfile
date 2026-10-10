@@ -8,6 +8,11 @@ FROM base AS deps
 COPY package.json package-lock.json ./
 RUN npm ci
 
+# Le dépôt, hors du contexte de construction (web/) : le commit extrait et la version de l'agent,
+# affichés en pied de page, s'y lisent. Remplacé par le contexte nommé « repo » quand la construction
+# le fournit (deploy/proxmox/compose.yaml) ; vide sinon, et ces deux valeurs ne sont pas affichées.
+FROM scratch AS repo
+
 FROM base AS build
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -15,7 +20,7 @@ COPY . .
 ARG WOW_BASE_PATH=""
 ENV WOW_BASE_PATH=$WOW_BASE_PATH
 # Aucune base n'est nécessaire pour construire : toutes les pages sont rendues à la demande.
-RUN npm run build
+RUN --mount=type=bind,from=repo,target=/repo WOW_REPO_DIR=/repo npm run build
 # Script de migration autonome, pour appliquer le schéma depuis l'image elle-même.
 RUN npx esbuild src/db/migrate.ts --bundle --platform=node --format=esm --external:pg-native \
       --banner:js="import { createRequire } from 'node:module'; const require = createRequire(import.meta.url);" \

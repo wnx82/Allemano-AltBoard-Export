@@ -49,7 +49,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - run: docker build --tag wow-altboard-web:ci web
+      # Avec le dépôt en contexte nommé, comme deploy/proxmox/compose.yaml.
+      - run: docker build --build-context repo=. --tag wow-altboard-web:ci web
 
   # Ce qui s'installe sur les serveurs hors de la pile : script de sauvegarde et règles d'alerte.
   ops:

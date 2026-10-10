@@ -2,6 +2,16 @@ import Link from "next/link";
 import { NavLink } from "@/components/nav-link";
 import { logoutAction } from "@/lib/auth/actions";
 import { requireSession } from "@/lib/auth/session";
+import { formatDateTime } from "@/lib/wow/format";
+
+// Versions figées à la construction (next.config.ts). Une valeur absente n'est pas affichée : le
+// commit et la version de l'agent manquent quand l'image est construite sans le dépôt.
+const versions = [
+  process.env.WOW_SITE_VERSION && `Site ${process.env.WOW_SITE_VERSION}`,
+  process.env.WOW_BUILD_COMMIT && `commit ${process.env.WOW_BUILD_COMMIT}`,
+  process.env.WOW_BUILD_TIME && `construit le ${formatDateTime(process.env.WOW_BUILD_TIME)}`,
+  process.env.WOW_AGENT_VERSION && `Agent AltBoardSync ${process.env.WOW_AGENT_VERSION}`,
+].filter((entry): entry is string => Boolean(entry));
 
 export default async function DashboardLayout({ children }: LayoutProps<"/">) {
   // Vérification réelle de la session, en base : le proxy ne fait qu'un premier tri.
@@ -54,6 +64,7 @@ export default async function DashboardLayout({ children }: LayoutProps<"/">) {
       <footer className="mx-auto w-full max-w-[1500px] px-4 pb-8 text-xs text-faint sm:px-6">
         Données issues de l&apos;addon AltBoard, telles qu&apos;écrites par le jeu à la dernière déconnexion ou au dernier /reload. Ce
         n&apos;est pas du temps réel. World of Warcraft et ses icônes sont la propriété de Blizzard Entertainment.
+        {versions.length > 0 && <p className="mt-2 tabular-nums">{versions.join(" · ")}</p>}
       </footer>
     </div>
   );

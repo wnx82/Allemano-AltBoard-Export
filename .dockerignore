@@ -1,0 +1,7 @@
+# Le dépôt n'est fourni à Docker que comme contexte nommé « repo » de l'image du site
+# (web/Dockerfile), pour y lire le commit extrait et la version de l'agent. Rien d'autre n'est transmis.
+*
+!.git/HEAD
+!.git/packed-refs
+!.git/refs
+!agent/Directory.Build.props
