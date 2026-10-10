@@ -118,6 +118,8 @@ n'est ni lu ni transmis.
 | Serveur | Une session close remplace sa version ouverte. Une version ouverte n'en remplace une autre que si elle est au moins aussi récente, et jamais une session close |
 | Page | Seule la dernière session peut être affichée « en cours ». Expérience par heure calculée seulement si la durée atteint une minute |
 | Page | Niveau en cours affiché seulement s'il est égal au niveau du personnage ; durée = `played.total − levelStart.playedTotal`, donc arrêtée au dernier relevé |
+| Page | Le tableau liste tous les niveaux jusqu'à celui du personnage ; un niveau jamais relevé y figure « non mesuré ». Le graphique ne trace que les niveaux relevés |
+| Page | Temps cumulé = `/played` total à la fin du niveau : `played.total` pour le niveau en cours, puis on retranche le temps de chaque niveau en remontant ; à défaut, addition depuis le niveau 1. Un niveau sans temps mesuré n'a pas de cumul et interrompt le calcul |
 
 Tables : `character_playtime`, `character_level_times` et `character_sessions`
 ([DATABASE](DATABASE.md)). Contrat : champs `playtime` et `sessions` du personnage ([API](API.md)).

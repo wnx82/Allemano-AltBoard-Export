@@ -96,6 +96,40 @@ export function fillLevelTimes(levels: LevelTime[], characterLevel: number | nul
   });
 }
 
+/**
+ * Temps de jeu cumulé à la fin de chaque niveau, c'est-à-dire le /played total à cet instant ; pour
+ * le niveau en cours, le total du dernier relevé. Calculé en remontant depuis ce total et, à défaut,
+ * en additionnant depuis le niveau 1. Un niveau sans temps mesuré n'a pas de cumul et interrompt le
+ * calcul : rien n'est estimé.
+ */
+export function cumulativePlayedSeconds(levels: LevelTime[], totalSeconds: number | null): Map<number, number> {
+  const cumulative = new Map<number, number>();
+  const follows = (index: number) => levels[index].level === levels[index - 1].level + 1;
+  const last = levels.length - 1;
+
+  if (totalSeconds !== null && levels[last]?.current) {
+    let running = totalSeconds;
+    for (let index = last; index >= 0; index--) {
+      const played = levels[index].playedSeconds;
+      if (played === null || running < 0 || (index < last && !follows(index + 1))) break;
+      cumulative.set(levels[index].level, running);
+      running -= played;
+    }
+  }
+
+  if (levels[0]?.level === 1) {
+    let running = 0;
+    for (let index = 0; index < levels.length; index++) {
+      const played = levels[index].playedSeconds;
+      if (played === null || (index > 0 && !follows(index))) break;
+      running += played;
+      if (!cumulative.has(levels[index].level)) cumulative.set(levels[index].level, running);
+    }
+  }
+
+  return cumulative;
+}
+
 /** « 45 s », « 12 min », « 3 h 05 », « 2 j 4 h ». */
 export function formatDuration(seconds: number | null): string {
   if (seconds === null) return "—";
@@ -106,4 +140,11 @@ export function formatDuration(seconds: number | null): string {
   const hours = Math.floor(minutes / 60);
   if (hours < 24) return `${hours} h ${String(minutes % 60).padStart(2, "0")}`;
   return `${Math.floor(hours / 24)} j ${hours % 24} h`;
+}
+
+/** Comme formatDuration, minutes gardées au-delà d'un jour : « 2 j 4 h 07 ». Pour un cumul, où deux lignes voisines diffèrent de moins d'une heure. */
+export function formatDurationToMinute(seconds: number | null): string {
+  if (seconds === null || Math.round(seconds) < 86_400) return formatDuration(seconds);
+  const minutes = Math.floor(Math.round(seconds) / 60);
+  return `${Math.floor(minutes / 1440)} j ${Math.floor(minutes / 60) % 24} h ${String(minutes % 60).padStart(2, "0")}`;
 }

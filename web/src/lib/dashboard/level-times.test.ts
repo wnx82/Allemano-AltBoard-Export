@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildLevelTimes, fillLevelTimes, formatDuration } from "./level-times";
+import { buildLevelTimes, cumulativePlayedSeconds, fillLevelTimes, formatDuration, formatDurationToMinute } from "./level-times";
 
 const at = (iso: string) => new Date(iso);
 const row = (level: number, playedSeconds: number | null, wallSeconds: number | null = null) => ({
@@ -100,10 +100,64 @@ test("la liste n'est complétée que si elle a un sens", () => {
   assert.deepEqual(fillLevelTimes(buildLevelTimes([row(3, 600)], null, 30_000), 30_000).map((entry) => entry.level), [3]);
 });
 
+test("le cumul est le temps de jeu total à la fin de chaque niveau", () => {
+  const levels = fillLevelTimes(buildLevelTimes([row(24, 5400), row(23, 3600)], playtime(25, 100_000, 97_000), 25), 25);
+  const cumulative = cumulativePlayedSeconds(levels, 100_000);
+
+  // Remonte depuis le total : le cumul inclut le temps des niveaux non relevés, sans le leur attribuer.
+  assert.deepEqual([...cumulative], [
+    [25, 100_000],
+    [24, 97_000],
+    [23, 91_600],
+  ]);
+});
+
+test("un niveau sans temps mesuré interrompt le cumul, sans estimation", () => {
+  const rows = [row(1, 600), row(2, 900), row(3, null), row(4, 1200)];
+  const levels = fillLevelTimes(buildLevelTimes(rows, playtime(5, 10_000, 9000), 5), 5);
+
+  // Niveaux 4 et 5 depuis le total, niveaux 1 et 2 par addition depuis le début ; rien pour le 3.
+  assert.deepEqual([...cumulativePlayedSeconds(levels, 10_000)].sort(([a], [b]) => a - b), [
+    [1, 600],
+    [2, 1500],
+    [4, 9000],
+    [5, 10_000],
+  ]);
+});
+
+test("le cumul se passe du total quand tout est mesuré depuis le niveau 1", () => {
+  const levels = fillLevelTimes(buildLevelTimes([row(1, 600), row(2, 900)], null, 3), 3);
+
+  assert.deepEqual([...cumulativePlayedSeconds(levels, null)], [
+    [1, 600],
+    [2, 1500],
+  ]);
+  // Ni total ni niveau 1 mesuré : aucun point de départ.
+  assert.equal(cumulativePlayedSeconds(fillLevelTimes(buildLevelTimes([row(3, 600)], null, 4), 4), null).size, 0);
+  assert.equal(cumulativePlayedSeconds([], 100).size, 0);
+});
+
+test("un total incohérent ne donne jamais de cumul négatif", () => {
+  const levels = fillLevelTimes(buildLevelTimes([row(23, 3600), row(24, 5400)], playtime(25, 3000, 2000), 25), 25);
+
+  assert.deepEqual([...cumulativePlayedSeconds(levels, 3000)], [
+    [25, 3000],
+    [24, 2000],
+  ]);
+});
+
 test("les durées sont lisibles à toutes les échelles", () => {
   assert.deepEqual(
     [0, 45, 60, 725, 3600, 11_100, 86_399, 86_400, 187_200].map(formatDuration),
     ["0 s", "45 s", "1 min", "12 min", "1 h 00", "3 h 05", "23 h 59", "1 j 0 h", "2 j 4 h"],
   );
   assert.equal(formatDuration(null), "—");
+});
+
+test("un cumul garde les minutes au-delà d'un jour", () => {
+  assert.deepEqual(
+    [45, 11_100, 86_399, 86_400, 187_500].map(formatDurationToMinute),
+    ["45 s", "3 h 05", "23 h 59", "1 j 0 h 00", "2 j 4 h 05"],
+  );
+  assert.equal(formatDurationToMinute(null), "—");
 });

@@ -9,7 +9,7 @@ import { TrendChart, type TrendPoint } from "@/components/trend-chart";
 import { ClassAvatar, FactionBadge, Meter, Money, ProfessionIcon, SectionTitle, StatTile } from "@/components/ui";
 import { getDatabase } from "@/db/client";
 import { buildHistory } from "@/lib/dashboard/history";
-import { buildLevelTimes, fillLevelTimes, formatDuration } from "@/lib/dashboard/level-times";
+import { buildLevelTimes, cumulativePlayedSeconds, fillLevelTimes, formatDuration, formatDurationToMinute } from "@/lib/dashboard/level-times";
 import { buildSessions, sessionTagLabel, summarizeSessions } from "@/lib/dashboard/sessions";
 import { getCharacterDetail, SESSIONS_SHOWN, type CharacterDetail } from "@/lib/dashboard/queries";
 import {
@@ -70,6 +70,7 @@ export default async function CharacterPage({ params }: PageProps<"/characters/[
   // Le graphique ne trace que les niveaux relevés ; le tableau les liste tous.
   const allLevelTimes = fillLevelTimes(levelTimes, character.level);
   const totalPlayed = character.playtime?.totalSeconds ?? null;
+  const cumulativePlayed = cumulativePlayedSeconds(allLevelTimes, totalPlayed);
   const sessions = buildSessions(character.sessions);
   const sessionTotals = summarizeSessions(sessions);
   // Niveau et part d'expérience acquise sur une même échelle : la courbe monte aussi entre deux niveaux.
@@ -414,6 +415,9 @@ export default async function CharacterPage({ params }: PageProps<"/characters/[
                       <th scope="col" className="num">
                         Temps de jeu
                       </th>
+                      <th scope="col" className="num" title="Temps de jeu total à la fin du niveau">
+                        Temps cumulé
+                      </th>
                       <th scope="col" className="num">
                         Temps réel
                       </th>
@@ -428,6 +432,7 @@ export default async function CharacterPage({ params }: PageProps<"/characters/[
                           {entry.current ? `${entry.level} (en cours)` : `${entry.level} → ${entry.level + 1}`}
                         </td>
                         <td className="num">{entry.playedSeconds === null ? "non mesuré" : formatDuration(entry.playedSeconds)}</td>
+                        <td className="num">{formatDurationToMinute(cumulativePlayed.get(entry.level) ?? null)}</td>
                         <td className="num">{formatDuration(entry.wallSeconds)}</td>
                         <td className="whitespace-nowrap">{formatDateTime(entry.reachedAt)}</td>
                         <td>{entry.zone ?? "—"}</td>
