@@ -65,6 +65,7 @@ pas par `wow_altboard` : voir `web/src/db/env.ts`.
 | Document | Sujet |
 |---|---|
 | [ROADMAP](docs/ROADMAP.md) | État d'avancement, phase par phase |
+| [TODO](docs/TODO.md) | À faire : idées de fonctions et constats de l'audit du 2026-10-11 |
 | [ARCHITECTURE](docs/ARCHITECTURE.md) | Composants, flux, décisions |
 | [ALTBOARD-DATA-MODEL](docs/ALTBOARD-DATA-MODEL.md) | Structure réellement observée de `AltBoardDB` |
 | [LEDGER-DATA-MODEL](docs/LEDGER-DATA-MODEL.md) | Temps de jeu par niveau et sessions, issus de l'addon Allemano Ledger |
