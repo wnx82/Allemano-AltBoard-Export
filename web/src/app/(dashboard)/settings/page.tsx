@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { ResetCharactersForm, StatusSettingsForm } from "@/components/settings-forms";
 import { SectionTitle } from "@/components/ui";
 import { getDatabase } from "@/db/client";
+import { requireSession } from "@/lib/auth/session";
 import { resetCharactersAction, saveStatusSettingsAction } from "@/lib/settings/actions";
 import { characterSummary } from "@/lib/settings/reset";
 import { readSettings } from "@/lib/settings/store";
@@ -12,6 +13,7 @@ import { formatDateTime } from "@/lib/wow/format";
 export const metadata: Metadata = { title: "Paramètres" };
 
 export default async function SettingsPage() {
+  await requireSession();
   const db = getDatabase();
   const [{ config }, settings, summary] = await Promise.all([syncStatusRuntime(), readSettings(db), characterSummary(db)]);
   const lines = (service: ServiceKey) => config.targets[service].map(formatTarget).join("\n");

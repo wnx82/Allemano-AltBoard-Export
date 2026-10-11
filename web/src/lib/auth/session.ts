@@ -45,7 +45,11 @@ export const getSession = cache(async (): Promise<Session | null> => {
   return findSession(getDatabase(), token, new Date());
 });
 
-/** À appeler par toute page, action ou route privée : redirige vers /login sans session valide. */
+/**
+ * À appeler par toute page, action ou route privée : redirige vers /login sans session valide.
+ * Le layout ne couvre pas ses pages : Next rend la page sans l'attendre, et ne le rend pas lors
+ * d'une navigation interne. `pages.test.ts` refuse une page qui ne commence pas par cet appel.
+ */
 export async function requireSession(): Promise<Session> {
   const session = await getSession();
   if (!session) redirect("/login");

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { RenameForm } from "@/components/admin-forms";
 import { EmptyState, Money } from "@/components/ui";
 import { getDatabase } from "@/db/client";
+import { requireSession } from "@/lib/auth/session";
 import { renameAccountAction } from "@/lib/dashboard/actions";
 import { listAccounts } from "@/lib/dashboard/queries";
 import { formatDateTime, formatRelative } from "@/lib/wow/format";
@@ -9,6 +10,7 @@ import { formatDateTime, formatRelative } from "@/lib/wow/format";
 export const metadata: Metadata = { title: "Comptes" };
 
 export default async function AccountsPage() {
+  await requireSession();
   const accounts = await listAccounts(getDatabase());
   const now = new Date();
 

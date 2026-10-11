@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { EmptyState, Meter, ProfessionIcon, SectionTitle } from "@/components/ui";
 import { getDatabase } from "@/db/client";
+import { requireSession } from "@/lib/auth/session";
 import { compareProfessions, PRIMARY_SLOTS, type ProfessionRow } from "@/lib/dashboard/professions";
 import { listCharacters, type CharacterListItem } from "@/lib/dashboard/queries";
 import { classKey } from "@/lib/wow/format";
@@ -11,6 +12,7 @@ export const metadata: Metadata = { title: "Métiers" };
 const collator = new Intl.Collator("fr", { sensitivity: "base", numeric: true });
 
 export default async function ProfessionsPage() {
+  await requireSession();
   // Rangés par niveau décroissant : c'est l'ordre qui départage deux personnages de même rang.
   const characters = await listCharacters(getDatabase());
   const { primary, secondary, openSlots } = compareProfessions(characters, collator.compare);

@@ -4,6 +4,7 @@ import { CharacterBrowser } from "@/components/character-browser";
 import { StatusBadge } from "@/components/server-status";
 import { Money, StatTile } from "@/components/ui";
 import { getDatabase } from "@/db/client";
+import { requireSession } from "@/lib/auth/session";
 import { getOverview, listCharacters } from "@/lib/dashboard/queries";
 import { isConfigured } from "@/lib/status/config";
 import { syncStatusRuntime } from "@/lib/status/runtime";
@@ -13,6 +14,7 @@ import { formatDateTime, formatRelative } from "@/lib/wow/format";
 export const metadata: Metadata = { title: "Mes personnages" };
 
 export default async function CharactersPage() {
+  await requireSession();
   const db = getDatabase();
   const now = new Date();
   const { config } = await syncStatusRuntime();

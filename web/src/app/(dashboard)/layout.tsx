@@ -14,7 +14,7 @@ const versions = [
 ].filter((entry): entry is string => Boolean(entry));
 
 export default async function DashboardLayout({ children }: LayoutProps<"/">) {
-  // Vérification réelle de la session, en base : le proxy ne fait qu'un premier tri.
+  // Ce contrôle ne protège que l'en-tête : chaque page refait le sien (voir requireSession).
   const session = await requireSession();
 
   return (

@@ -122,18 +122,16 @@ Chaque ligne demande une évolution de l'agent, du contrat de `POST /api/sync` e
 
 `npm audit --omit=dev` du 2026-10-11 : aucune vulnérabilité connue.
 
-- [ ] **P1 · S** — Les pages du tableau de bord répondent sans session valide. La session n'est
-  vérifiée en base que par `web/src/app/(dashboard)/layout.tsx:18` ; aucune des neuf pages
-  n'appelle `requireSession()`, alors que `web/src/lib/auth/session.ts:48` le demande pour « toute
-  page ». `web/src/proxy.ts:14` ne contrôle que la présence du cookie, pas sa valeur. Or Next rend
-  la page sans attendre le layout, et ne rend pas le layout du tout lors d'une navigation interne.
-  Reproduit le 2026-10-11 sur une construction de production locale du commit `153d601`, base de
-  test : avec un cookie de session présent mais invalide, le contenu de **Machines** est renvoyé ;
-  sans cookie, le proxy redirige bien vers `/login`. Conséquence : le mot de passe du site ne
-  protège pas les pages, ni une session supprimée, ni un compte désactivé ; seuls Cloudflare Access
-  et le réseau local font barrière. Les actions serveur et l'export XLSX, eux, vérifient la
-  session. Correction : appeler `requireSession()` dans chaque page, ou dans les fonctions de
-  `web/src/lib/dashboard/queries.ts`, avec un test par page.
+- [x] **P1 · S** — Les pages du tableau de bord répondaient sans session valide. La session
+  n'était vérifiée en base que par le layout ; `web/src/proxy.ts` ne contrôle que la présence du
+  cookie. Or Next rend la page sans attendre le layout, et ne rend pas le layout du tout lors d'une
+  navigation interne. Reproduit le 2026-10-11 sur une construction de production locale du commit
+  `153d601`, base de test, sur les neuf pages : contenu renvoyé avec un cookie invalide, et même
+  sans aucun cookie quand la requête porte l'en-tête `purpose: prefetch`, que le proxy laisse
+  passer. Corrigé le 2026-10-11 : chaque page, et `generateMetadata` de la fiche, commence par
+  `requireSession()` ; `web/src/lib/auth/pages.test.ts` refuse une page qui ne le fait pas. Les
+  mêmes 54 requêtes sur la construction corrigée ne renvoient plus aucun contenu. Reste à le
+  constater en production après déploiement.
 - [ ] **P1 · S** — Messages d'erreur journalisés avec les valeurs reçues. Une requête en échec
   lève une erreur dont le message contient le SQL et tous ses paramètres
   (`web/node_modules/drizzle-orm/errors.js:12`). Ce message part dans le journal
@@ -368,7 +366,7 @@ hors dépôt sur `AltBoardSync.Core` seul ; l'agent n'a pas été lancé.
 ## 6. Documentation et dépôt
 
 - [ ] **P1 · S** — Compteurs de tests périmés : `README.md:53-54` annonce 143 (agent) et 156 (web),
-  `docs/ROADMAP.md:17` 152 et 185 ; la suite web en compte 200 au 2026-10-11. Retirer les nombres
+  `docs/ROADMAP.md:17` 152 et 185 ; la suite web en compte 214 au 2026-10-11. Retirer les nombres
   des documents, ou les faire écrire par la CI.
 - [ ] **P1 · S** — `docs/ROADMAP.md` : « Dernière mise à jour : 2026-10-08 » alors que P14 cite le
   2026-10-09 ; la synthèse parle de 6 personnages (au moins 12 en base au 2026-10-11) ; dans « Reste à faire », la ligne
@@ -386,8 +384,8 @@ hors dépôt sur `AltBoardSync.Core` seul ; l'agent n'a pas été lancé.
 
 ## Ce qui n'a pas été vérifié
 
-- La production n'a pas été touchée : le défaut de session (§ 2) est reproduit sur une
-  construction locale du même commit, pas sur `wow.ekreativ.be`.
+- La production n'a pas été touchée : le défaut de session (§ 2) et sa correction sont constatés
+  sur une construction locale, pas sur `wow.ekreativ.be`.
 - Aucun `EXPLAIN` sur la base réelle : les constats de performance (§ 3) viennent du schéma et du
   code, pas d'une mesure.
 - Aucun contrôle d'accessibilité dans un navigateur ni avec un lecteur d'écran : contrastes

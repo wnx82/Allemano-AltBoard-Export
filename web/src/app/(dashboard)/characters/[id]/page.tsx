@@ -8,6 +8,7 @@ import { SectionNav, type SectionLink } from "@/components/section-nav";
 import { TrendChart, type TrendPoint } from "@/components/trend-chart";
 import { ClassAvatar, FactionBadge, Meter, Money, ProfessionIcon, SectionTitle, StatTile } from "@/components/ui";
 import { getDatabase } from "@/db/client";
+import { requireSession } from "@/lib/auth/session";
 import { buildHistory } from "@/lib/dashboard/history";
 import { buildLevelTimes, cumulativePlayedSeconds, fillLevelTimes, formatDuration, formatDurationToMinute } from "@/lib/dashboard/level-times";
 import { buildSessions, sessionTagLabel, summarizeSessions } from "@/lib/dashboard/sessions";
@@ -38,6 +39,8 @@ async function load(params: Promise<{ id: string }>): Promise<CharacterDetail | 
 }
 
 export async function generateMetadata({ params }: PageProps<"/characters/[id]">): Promise<Metadata> {
+  // Le titre porte le nom du personnage : même contrôle que la page.
+  await requireSession();
   const character = await load(params);
   return { title: character?.name ?? "Personnage introuvable" };
 }
@@ -60,6 +63,7 @@ const shortDate = new Intl.DateTimeFormat("fr-BE", { day: "2-digit", month: "2-d
 const levelFormat = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 2 });
 
 export default async function CharacterPage({ params }: PageProps<"/characters/[id]">) {
+  await requireSession();
   const character = await load(params);
   if (!character) notFound();
 

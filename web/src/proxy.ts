@@ -4,7 +4,8 @@ import { sessionCookieName } from "@/lib/auth/cookie";
 // Deux rôles, sur chaque page :
 // 1. poser une CSP stricte à nonce (aucun script ni style en ligne non signé) ;
 // 2. renvoyer vers /login quand aucun cookie de session n'est présent. Ce n'est qu'un premier
-//    filtre : la session est réellement vérifiée en base par le layout du tableau de bord.
+//    filtre, que les requêtes de préchargement ne traversent pas (voir matcher) : la session est
+//    réellement vérifiée en base par chaque page, par requireSession().
 
 const PUBLIC_PATHS = new Set(["/login", "/robots.txt"]);
 

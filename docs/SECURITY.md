@@ -42,7 +42,7 @@ hors limites, le serveur revalide tout.
 | Mesure | Détail |
 |---|---|
 | Accès | toutes les pages exigent une session ; seuls `/login`, `/api/sync` et `/api/health` répondent sans |
-| Double vérification | `src/proxy.ts` (présence du cookie) puis layout, actions et routes (session lue en base) |
+| Double vérification | `src/proxy.ts` (présence du cookie) puis chaque page, action et route (session lue en base) ; le layout ne protège pas ses pages, un test refuse une page sans contrôle |
 | Mot de passe | scrypt (N=32768, r=8, p=1), sel aléatoire, comparaison à temps constant, 12 caractères minimum |
 | Session | identifiant aléatoire de 256 bits ; seule son empreinte est en base ; 30 jours ; supprimée à la déconnexion |
 | Cookie | `HttpOnly`, `SameSite=Lax`, `Secure` et préfixe `__Host-` en HTTPS (aucun `Domain`) |

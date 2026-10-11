@@ -3,6 +3,7 @@ import Link from "next/link";
 import { LevelGainsChart, LevelProgressChart } from "@/components/level-charts";
 import { EmptyState, SectionTitle, StatTile } from "@/components/ui";
 import { getDatabase } from "@/db/client";
+import { requireSession } from "@/lib/auth/session";
 import { buildLevelProgress } from "@/lib/dashboard/levels";
 import { listLevelSnapshots } from "@/lib/dashboard/queries";
 import { classKey, formatDateTime, formatRelative } from "@/lib/wow/format";
@@ -20,6 +21,7 @@ const PERIODS = [
 const DEFAULT_PERIOD = PERIODS[1];
 
 export default async function LevelsPage({ searchParams }: PageProps<"/levels">) {
+  await requireSession();
   const requested = (await searchParams).period;
   const period = PERIODS.find((entry) => entry.key === requested) ?? DEFAULT_PERIOD;
   const now = new Date();

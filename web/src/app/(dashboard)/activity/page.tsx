@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { EmptyState, SectionTitle } from "@/components/ui";
 import { getDatabase } from "@/db/client";
+import { requireSession } from "@/lib/auth/session";
 import { buildActivity } from "@/lib/dashboard/activity";
 import { ACTIVITY_DAYS, listRecentSnapshots } from "@/lib/dashboard/queries";
 import { classKey, formatDateTime } from "@/lib/wow/format";
@@ -12,6 +13,7 @@ const dayLabel = new Intl.DateTimeFormat("fr-BE", { weekday: "long", day: "numer
 const hour = new Intl.DateTimeFormat("fr-BE", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Brussels" });
 
 export default async function ActivityPage() {
+  await requireSession();
   const now = new Date();
   const since = new Date(now.getTime() - ACTIVITY_DAYS * 24 * 3600 * 1000);
   const days = buildActivity(await listRecentSnapshots(getDatabase(), since), since);

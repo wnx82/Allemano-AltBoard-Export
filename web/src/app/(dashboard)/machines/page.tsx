@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { RenameForm, TokenForm } from "@/components/admin-forms";
 import { EmptyState, SectionTitle } from "@/components/ui";
 import { getDatabase } from "@/db/client";
+import { requireSession } from "@/lib/auth/session";
 import { createTokenAction, renameMachineAction, revokeTokenAction } from "@/lib/dashboard/actions";
 import { listMachines, listRecentRuns, machineLabel } from "@/lib/dashboard/queries";
 import { formatDateTime, formatRelative } from "@/lib/wow/format";
@@ -15,6 +16,7 @@ const STATUS: Record<string, { label: string; tone: string }> = {
 };
 
 export default async function MachinesPage() {
+  await requireSession();
   const db = getDatabase();
   const [{ machines, pendingTokens }, runs] = await Promise.all([listMachines(db), listRecentRuns(db)]);
   const now = new Date();

@@ -4,6 +4,7 @@ import { ServerStatusTable, ServiceHistoryPanel, StatusLegend, TransitionsTable 
 import { StatusRefresh } from "@/components/status-refresh";
 import { SectionTitle } from "@/components/ui";
 import { getDatabase } from "@/db/client";
+import { requireSession } from "@/lib/auth/session";
 import { refreshServerStatusAction } from "@/lib/status/actions";
 import { syncStatusRuntime } from "@/lib/status/runtime";
 import { formatCheckTime, formatLatency } from "@/lib/status/status";
@@ -32,6 +33,7 @@ const REFERENCES = [
 ];
 
 export default async function ServersPage() {
+  await requireSession();
   const { config } = await syncStatusRuntime();
   const view = await getServerStatusView(getDatabase(), config, new Date());
   const intervalSeconds = config.intervalMs / 1000;
