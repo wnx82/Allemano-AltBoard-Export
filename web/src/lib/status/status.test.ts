@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { ProbeResult } from "./probe";
-import { describeOutcome, evaluateService, formatCheckTime, formatLatency, serviceLabel } from "./status";
+import { describeOutcome, evaluateService, formatCheckTime, formatEvery, formatLatency, serviceLabel } from "./status";
 
 const connected = (latencyMs: number): ProbeResult => ({ outcome: "connected", latencyMs, error: null });
 const refused: ProbeResult = { outcome: "refused", latencyMs: null, error: "ECONNREFUSED" };
@@ -76,4 +76,11 @@ test("latence et heure sont mises en forme pour la Belgique", () => {
   // En heure d'hiver, le décalage n'est plus que d'une heure.
   assert.match(formatCheckTime(new Date("2026-12-01T14:05:09Z")), /15:05:09$/);
   assert.equal(formatCheckTime(null), "—");
+});
+
+test("le rythme des contrôles se lit en minutes quand il en compte un nombre entier", () => {
+  assert.equal(formatEvery(300), "toutes les 5 minutes");
+  assert.equal(formatEvery(60), "chaque minute");
+  assert.equal(formatEvery(90), "toutes les 90 secondes");
+  assert.equal(formatEvery(30), "toutes les 30 secondes");
 });

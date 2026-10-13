@@ -7,9 +7,9 @@ test("sans variable, aucun serveur n'est surveillé et les valeurs par défaut s
 
   assert.deepEqual(config.targets, { auth: [], game: [] });
   assert.equal(isConfigured(config), false);
-  assert.deepEqual([config.intervalMs, config.timeoutMs, config.degradedMs], [60_000, 3_000, 400]);
-  // Un service en échec n'est recontrôlé que toutes les cinq minutes : sa mesure vaut jusque-là.
-  assert.equal(config.staleAfterMs, 360_000);
+  assert.deepEqual([config.intervalMs, config.timeoutMs, config.degradedMs], [300_000, 3_000, 400]);
+  // Trois intervalles : deux contrôles manqués de suite ne rendent pas encore l'état inconnu.
+  assert.equal(config.staleAfterMs, 900_000);
   assert.deepEqual(config.errors, []);
 });
 
@@ -56,7 +56,7 @@ test("le nombre d'adresses par service est borné", () => {
 test("une durée hors bornes est remplacée par la valeur par défaut et signalée", () => {
   const config = loadStatusConfig({ WOW_STATUS_INTERVAL_SECONDS: "1", WOW_STATUS_TIMEOUT_MS: "abc", WOW_STATUS_DEGRADED_MS: "250" });
 
-  assert.deepEqual([config.intervalMs, config.timeoutMs, config.degradedMs], [60_000, 3_000, 250]);
+  assert.deepEqual([config.intervalMs, config.timeoutMs, config.degradedMs], [300_000, 3_000, 250]);
   assert.equal(config.errors.length, 2);
 });
 
@@ -88,4 +88,9 @@ test("une liste vide enregistrée arrête la surveillance, sans retomber sur l'e
 
 test("la péremption suit un intervalle long", () => {
   assert.equal(loadStatusConfig({ WOW_STATUS_INTERVAL_SECONDS: "600" }).staleAfterMs, 1_800_000);
+});
+
+test("sous un intervalle court, la péremption couvre le backoff", () => {
+  // Un service en échec n'est recontrôlé que toutes les cinq minutes : sa mesure vaut jusque-là.
+  assert.equal(loadStatusConfig({ WOW_STATUS_INTERVAL_SECONDS: "60" }).staleAfterMs, 360_000);
 });

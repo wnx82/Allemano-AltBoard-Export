@@ -7,7 +7,7 @@ import { getDatabase } from "@/db/client";
 import { requireSession } from "@/lib/auth/session";
 import { refreshServerStatusAction } from "@/lib/status/actions";
 import { syncStatusRuntime } from "@/lib/status/runtime";
-import { formatCheckTime, formatLatency } from "@/lib/status/status";
+import { formatCheckTime, formatEvery, formatLatency } from "@/lib/status/status";
 import { getServerStatusView, TRANSITIONS_SHOWN } from "@/lib/status/view";
 
 export const metadata: Metadata = { title: "Serveurs" };
@@ -48,7 +48,7 @@ export default async function ServersPage() {
       <p className="eyebrow text-gold">World of Warcraft Forever</p>
       <h1 className="display mt-1 text-3xl font-bold sm:text-4xl">WoW Forever — État des serveurs {config.label}</h1>
       <p className="mt-2 max-w-3xl text-sm text-muted">
-        Ce serveur ouvre une connexion TCP vers chaque adresse configurée, toutes les {intervalSeconds} secondes, mesure le temps de
+        Ce serveur ouvre une connexion TCP vers chaque adresse configurée, {formatEvery(intervalSeconds)}, mesure le temps de
         réponse et referme. Une connexion acceptée prouve qu&apos;un service écoute, pas que le jeu fonctionne : file d&apos;attente,
         royaume plein ou liste de personnages absente ne se voient pas d&apos;ici.
       </p>

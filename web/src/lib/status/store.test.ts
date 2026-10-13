@@ -218,11 +218,11 @@ describe("vue de la page", () => {
   test("mesures périmées : l'état redevient inconnu, la dernière mesure valide reste affichée", async () => {
     await recordChecks(database.db, [check("auth", "10:00:00", "up", 30), check("game", "10:00:00", "down")]);
 
-    // Six minutes plus tard, à la limite de validité.
-    const fresh = await getServerStatusView(database.db, CONFIG, new Date("2026-10-08T10:06:00Z"));
+    // Quinze minutes plus tard, à la limite de validité.
+    const fresh = await getServerStatusView(database.db, CONFIG, new Date("2026-10-08T10:15:00Z"));
     assert.deepEqual(fresh.services.map((service) => [service.status, service.stale]), [["up", false], ["down", false]]);
 
-    const stale = await getServerStatusView(database.db, CONFIG, new Date("2026-10-08T10:06:01Z"));
+    const stale = await getServerStatusView(database.db, CONFIG, new Date("2026-10-08T10:15:01Z"));
     assert.deepEqual(
       stale.services.map((service) => [service.status, service.stale, service.latencyMs, service.lastAnswer?.latencyMs ?? null]),
       [

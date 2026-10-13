@@ -97,7 +97,7 @@ test("chaque tour contrôle les services séparément et enregistre un résultat
   assert.equal(checks[0].checkedAt.toISOString(), "2026-10-08T12:00:00.000Z");
   // Le passage suivant est armé à l'intervalle configuré.
   assert.equal(state.timers.length, 2);
-  assert.equal(state.timers[1].delayMs, 60_000);
+  assert.equal(state.timers[1].delayMs, 300_000);
 });
 
 test("contrôles simultanés : une demande manuelle rejoint le tour en cours", async () => {
@@ -139,7 +139,8 @@ test("rafraîchissement manuel : contrôle immédiat, puis un délai entre deux 
 });
 
 test("backoff : un service en échec répété est contrôlé de moins en moins souvent", async () => {
-  const { state, monitor, fire } = harness();
+  // Intervalle d'une minute : à celui par défaut, déjà au plafond, rien ne s'espace.
+  const { state, monitor, fire } = harness({ ...CONFIGURED, WOW_STATUS_INTERVAL_SECONDS: "60" });
   state.answer = (target) => (target.host === "login.example.test" ? REFUSED : UP);
 
   monitor.start();
@@ -172,6 +173,8 @@ test("le délai de backoff double jusqu'au plafond de cinq minutes", () => {
   );
   // Un intervalle déjà plus long que le plafond n'est jamais raccourci.
   assert.equal(nextDelay(10, 600_000), 600_000);
+  // L'intervalle par défaut vaut le plafond : un service en échec garde son rythme.
+  assert.deepEqual([0, 3, 50].map((failures) => nextDelay(failures, 300_000)), [300_000, 300_000, 300_000]);
 });
 
 test("arrêt : minuteur annulé, sondes interrompues, rien n'est enregistré ni réarmé", async () => {
@@ -256,7 +259,8 @@ test("l'historique est purgé au-delà de la conservation, une fois par heure au
   await fire();
   assert.deepEqual(state.pruned, [new Date(Date.parse("2026-10-08T12:00:00Z") - RETENTION_MS)]);
 
-  for (let tick = 0; tick < 59; tick++) await fire();
+  // Onze passages à cinq minutes d'écart : cinquante-cinq minutes après la première purge.
+  for (let tick = 0; tick < 11; tick++) await fire();
   assert.equal(state.pruned.length, 1);
   await fire();
   assert.equal(state.pruned.length, 2);

@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useActionState, useEffect, useTransition } from "react";
 import type { RefreshState } from "@/lib/status/actions";
+import { formatEvery } from "@/lib/status/status";
 
 /**
  * Actualisation de la page d'état : relecture périodique de ce que le serveur a mesuré, et bouton
@@ -44,7 +45,7 @@ export function StatusRefresh({
     <form action={formAction} className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
       <span className="flex items-center gap-1.5 text-xs text-faint">
         <span className="refresh-dot" data-busy={busy ? "" : undefined} aria-hidden="true" />
-        {enabled ? `Actualisation automatique toutes les ${intervalSeconds} s` : "Actualisation automatique inactive"}
+        {enabled ? `Actualisation automatique ${formatEvery(intervalSeconds)}` : "Actualisation automatique inactive"}
       </span>
       <button className="button" type="submit" disabled={pending || !enabled}>
         {pending ? "Contrôle…" : "Actualiser"}

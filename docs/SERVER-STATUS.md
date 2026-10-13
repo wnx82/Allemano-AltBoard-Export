@@ -65,7 +65,7 @@ se règlent qu'ici.
 |---|---|---|
 | `WOW_STATUS_AUTH_TARGETS` | vide | Serveur de connexion : `hôte:port`, séparées par des virgules |
 | `WOW_STATUS_GAME_TARGETS` | vide | Serveurs de jeu européens : même forme |
-| `WOW_STATUS_INTERVAL_SECONDS` | `60` | Secondes entre deux contrôles (30 à 3600) |
+| `WOW_STATUS_INTERVAL_SECONDS` | `300` | Secondes entre deux contrôles (30 à 3600) |
 | `WOW_STATUS_TIMEOUT_MS` | `3000` | Délai sans réponse (500 à 10000) |
 | `WOW_STATUS_DEGRADED_MS` | `400` | Latence à partir de laquelle un service qui répond est dit dégradé (50 à 10000) |
 
@@ -130,11 +130,11 @@ n'y entre pas.
 
 | Règle | Détail |
 |---|---|
-| Intervalle | un tour par `WOW_STATUS_INTERVAL_SECONDS`, cadencé depuis le début du tour précédent |
+| Intervalle | un tour par `WOW_STATUS_INTERVAL_SECONDS` (5 minutes par défaut), cadencé depuis le début du tour précédent |
 | Un seul tour à la fois | une demande manuelle pendant un tour attend son résultat au lieu d'en lancer un second |
 | Bouton **Actualiser** | contrôle immédiat de tous les services ; deux demandes à moins de 10 s ne valent qu'un contrôle |
-| Backoff | après 3 échecs consécutifs (hors ligne ou inconnu), le service n'est plus contrôlé qu'après 2, puis 4, puis 5 minutes ; un succès rétablit le rythme |
-| Péremption | un dernier contrôle plus vieux que 6 minutes (backoff maximal + un intervalle) ne vaut plus état présent : « Inconnu », dernière réponse rappelée |
+| Backoff | sous un intervalle plus court que 5 minutes : après 3 échecs consécutifs (hors ligne ou inconnu), l'écart entre deux contrôles du service double à chaque échec, jusqu'à 5 minutes ; un succès rétablit le rythme. À l'intervalle par défaut, rien ne s'espace |
+| Péremption | un dernier contrôle plus vieux que 15 minutes (trois intervalles ; sous un intervalle court, au moins le backoff maximal + un intervalle) ne vaut plus état présent : « Inconnu », dernière réponse rappelée |
 | Arrêt | le minuteur est annulé, les connexions en cours fermées ; des sondes interrompues ne sont pas enregistrées |
 
 L'affichage de la page ne déclenche aucune sonde : elle lit la base. Le navigateur relit la page à
@@ -155,8 +155,9 @@ l'adresse visée. Conservation : 8 jours, purge une fois par heure.
 | Frise des 24 dernières heures | une case par heure, au pire statut constaté dans l'heure ; grise sans mesure |
 | Changements d'état | 30 derniers changements de statut des 7 derniers jours |
 
-Chaque contrôle vaut jusqu'au suivant, 6 minutes au plus. Le calcul pondère par la durée, pas par
-le nombre de contrôles : pendant une panne ils s'espacent, et les compter sous-estimerait la panne.
+Chaque contrôle vaut jusqu'au suivant, sans dépasser la durée de péremption (15 minutes par
+défaut). Le calcul pondère par la durée, pas par le nombre de contrôles : pendant une panne ils
+peuvent s'espacer, et les compter sous-estimerait la panne.
 Le temps « Inconnu » n'entre ni dans la disponibilité ni dans la panne. Sans échantillon suffisant,
 aucun pourcentage n'est affiché.
 

@@ -38,7 +38,7 @@ export const MAX_LABEL_LENGTH = 24;
 /** Plafond de l'espacement des contrôles d'un service en échec répété. */
 export const MAX_BACKOFF_MS = 5 * 60_000;
 
-const DEFAULT_INTERVAL_SECONDS = 60;
+const DEFAULT_INTERVAL_SECONDS = 300;
 const DEFAULT_TIMEOUT_MS = 3_000;
 const DEFAULT_DEGRADED_MS = 400;
 

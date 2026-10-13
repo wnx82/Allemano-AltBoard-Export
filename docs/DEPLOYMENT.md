@@ -178,10 +178,10 @@ WOW_STATUS_AUTH_TARGETS = <hôte>:<port>
 WOW_STATUS_GAME_TARGETS = <hôte>:<port>,<hôte>:<port>
 ```
 
-Le conteneur `web` sonde alors ces adresses chaque minute, en TCP sortant ; aucun port n'est à
-ouvrir. La table `server_status_checks` est créée par la migration `0003_server_status`. Cette
-surveillance est celle des serveurs de Blizzard, vue depuis ce conteneur : elle ne remplace pas la
-surveillance du site ci-dessus, et n'envoie aucune alerte.
+Le conteneur `web` sonde alors ces adresses toutes les cinq minutes, en TCP sortant ; aucun port
+n'est à ouvrir. La table `server_status_checks` est créée par la migration `0003_server_status`.
+Cette surveillance est celle des serveurs de Blizzard, vue depuis ce conteneur : elle ne remplace
+pas la surveillance du site ci-dessus, et n'envoie aucune alerte.
 
 ## Recréer la pile
 

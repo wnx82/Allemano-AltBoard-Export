@@ -96,6 +96,12 @@ export function formatLatency(latencyMs: number | null): string {
   return latencyMs === null ? "—" : `${milliseconds.format(latencyMs)} ms`;
 }
 
+/** Rythme des contrôles, en minutes quand l'intervalle en compte un nombre entier. */
+export function formatEvery(seconds: number): string {
+  if (seconds === 60) return "chaque minute";
+  return seconds % 60 === 0 ? `toutes les ${seconds / 60} minutes` : `toutes les ${seconds} secondes`;
+}
+
 const plural = (count: number, word: string) => `${count} ${word}${count > 1 ? "s" : ""}`;
 
 /** Phrase qui dit ce qui a été constaté, là où le statut seul ne le dit pas. */
