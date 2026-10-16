@@ -168,6 +168,18 @@ export async function getServiceViews(db: Database, config: StatusConfig, now: D
   );
 }
 
+export type ServiceSummary = ServiceView & { availability: Availability; hours: HourCell[] };
+
+/** État présent, disponibilité et frise des 24 dernières heures, en trois requêtes : les miniatures de l'accueil. */
+export async function getServiceSummaries(db: Database, config: StatusConfig, now: Date): Promise<ServiceSummary[]> {
+  const since = new Date(hourStart(now) - (WINDOW_HOURS["24h"] - 1) * HOUR_MS);
+  const [services, buckets] = await Promise.all([getServiceViews(db, config, now), hourlyBuckets(db, since, now, config.staleAfterMs)]);
+  return services.map((service) => {
+    const own = buckets.filter((bucket) => bucket.service === service.service);
+    return { ...service, availability: buildAvailability(own, "24h", now), hours: buildHours(own, now) };
+  });
+}
+
 /** Tout ce qu'affiche la page, en quatre requêtes quel que soit le volume d'historique. */
 export async function getServerStatusView(db: Database, config: StatusConfig, now: Date): Promise<ServerStatusView> {
   const since = new Date(hourStart(now) - (WINDOW_HOURS["7d"] - 1) * HOUR_MS);

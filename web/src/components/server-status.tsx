@@ -1,5 +1,7 @@
+import Link from "next/link";
 import { formatCheckTime, formatLatency, STATUS_HELP, STATUS_LABELS, STATUS_TONES, type Status } from "@/lib/status/status";
-import type { Availability, HourCell, ServiceHistory, ServiceView, TransitionView } from "@/lib/status/view";
+import type { Availability, HourCell, ServiceHistory, ServiceSummary, ServiceView, TransitionView } from "@/lib/status/view";
+import { formatRelative } from "@/lib/wow/format";
 
 // État des serveurs de jeu : briques d'affichage sans état, rendues côté serveur. Le statut n'est
 // jamais porté par la couleur seule : chaque badge l'écrit, chaque case de la frise le dit en
@@ -156,6 +158,51 @@ export function ServiceHistoryPanel({ history }: { history: ServiceHistory }) {
         <span>maintenant</span>
       </div>
     </div>
+  );
+}
+
+/**
+ * Miniatures de l'accueil : une carte par service, qui mène tout entière à la page Serveurs. La
+ * frise y est décorative : la disponibilité écrite en dessous en dit l'essentiel, le détail heure
+ * par heure reste sur la page.
+ */
+export function ServerStatusTiles({ services, now }: { services: ServiceSummary[]; now: Date }) {
+  return (
+    <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      {services.map((service) => (
+        <li key={service.service}>
+          <Link href="/servers" className="panel status-tile block px-4 py-3.5 sm:px-5" title={service.detail}>
+            <span className="flex items-center justify-between gap-3">
+              <span className="min-w-0 truncate font-medium">{service.label}</span>
+              <StatusBadge status={service.status} />
+            </span>
+            <span className="mt-1 block text-xs text-muted">
+              {service.checkedAt ? (
+                <>
+                  {service.latencyMs !== null && `${formatLatency(service.latencyMs)} · `}
+                  contrôlé{" "}
+                  <time dateTime={service.checkedAt} title={formatCheckTime(service.checkedAt)}>
+                    {formatRelative(service.checkedAt, now)}
+                  </time>
+                </>
+              ) : (
+                "Aucun contrôle enregistré"
+              )}
+            </span>
+            <span className="status-strip mt-3" data-size="sm" aria-hidden="true">
+              {service.hours.map((cell) => (
+                <span key={cell.start} className="status-cell" data-status={cell.status ?? undefined} />
+              ))}
+            </span>
+            <span className="mt-1.5 block text-[0.7rem] text-faint">
+              {service.availability.percent === null
+                ? "24 heures : échantillon insuffisant"
+                : `Disponibilité sur 24 heures : ${percent.format(service.availability.percent)} %`}
+            </span>
+          </Link>
+        </li>
+      ))}
+    </ul>
   );
 }
 

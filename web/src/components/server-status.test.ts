@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import type { ServiceHistory, ServiceView } from "@/lib/status/view";
-import { formatDuration, ServerStatusTable, ServiceHistoryPanel, StatusBadge, StatusLegend, TransitionsTable } from "./server-status";
+import { formatDuration, ServerStatusTable, ServerStatusTiles, ServiceHistoryPanel, StatusBadge, StatusLegend, TransitionsTable } from "./server-status";
 
 const service = (overrides: Partial<ServiceView>): ServiceView => ({
   service: "auth",
@@ -156,6 +156,40 @@ test("les changements d'état montrent l'ancien et le nouveau statut", () => {
   );
 
   assert.match(text(html), /0?8\/10\/(20)?26 12:02:00 Authentification Blizzard En ligne → devient Hors ligne Connexion refusée/);
+});
+
+test("les miniatures de l'accueil mènent à la page Serveurs et y résument l'état présent", () => {
+  const { hours } = history({});
+  hours[23] = { ...hours[23], status: "up", availableSeconds: 1_200 };
+  hours[22] = { ...hours[22], status: "down", availableSeconds: 3_000, downSeconds: 600 };
+  const now = new Date("2026-10-08T14:08:09.000Z");
+  const html = renderToStaticMarkup(
+    createElement(ServerStatusTiles, {
+      now,
+      services: [
+        { ...service({}), availability: { window: "24h", percent: 92.857, measuredSeconds: 8_400, downSeconds: 600 }, hours },
+        {
+          ...service({ service: "game", label: "Serveurs de jeu EU", status: "down", detail: "Connexion refusée : panne confirmée par le serveur visé", latencyMs: null }),
+          availability: { window: "24h", percent: null, measuredSeconds: 600, downSeconds: 600 },
+          hours,
+        },
+        { ...service({ checkedAt: null, latencyMs: null, status: "unknown" }), availability: { window: "24h", percent: null, measuredSeconds: 0, downSeconds: 0 }, hours },
+      ],
+    }),
+  );
+  const tiles = html.split("<li>").slice(1).map(text);
+
+  assert.equal(html.match(/<a [^>]*href="\/servers"/g)?.length, 3);
+  assert.match(tiles[0], /^Authentification Blizzard En ligne 32 ms · contrôlé il y a 3 minutes Disponibilité sur 24 heures : 92,86 %$/);
+  assert.match(tiles[1], /^Serveurs de jeu EU Hors ligne contrôlé il y a 3 minutes 24 heures : échantillon insuffisant$/);
+  assert.match(tiles[2], /^Authentification Blizzard Inconnu Aucun contrôle enregistré/);
+  // Le constat, absent de la carte, reste en infobulle ; l'heure exacte aussi.
+  assert.match(html, /title="Connexion refusée : panne confirmée par le serveur visé"/);
+  assert.match(html, /<time datetime="2026-10-08T14:05:09.000Z" title="0?8\/10\/(20)?26 16:05:09">/i);
+  // Frise décorative : la disponibilité écrite la double.
+  assert.equal(html.match(/class="status-strip mt-3" data-size="sm" aria-hidden="true"/g)?.length, 3);
+  assert.equal(html.match(/class="status-cell"/g)?.length, 3 * 24);
+  assert.doesNotMatch(html, /style=/);
 });
 
 test("les durées restent lisibles de la minute à la semaine", () => {

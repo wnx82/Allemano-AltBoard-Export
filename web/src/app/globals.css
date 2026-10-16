@@ -422,6 +422,11 @@ body {
   .status-cell[data-status="up"] { background: color-mix(in srgb, var(--ok) 80%, transparent); }
   .status-cell[data-status="degraded"] { background: color-mix(in srgb, var(--warn) 85%, transparent); }
   .status-cell[data-status="down"] { background: color-mix(in srgb, var(--danger) 90%, transparent); }
+  /* Miniature de l'accueil : la carte entière mène à la page Serveurs, sa frise est réduite. */
+  .status-tile { transition: border-color 150ms ease, background 150ms ease; }
+  .status-tile:hover, .status-tile:focus-visible { border-color: var(--line-strong); background: linear-gradient(180deg, rgb(30 40 64 / 0.82), rgb(16 22 37 / 0.82)); }
+  .status-strip[data-size="sm"] { gap: 1px; }
+  .status-strip[data-size="sm"] .status-cell { height: 0.45rem; border-radius: 0.1rem; }
   /* Témoin d'actualisation : immobile au repos, il ne pulse que pendant une relecture. */
   .refresh-dot { width: 0.4rem; height: 0.4rem; border-radius: 999px; background: var(--faint); }
   .refresh-dot[data-busy] { background: var(--gold); animation: refresh-pulse 900ms ease-in-out infinite; }

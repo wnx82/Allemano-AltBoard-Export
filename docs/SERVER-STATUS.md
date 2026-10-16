@@ -177,7 +177,9 @@ aucun pourcentage n'est affiché.
 | `lib/settings/*`, `components/settings-forms.tsx`, `app/(dashboard)/settings/page.tsx` | page **Paramètres** : validation, enregistrement, formulaire |
 | `components/server-status.tsx`, `status-refresh.tsx`, `app/(dashboard)/servers/page.tsx` | interface |
 
-L'accueil affiche un résumé des statuts quand au moins une adresse est configurée.
+L'accueil affiche une miniature par service configuré, quand au moins une adresse l'est : statut,
+latence, âge du dernier contrôle, frise réduite et disponibilité des 24 dernières heures
+(`getServiceSummaries`, trois requêtes). Chaque miniature mène à la page Serveurs.
 
 ## Limites
 

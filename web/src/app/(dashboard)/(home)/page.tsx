@@ -1,14 +1,13 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { CharacterBrowser } from "@/components/character-browser";
-import { StatusBadge } from "@/components/server-status";
+import { ServerStatusTiles } from "@/components/server-status";
 import { Money, StatTile } from "@/components/ui";
 import { getDatabase } from "@/db/client";
 import { requireSession } from "@/lib/auth/session";
 import { getOverview, listCharacters } from "@/lib/dashboard/queries";
 import { isConfigured } from "@/lib/status/config";
 import { syncStatusRuntime } from "@/lib/status/runtime";
-import { getServiceViews } from "@/lib/status/view";
+import { getServiceSummaries } from "@/lib/status/view";
 import { formatDateTime, formatRelative } from "@/lib/wow/format";
 
 export const metadata: Metadata = { title: "Mes personnages" };
@@ -21,8 +20,8 @@ export default async function CharactersPage() {
   const [characters, overview, servers] = await Promise.all([
     listCharacters(db),
     getOverview(db),
-    // Sans serveur surveillé, ni requête ni ligne d'état : il n'y aurait que de l'« Inconnu » à montrer.
-    isConfigured(config) ? getServiceViews(db, config, now) : null,
+    // Sans serveur surveillé, ni requête ni miniature : il n'y aurait que de l'« Inconnu » à montrer.
+    isConfigured(config) ? getServiceSummaries(db, config, now) : null,
   ]);
 
   const levels = characters.map((character) => character.level).filter((level): level is number => level !== null);
@@ -60,19 +59,12 @@ export default async function CharactersPage() {
       </div>
 
       {servers && (
-        <p className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-muted">
-          <Link href="/servers" className="eyebrow hover:text-text">
+        <section className="mb-6" aria-labelledby="servers-title">
+          <p id="servers-title" className="eyebrow mb-2">
             Serveurs WoW Forever {config.label}
-          </Link>
-          {servers
-            .filter((service) => service.targets > 0)
-            .map((service) => (
-              <span key={service.service} className="inline-flex items-center gap-2">
-                {service.label}
-                <StatusBadge status={service.status} />
-              </span>
-            ))}
-        </p>
+          </p>
+          <ServerStatusTiles services={servers.filter((service) => service.targets > 0)} now={now} />
+        </section>
       )}
 
       <div className="mb-8 grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">

@@ -6,7 +6,7 @@ import { loadStatusConfig, type ServiceKey } from "./config";
 import type { CheckRecord } from "./monitor";
 import type { Outcome, Status } from "./status";
 import { hourlyBuckets, lastAnswers, latestChecks, listTransitions, pruneChecks, recordChecks } from "./store";
-import { getServerStatusView } from "./view";
+import { getServerStatusView, getServiceSummaries } from "./view";
 
 const CONFIG = loadStatusConfig({ WOW_STATUS_AUTH_TARGETS: "login.example.test:1119", WOW_STATUS_GAME_TARGETS: "192.0.2.10:3724" });
 const CAP_MS = CONFIG.staleAfterMs;
@@ -256,5 +256,40 @@ describe("vue de la page", () => {
 
     assert.deepEqual([view.services[0].status, view.services[0].detail], ["unknown", "Aucun contrôle enregistré pour l'instant"]);
     assert.equal(view.services[1].status, "up");
+  });
+
+  test("miniatures de l'accueil : état présent et 24 dernières heures, en trois requêtes", async () => {
+    await recordChecks(database.db, [
+      // Hors de la fenêtre de 24 heures : ni compté ni affiché.
+      { ...check("game", "00:00:00", "down"), checkedAt: new Date("2026-10-07T10:00:00Z") },
+      check("auth", "11:00:00", "up", 28),
+      check("auth", "11:15:00", "up", 29),
+      check("auth", "11:30:00", "up", 27),
+      check("auth", "11:45:00", "down"),
+      check("auth", "11:50:00", "up", 31),
+      check("game", "11:58:00", "up", 22),
+    ]);
+    let queries = 0;
+    const original = database.pool.query.bind(database.pool);
+    (database.pool as { query: unknown }).query = (...args: unknown[]) => {
+      queries++;
+      return (original as (...a: unknown[]) => unknown)(...args);
+    };
+
+    const summaries = await getServiceSummaries(database.db, CONFIG, new Date("2026-10-08T11:59:30Z"));
+    (database.pool as { query: unknown }).query = original;
+
+    assert.equal(queries, 3);
+    assert.deepEqual(
+      summaries.map((summary) => [summary.service, summary.status, summary.latencyMs, summary.hours.length, summary.hours.at(-1)!.status]),
+      [
+        ["auth", "up", 31, 24, "down"],
+        ["game", "up", 22, 24, "up"],
+      ],
+    );
+    // Contrôles espacés au plus de quinze minutes : 45 min en ligne, 5 min en panne, 9 min 30 s en ligne.
+    assert.deepEqual(summaries[0].availability, { window: "24h", percent: (3_270 / 3_570) * 100, measuredSeconds: 3_570, downSeconds: 300 });
+    assert.deepEqual([summaries[1].availability.percent, summaries[1].availability.downSeconds], [null, 0]);
+    assert.ok(summaries[1].hours.slice(0, -1).every((cell) => cell.status === null));
   });
 });
