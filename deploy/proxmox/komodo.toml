@@ -24,6 +24,18 @@ WOW_STATUS_AUTH_TARGETS = test.actual.battle.net:1119
 WOW_STATUS_GAME_TARGETS = 24.105.52.77:3724,24.105.52.94:3724,66.40.178.65:3724,66.40.179.219:3724
 """
 
+# Alerte d'échec : chaque tentative de déploiement en échec (ActionFailed) part sur ntfy.sh.
+# Le topic fait office de mot de passe : il est dans Vaultwarden (« ntfy — alertes Komodo
+# komodoprox »), jamais dans le dépôt.
+[[alerter]]
+name = "ntfy"
+
+[alerter.config]
+enabled = true
+endpoint.type = "Ntfy"
+endpoint.params.url = "https://ntfy.sh/<topic Vaultwarden>"
+alert_types = ["ActionFailed"]
+
 # Déploiement automatique : pousser sur la branche suffit. L'action interroge le dépôt au lieu
 # d'attendre un webhook, Komodo n'étant pas joignable depuis GitHub (Cloudflare Access).
 # Préalable : la variable WOW_ALTBOARD_AUTO_DEPLOY_ATTEMPTED (Settings > Variables), vide.

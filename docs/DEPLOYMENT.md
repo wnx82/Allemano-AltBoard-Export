@@ -47,9 +47,12 @@ s'appliquent avant son démarrage.
 
 - Un déploiement en échec est retenté aux passages suivants, trois tentatives au plus par commit :
   une panne passagère (Docker Hub injoignable pendant la construction, le 2026-10-13) se rattrape
-  seule. Après la troisième, pousser un correctif ou lancer **Deploy** à la main sur la pile. Chaque
-  échec lève une alerte Komodo. La variable `WOW_ALTBOARD_AUTO_DEPLOY_ATTEMPTED` garde
-  `<commit>:<tentatives>`.
+  seule. Après la troisième, pousser un correctif ou lancer **Deploy** à la main sur la pile. La
+  variable `WOW_ALTBOARD_AUTO_DEPLOY_ATTEMPTED` garde `<commit>:<tentatives>`.
+- Chaque tentative en échec envoie une notification ntfy : l'alerter Komodo `ntfy` relaie les
+  alertes `ActionFailed` vers un topic de `ntfy.sh`, noté dans Vaultwarden (« ntfy — alertes Komodo
+  komodoprox ») et pas dans le dépôt. S'y abonner dans l'application ntfy. **Test Alerter** sur
+  l'alerter, dans Komodo, vérifie la chaîne.
 - La CI ne conditionne pas le déploiement : ne pousser sur cette branche que ce qui est passé au
   vert sur une autre.
 - Pour suspendre le déploiement automatique, désactiver le planning de l'action. Sa définition est
