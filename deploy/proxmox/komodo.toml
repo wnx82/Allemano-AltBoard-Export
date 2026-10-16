@@ -40,27 +40,33 @@ schedule_alert = false
 failure_alert = true
 file_contents = """
 const STACK = "wow-altboard";
-// Dernier commit dont le déploiement a été tenté : un échec n'est pas rejoué toutes les cinq minutes.
+// Dernier commit tenté et nombre de tentatives, « <commit>:<n> ». Un échec passager (Docker Hub
+// injoignable pendant la construction, le 2026-10-13) est retenté au passage suivant ; au-delà de
+// MAX_ATTEMPTS, un commit qui ne se déploie pas n'est plus rejoué toutes les cinq minutes.
 const ATTEMPTED = "WOW_ALTBOARD_AUTO_DEPLOY_ATTEMPTED";
+const MAX_ATTEMPTS = 3;
 
 await komodo.write("RefreshStackCache", { stack: STACK });
 const { info } = await komodo.read("GetStack", { stack: STACK });
 const latest = info?.latest_hash;
 const deployed = info?.deployed_hash;
-const attempted = (await komodo.read("GetVariable", { name: ATTEMPTED })).value;
+const [attemptedHash, attemptedCount] = ((await komodo.read("GetVariable", { name: ATTEMPTED })).value ?? "").split(":");
+// Valeur sans compteur (format précédent) : une tentative.
+const attempts = latest && attemptedHash === latest ? Number(attemptedCount) || 1 : 0;
 
 if (!latest) {
   console.log("Dernier commit inconnu (dépôt injoignable ?) : rien n'est fait.");
 } else if (latest === deployed) {
   console.log(`À jour : ${latest}`);
-} else if (latest === attempted) {
-  console.log(`${latest} déjà tenté sans succès : pousser un correctif, ou lancer Deploy à la main.`);
+} else if (attempts >= MAX_ATTEMPTS) {
+  console.log(`${latest} : ${attempts} tentatives sans succès. Pousser un correctif, ou lancer Deploy à la main.`);
 } else {
-  console.log(`Déploiement de ${latest} (en place : ${deployed ?? "rien"})`);
-  await komodo.write("UpdateVariableValue", { name: ATTEMPTED, value: latest });
+  const attempt = attempts + 1;
+  console.log(`Déploiement de ${latest}, tentative ${attempt} sur ${MAX_ATTEMPTS} (en place : ${deployed ?? "rien"})`);
+  await komodo.write("UpdateVariableValue", { name: ATTEMPTED, value: `${latest}:${attempt}` });
   const update = await komodo.execute_and_poll("DeployStack", { stack: STACK });
   if (!("success" in update) || !update.success) {
-    throw new Error(`Le déploiement de ${latest} a échoué : voir la dernière mise à jour de la pile.`);
+    throw new Error(`Le déploiement de ${latest} a échoué (tentative ${attempt} sur ${MAX_ATTEMPTS}) : voir la dernière mise à jour de la pile.`);
   }
   console.log(`Déployé : ${latest}`);
 }

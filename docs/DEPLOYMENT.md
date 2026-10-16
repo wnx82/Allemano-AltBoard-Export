@@ -45,8 +45,11 @@ les cinq minutes et lance **Deploy** quand le dernier commit de la branche n'est
 L'image est reconstruite à chaque déploiement, ce qui recrée `web` si elle a changé ; les migrations
 s'appliquent avant son démarrage.
 
-- Un commit dont le déploiement a échoué n'est pas retenté : pousser un correctif, ou lancer
-  **Deploy** à la main sur la pile. L'échec lève une alerte Komodo.
+- Un déploiement en échec est retenté aux passages suivants, trois tentatives au plus par commit :
+  une panne passagère (Docker Hub injoignable pendant la construction, le 2026-10-13) se rattrape
+  seule. Après la troisième, pousser un correctif ou lancer **Deploy** à la main sur la pile. Chaque
+  échec lève une alerte Komodo. La variable `WOW_ALTBOARD_AUTO_DEPLOY_ATTEMPTED` garde
+  `<commit>:<tentatives>`.
 - La CI ne conditionne pas le déploiement : ne pousser sur cette branche que ce qui est passé au
   vert sur une autre.
 - Pour suspendre le déploiement automatique, désactiver le planning de l'action. Sa définition est
