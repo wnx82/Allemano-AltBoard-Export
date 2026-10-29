@@ -135,6 +135,7 @@ très long, accentué, à apostrophes, hors alphabet latin ; base injoignable.
 | Comptes (noms d'affichage) | ✅ |
 | Machines (noms d'affichage, jetons) | ✅ |
 | Dernière synchronisation, journal | ✅ |
+| Agent téléchargeable depuis la page **Machines**, publié dans l'image du site | ✅ |
 
 ## P9 — Excel
 
@@ -213,7 +214,7 @@ Depuis l'agent 0.4.0 : saisie du jeton dans la fenêtre, sans ligne de commande.
 | Quoi | Qui |
 |---|---|
 | Sortie officielle (4 novembre 2026) : réinitialisation des personnages, serveur de connexion européen et libellé faits le 2026-10-29. Reste à relever les adresses des serveurs de jeu européens et à les saisir dans **Paramètres** (relevé : [SERVER-STATUS § Adresses en service](SERVER-STATUS.md#adresses-en-service)) | joueur |
-| Sortie officielle, sur chaque PC : copier les addons AltBoard et Allemano Ledger dans `_forever_\Interface\AddOns`, puis installer l'agent 0.4.1, qui lit la racine `World of Warcraft` (avec l'agent 0.4.0 : `config set wowPath`, voir [AGENT § Découverte](AGENT.md#découverte)). Fait sur `MSI` le 2026-10-29 ; restent `LAPTOP-WNX` et `LAPTOP-LENOVO` | joueur |
+| Sortie officielle, sur chaque PC : copier les addons AltBoard et Allemano Ledger dans `_forever_\Interface\AddOns`, puis installer l'agent 0.4.1, téléchargeable depuis la page **Machines**, qui lit la racine `World of Warcraft` (avec l'agent 0.4.0 : `config set wowPath`, voir [AGENT § Découverte](AGENT.md#découverte)). Fait sur `MSI` le 2026-10-29 ; restent `LAPTOP-WNX` et `LAPTOP-LENOVO` | joueur |
 | Créer son compte d'accès (voir [DEPLOYMENT § Comptes et jetons](DEPLOYMENT.md)) | joueur |
 | Recette après une vraie modification en jeu | joueur |
 | Icônes, temps par niveau, sessions et courbe d'expérience en production : déployer le serveur (voir [DEPLOYMENT § Mettre à jour](DEPLOYMENT.md)), puis republier l'agent et synchroniser | joueur |

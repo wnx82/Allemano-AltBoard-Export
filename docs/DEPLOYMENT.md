@@ -69,8 +69,22 @@ commit poussé est en ligne quand le pied de page le montre.
 
 Ces valeurs sont figées à la construction (`web/next.config.ts`). L'image ne recevant que `web/`,
 `compose.yaml` fournit le dépôt cloné comme contexte nommé `repo`, que le `.dockerignore` de la
-racine réduit à `.git/HEAD`, aux références et à `agent/Directory.Build.props`. Sans ce contexte
-(`docker build web`), le commit et la version de l'agent ne sont simplement pas affichés.
+racine réduit à `.git/HEAD`, aux références, à `agent/Directory.Build.props` et aux sources de
+l'agent (`agent/src`). Sans ce contexte (`docker build web`), le commit et la version de l'agent ne
+sont simplement pas affichés, et la page **Machines** n'offre pas l'agent au téléchargement.
+
+### Agent offert au téléchargement
+
+L'image publie l'agent depuis ces sources (étape `agent` de `web/Dockerfile`, image
+`mcr.microsoft.com/dotnet/sdk:10.0`) et le range dans `/app/agent/AltBoardSync.exe` : la page
+**Machines** le propose, avec sa taille et son empreinte SHA-256, à la version de l'agent affichée
+en pied de page. Publié sous Linux, il porte icône, manifeste et version comme celui de la release
+GitHub (comparé le 2026-10-29), sans être identique à l'octet près : son empreinte est celle de la
+page, pas celle de la release.
+
+L'étape reste en cache tant que `agent/` ne change pas. Après une modification de l'agent, la
+construction prend une à deux minutes de plus ; la première sur un hôte télécharge aussi l'image du
+SDK (environ 1,3 Go).
 
 ## Revenir en arrière
 

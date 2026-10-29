@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { RenameForm, TokenForm } from "@/components/admin-forms";
 import { EmptyState, SectionTitle } from "@/components/ui";
 import { getDatabase } from "@/db/client";
+import { agentDirectory, findAgent, formatAgentSize } from "@/lib/agent-download";
 import { requireSession } from "@/lib/auth/session";
 import { createTokenAction, renameMachineAction, revokeTokenAction } from "@/lib/dashboard/actions";
 import { listMachines, listRecentRuns, machineLabel } from "@/lib/dashboard/queries";
@@ -18,9 +19,10 @@ const STATUS: Record<string, { label: string; tone: string }> = {
 export default async function MachinesPage() {
   await requireSession();
   const db = getDatabase();
-  const [{ machines, pendingTokens }, runs] = await Promise.all([listMachines(db), listRecentRuns(db)]);
+  const [{ machines, pendingTokens }, runs, agent] = await Promise.all([listMachines(db), listRecentRuns(db), findAgent(agentDirectory())]);
   const now = new Date();
   const syncUrl = `${(process.env.WOW_APP_ORIGIN ?? "").replace(/\/$/, "")}${process.env.WOW_BASE_PATH ?? ""}/api/sync`;
+  const agentVersion = process.env.WOW_AGENT_VERSION || null;
 
   return (
     <>
@@ -148,9 +150,27 @@ export default async function MachinesPage() {
 
         <div>
           <SectionTitle>Instructions de synchronisation</SectionTitle>
+          {agent && (
+            <div className="panel mb-3 flex flex-wrap items-center justify-between gap-4 p-5">
+              <div className="min-w-0 text-sm">
+                <p className="font-semibold text-text">AltBoardSync{agentVersion ? ` ${agentVersion}` : ""}</p>
+                <p className="mt-0.5 text-xs text-muted">Windows 64 bits · {formatAgentSize(agent.size)}</p>
+                <p className="mt-1 break-all text-xs text-faint">SHA-256 {agent.sha256}</p>
+              </div>
+              {/* Lien de téléchargement : la route d'API n'est pas une page, d'où l'ancre simple. */}
+              <a className="button" data-variant="primary" href={`${process.env.WOW_BASE_PATH ?? ""}/api/agent`} download>
+                Télécharger l&apos;agent
+              </a>
+            </div>
+          )}
           <ol className="panel list-decimal space-y-3 p-5 pl-9 text-sm marker:text-gold">
             <li>
-              Copiez <code className="text-text">AltBoardSync.exe</code> sur le PC. Aucune installation, aucun prérequis.
+              Installez les addons AltBoard et Allemano Ledger dans le jeu :{" "}
+              <code className="text-text">World of Warcraft\_forever_\Interface\AddOns</code>.
+            </li>
+            <li>
+              {agent ? "Téléchargez" : "Copiez"} <code className="text-text">AltBoardSync.exe</code> sur le PC. Aucune installation, aucun
+              prérequis.
             </li>
             <li>
               Créez un jeton dans <strong className="font-semibold text-text">Ajouter un PC</strong> et copiez-le : il n&apos;est affiché qu&apos;une

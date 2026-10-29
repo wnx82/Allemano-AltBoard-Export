@@ -140,6 +140,12 @@ Session du tableau de bord requise (401 sinon). Renvoie `AltBoard-export-AAAA-MM
 feuilles Résumé, Personnages, Métiers, Équipement, Monnaies, Réputations, Comptes, Machines.
 Le classeur est une photographie : la base reste la source.
 
+## `GET /api/agent`
+
+Session du tableau de bord requise (401 sinon). Renvoie `AltBoardSync.exe`, l'agent publié dans
+l'image à sa construction ([DEPLOYMENT § Agent offert au téléchargement](DEPLOYMENT.md#agent-offert-au-téléchargement)),
+en pièce jointe, `Cache-Control: private, no-store`. 404 quand l'image n'en contient pas.
+
 ## `GET /api/health`
 
 Publique. `200 {"status":"ok"}` si la base répond, `503 {"status":"unavailable"}` sinon. Aucun détail.
