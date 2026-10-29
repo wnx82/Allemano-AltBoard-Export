@@ -51,7 +51,7 @@ dotnet run --project src/AltBoardSync -- sync
 
 ```bash
 cd agent && dotnet test                               # 158 tests
-cd web && npm run typecheck && npm run lint && npm test && npm run build   # 223 tests
+cd web && npm run typecheck && npm run lint && npm test && npm run build   # 226 tests
 ```
 
 GitHub Actions relance ces contrôles à chaque push et à chaque pull request, construit l'image Docker
@@ -64,6 +64,7 @@ pas par `wow_altboard` : voir `web/src/db/env.ts`.
 
 | Document | Sujet |
 |---|---|
+| [CHANGELOG](CHANGELOG.md) | Versions du site et de l'agent, et ce qu'elles changent |
 | [ROADMAP](docs/ROADMAP.md) | État d'avancement, phase par phase |
 | [TODO](docs/TODO.md) | À faire : idées de fonctions et constats de l'audit du 2026-10-11 |
 | [ARCHITECTURE](docs/ARCHITECTURE.md) | Composants, flux, décisions |
