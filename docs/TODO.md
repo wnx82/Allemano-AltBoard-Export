@@ -322,7 +322,10 @@ hors dépôt sur `AltBoardSync.Core` seul ; l'agent n'a pas été lancé.
 - [ ] **P2 · M** — Dossier du jeu fixé sur la bêta (`Discovery/AccountScanner.cs:16`,
   `…\World of Warcraft\_classic_beta_`), sans choix dans la fenêtre : à la sortie officielle du
   4 novembre 2026, l'agent ne trouvera plus rien sans `config set wowPath`. Prendre par défaut la
-  racine `World of Warcraft` et ajouter le choix du dossier à la fenêtre.
+  racine `World of Warcraft` et ajouter le choix du dossier à la fenêtre. Fait en partie le
+  2026-10-29 (agent 0.4.1) : la racine est le défaut, et une configuration fixée sur
+  `_classic_beta_` passe à la racine qui le contient (`Config/AgentConfig.cs`). Reste le choix du
+  dossier dans la fenêtre.
 - [ ] **P2 · M** — Exécutable publié non signé, et toute étiquette `agent-v*` publie une release,
   quel que soit le commit (`.github/workflows/release-agent.yml:7`). Signer, ajouter une
   attestation de provenance, refuser une étiquette hors de `main`.
@@ -338,6 +341,14 @@ hors dépôt sur `AltBoardSync.Core` seul ; l'agent n'a pas été lancé.
 
 ## 5. Déploiement et exploitation
 
+- [ ] **P1 · S** — Aucune copie hors de l'hôte n'a jamais réussi. Chaque nuit, le journal de
+  `wow-altboard-backup.service` dit « restic : dépôt injoignable », et la métrique
+  `wow_altboard_backup_offsite_last_success_timestamp_seconds` n'a jamais été publiée (constaté le
+  2026-10-29). L'alerte de copie hors de l'hôte ne compte qu'à partir de la première copie réussie
+  ([DEPLOYMENT § Surveillance](DEPLOYMENT.md)) : elle ne s'est donc jamais déclenchée. Seule la
+  sauvegarde PBS du conteneur, deux fois par semaine, quitte l'hôte `prox`. Rendre
+  `backup-gateway` joignable à 03:45 ou changer d'heure, et alerter aussi quand aucune copie n'a
+  jamais réussi.
 - [ ] **P1 · M** — Conditionner le déploiement à la CI. L'action Komodo déploie tout commit de
   `main` dans les cinq minutes, sans regarder la CI (`deploy/proxmox/komodo.toml:46` ;
   [DEPLOYMENT § Mettre à jour](DEPLOYMENT.md) le reconnaît). Un test en échec n'empêche pas la mise

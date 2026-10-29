@@ -4,12 +4,13 @@ Page **Serveurs** du tableau de bord (`/servers`) : le serveur web sonde lui-mê
 connexion et de jeu, enregistre chaque contrôle et affiche statut, latence, disponibilité et
 changements d'état.
 
-**État au 2026-10-09 : la production sonde les serveurs de la bêta.** Aucune source vérifiable ne
-publie les adresses des serveurs européens de production (le jeu sort le 4 novembre 2026, seule la
-bêta existe). Les adresses en service sont celles que le client de la bêta contacte (voir
-[Adresses en service](#adresses-en-service)). Elles sont hébergées hors d'Europe : le libellé
-« EU », affiché par défaut, se remplace par « Bêta » dans **Paramètres**. Sans adresse, le statut
-est « Inconnu » et rien n'est sondé.
+**État au 2026-10-29 : la production sonde le serveur de connexion européen, pas encore les
+serveurs de jeu.** La bêta est finie ; le jeu sort le 4 novembre 2026. Le portail
+`eu.actual.battle.net:1119` est celui que le client de la sortie officielle (`_forever_`) a
+contacté ce jour-là. Aucune adresse de jeu européenne n'est encore vérifiée : la liste des serveurs
+de jeu est vide dans **Paramètres**, leur statut reste « Inconnu » (voir
+[Adresses en service](#adresses-en-service)). Le libellé est revenu à « EU », l'historique des
+contrôles de la bêta a été effacé.
 
 ## Provenance des données
 
@@ -30,9 +31,9 @@ Conséquences :
 - Les **maintenances annoncées ne sont pas relevées** : aucune source officielle documentée ne les
   publie pour WoW Forever. La page renvoie au calendrier des maintenances de Blizzard et aux deux
   sites ci-dessus.
-- Aucune adresse n'est configurée par défaut. Celles de la bêta sont en service en production
-  depuis le 2026-10-09 ; rien n'établit que la production européenne utilisera les mêmes : à
-  remplacer à la sortie du jeu.
+- Aucune adresse n'est configurée par défaut. Celles de la bêta ont été sondées en production du
+  2026-10-09 au 2026-10-29. Elles restent dans l'environnement de la pile, mais **Paramètres** les
+  remplace depuis le 2026-10-29.
 
 ## Configuration
 
@@ -79,8 +80,23 @@ En production, les saisir dans l'environnement de la pile Komodo (`deploy/proxmo
 
 ## Adresses en service
 
+Enregistrées le 2026-10-29 dans **Paramètres**, pour la sortie officielle :
+
+| Service | Adresse | Provenance |
+|---|---|---|
+| Serveur de connexion | `eu.actual.battle.net:1119` | `_forever_\Logs\Connection.log` du 2026-10-29 (`Battle.net logon requested host="eu.actual.battle.net" port="1119"`) ; sondé depuis le conteneur `web` : en ligne, 27 ms |
+| Serveurs de jeu | aucune | le journal du client `_forever_` ne nomme que le royaume (`realmAddress="93-5-5"`, six adresses d'entrée), aucune adresse IP |
+
+Le journal du client de la sortie officielle n'a écrit aucun `peerAddr=…` le 2026-10-29, connexion
+au royaume comprise, contrairement à celui de la bêta. Pour les serveurs de jeu,
+relever les connexions du client pendant qu'il tourne, par exemple
+`Get-NetTCPConnection -OwningProcess (Get-Process Wow).Id -State Established` à l'écran des
+personnages, puis en jeu.
+
+### Bêta, jusqu'au 2026-10-29
+
 Relevées le 2026-10-09 dans `_classic_beta_\Logs\Connection.log` d'un client de la bêta, puis
-sondées depuis le conteneur `web` de production :
+sondées depuis le conteneur `web` de production. Elles restent dans l'environnement de la pile :
 
 | Variable | Adresse | Rôle constaté |
 |---|---|---|
@@ -102,8 +118,9 @@ sondées depuis le conteneur `web` de production :
   Relever de nouveau les adresses dans ce cas.
 
 Pour relever les adresses : celles que le client du jeu contacte, lues dans son journal
-`Logs\Connection.log` (`logon requested host=…` pour le portail, `peerAddr=…` pour le jeu), ou
-publiées par Blizzard. Ne renseigner qu'une adresse vérifiée.
+`Logs\Connection.log` (`logon requested host=…` pour le portail, `peerAddr=…` pour le jeu, quand il
+l'écrit) ou dans ses connexions ouvertes, ou publiées par Blizzard. Ne renseigner qu'une adresse
+vérifiée.
 
 ## Statuts
 

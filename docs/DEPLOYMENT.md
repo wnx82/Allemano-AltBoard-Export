@@ -126,6 +126,13 @@ Pour une copie à part, à la demande :
 docker exec wow-altboard-db pg_dump -U wow_altboard -Fc --no-owner --no-acl wow_altboard > wow_altboard.dump
 ```
 
+Une copie à part rangée dans `/opt/wow-altboard/backups/` sous un nom qui ne commence pas par
+`wow_altboard-` échappe à la rotation et part avec le dossier dans restic. Ainsi la base de la fin
+de la bêta, avant la réinitialisation des personnages du 2026-10-29 :
+`beta-final-wow_altboard-2026-10-29-195255.dump` (SHA-256 `b25de252…37c27f23`), restaurée à
+l'essai dans une base jetable (mêmes nombres de lignes dans les 23 tables), copiée aussi sur l'hôte
+Proxmox dans `/root/backups/wow-altboard/`.
+
 Restaurer un dump remplace tout le contenu de la base, en une transaction : en cas d'erreur, rien
 n'est modifié.
 
@@ -173,10 +180,12 @@ Ce que la surveillance ne voit pas :
 ## État des serveurs de jeu
 
 La page **Serveurs** n'affiche que « Inconnu » tant qu'aucune adresse n'est configurée. Depuis le
-2026-10-09, l'environnement de la pile porte les adresses de la bêta, faute d'adresse vérifiable
-des serveurs européens (voir [SERVER-STATUS § Adresses en service](SERVER-STATUS.md)). Le plus
-simple pour les changer : la page **Paramètres** du tableau de bord, sans redéploiement ; une
-adresse enregistrée là l'emporte sur l'environnement. Sinon, modifier l'environnement de la pile,
+2026-10-09, l'environnement de la pile porte les adresses de la bêta. Depuis le 2026-10-29, la page
+**Paramètres** les remplace : serveur de connexion européen, aucun serveur de jeu vérifié pour
+l'instant (voir [SERVER-STATUS § Adresses en service](SERVER-STATUS.md#adresses-en-service)).
+**Revenir aux adresses de l'environnement** remettrait donc celles de la bêta. Le plus simple pour
+changer les adresses : la page **Paramètres** du tableau de bord, sans redéploiement ; une adresse
+enregistrée là l'emporte sur l'environnement. Sinon, modifier l'environnement de la pile,
 dans Komodo, puis **Deploy** :
 
 ```text

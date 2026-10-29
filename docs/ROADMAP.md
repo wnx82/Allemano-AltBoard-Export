@@ -195,8 +195,8 @@ Depuis l'agent 0.4.0 : saisie du jeton dans la fenêtre, sans ligne de commande.
 | Étape | Statut | Note |
 |---|---|---|
 | Sources de statut étudiées | ✅ | aucune API documentée pour WoW Forever ; voir [SERVER-STATUS](SERVER-STATUS.md) |
-| Sonde TCP, moniteur, historique, page **Serveurs** | ✅ | implémentés et testés (58 tests) ; en production depuis le 2026-10-09 sur les serveurs de la bêta |
-| Adresses des serveurs européens de production | 🔴 | aucune source vérifiable au 2026-10-09 (seule la bêta existe) : les adresses de la bêta sont en service à leur place |
+| Sonde TCP, moniteur, historique, page **Serveurs** | ✅ | implémentés et testés (58 tests) ; en production depuis le 2026-10-09, sur les serveurs de la bêta jusqu'au 2026-10-29 |
+| Adresses des serveurs européens de production | 🟡 | serveur de connexion `eu.actual.battle.net:1119` en service depuis le 2026-10-29, relevé dans le journal du client `_forever_` ; aucune adresse de jeu vérifiée ([SERVER-STATUS](SERVER-STATUS.md#adresses-en-service)) |
 | Maintenances annoncées | ⬜ | aucune source officielle documentée |
 
 ## P15 — Paramètres
@@ -205,14 +205,15 @@ Depuis l'agent 0.4.0 : saisie du jeton dans la fenêtre, sans ligne de commande.
 |---|---|---|
 | Page **Paramètres**, table `app_settings` | ✅ | réglages enregistrés en base, appliqués sans redéployer |
 | Serveurs surveillés réglables sur le site | ✅ | adresses par service, libellé d'environnement, historique effaçable, retour à l'environnement du serveur ; adresses publiques seulement ([SECURITY](SECURITY.md)) |
-| Réinitialisation des personnages | ✅ | pour la sortie officielle : suppression avec date limite, mot de passe redemandé ; les fichiers de la bêta renvoyés ensuite sont ignorés ([DATABASE](DATABASE.md)) |
+| Réinitialisation des personnages | ✅ | pour la sortie officielle : suppression avec date limite, mot de passe redemandé ; les fichiers de la bêta renvoyés ensuite sont ignorés ([DATABASE](DATABASE.md)). Faite en production le 2026-10-29 à 19:53, après sauvegarde ([DEPLOYMENT § Sauvegarde](DEPLOYMENT.md#sauvegarde)) : 14 personnages supprimés ; un renvoi des fichiers de la bêta n'en a recréé aucun |
 | Tests | ✅ | 29 tests ajoutés ; parcours de la page vérifié dans un navigateur sur la base de test |
 
 ## Reste à faire
 
 | Quoi | Qui |
 |---|---|
-| Sortie officielle (4 novembre 2026) : dans **Paramètres**, réinitialiser les personnages, puis remplacer les adresses de la bêta et le libellé par ceux des serveurs européens quand ils seront vérifiables (relevé : [SERVER-STATUS § Adresses en service](SERVER-STATUS.md)) | joueur |
+| Sortie officielle (4 novembre 2026) : réinitialisation des personnages, serveur de connexion européen et libellé faits le 2026-10-29. Reste à relever les adresses des serveurs de jeu européens et à les saisir dans **Paramètres** (relevé : [SERVER-STATUS § Adresses en service](SERVER-STATUS.md#adresses-en-service)) | joueur |
+| Sortie officielle, sur chaque PC : copier les addons AltBoard et Allemano Ledger dans `_forever_\Interface\AddOns`, puis installer l'agent 0.4.1, qui lit la racine `World of Warcraft` (avec l'agent 0.4.0 : `config set wowPath`, voir [AGENT § Découverte](AGENT.md#découverte)). Fait sur `MSI` le 2026-10-29 ; restent `LAPTOP-WNX` et `LAPTOP-LENOVO` | joueur |
 | Créer son compte d'accès (voir [DEPLOYMENT § Comptes et jetons](DEPLOYMENT.md)) | joueur |
 | Recette après une vraie modification en jeu | joueur |
 | Icônes, temps par niveau, sessions et courbe d'expérience en production : déployer le serveur (voir [DEPLOYMENT § Mettre à jour](DEPLOYMENT.md)), puis republier l'agent et synchroniser | joueur |
@@ -223,7 +224,7 @@ Depuis l'agent 0.4.0 : saisie du jeton dans la fenêtre, sans ligne de commande.
 
 | Version | Contenu |
 |---|---|
-| V2 | ✅ agent 0.2.0 : `watch`, démarrage à l'ouverture de session, icône de zone de notification ; agent 0.3.0 : fenêtre et journal des modifications ; agent 0.4.0 : jeton saisi dans la fenêtre |
+| V2 | ✅ agent 0.2.0 : `watch`, démarrage à l'ouverture de session, icône de zone de notification ; agent 0.3.0 : fenêtre et journal des modifications ; agent 0.4.0 : jeton saisi dans la fenêtre ; agent 0.4.1 : racine `World of Warcraft` par défaut, pour la sortie officielle |
 | V3 | ✅ comparaison des métiers (page **Métiers**), activité des 30 derniers jours (page **Activité**) et évolution des niveaux de tous les personnages (page **Niveaux**) ; reste l'historique détaillé |
 | V4 | n8n, notifications, rapports |
 | V5 | installation et mise à jour automatiques de l'agent |
