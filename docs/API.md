@@ -140,11 +140,16 @@ Session du tableau de bord requise (401 sinon). Renvoie `AltBoard-export-AAAA-MM
 feuilles Résumé, Personnages, Métiers, Équipement, Monnaies, Réputations, Comptes, Machines.
 Le classeur est une photographie : la base reste la source.
 
-## `GET /api/agent`
+## `GET /api/agent/zip` et `GET /api/agent`
 
-Session du tableau de bord requise (401 sinon). Renvoie `AltBoardSync.exe`, l'agent publié dans
-l'image à sa construction ([DEPLOYMENT § Agent offert au téléchargement](DEPLOYMENT.md#agent-offert-au-téléchargement)),
-en pièce jointe, `Cache-Control: private, no-store`. 404 quand l'image n'en contient pas.
+Session du tableau de bord requise (401 sinon). L'agent publié dans l'image à sa construction
+([DEPLOYMENT § Agent offert au téléchargement](DEPLOYMENT.md#agent-offert-au-téléchargement)), en
+pièce jointe, `Cache-Control: private, no-store`. 404 quand l'image n'en contient pas.
+
+| Route | Fichier |
+|---|---|
+| `/api/agent/zip` | `AltBoardSync.zip` : l'exécutable et `LISEZMOI.txt` (installation, empreinte SHA-256 de l'exécutable), environ 40 % plus léger. Construite au premier appel, puis gardée en mémoire |
+| `/api/agent` | `AltBoardSync.exe` seul |
 
 ## `GET /api/health`
 

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { RenameForm, TokenForm } from "@/components/admin-forms";
 import { EmptyState, SectionTitle } from "@/components/ui";
 import { getDatabase } from "@/db/client";
-import { agentDirectory, findAgent, formatAgentSize } from "@/lib/agent-download";
+import { agentDirectory, archiveAgent, findAgent, formatAgentSize } from "@/lib/agent-download";
 import { requireSession } from "@/lib/auth/session";
 import { createTokenAction, renameMachineAction, revokeTokenAction } from "@/lib/dashboard/actions";
 import { listMachines, listRecentRuns, machineLabel } from "@/lib/dashboard/queries";
@@ -23,6 +23,8 @@ export default async function MachinesPage() {
   const now = new Date();
   const syncUrl = `${(process.env.WOW_APP_ORIGIN ?? "").replace(/\/$/, "")}${process.env.WOW_BASE_PATH ?? ""}/api/sync`;
   const agentVersion = process.env.WOW_AGENT_VERSION || null;
+  const archive = agent ? await archiveAgent(agent, agentVersion) : null;
+  const basePath = process.env.WOW_BASE_PATH ?? "";
 
   return (
     <>
@@ -150,15 +152,20 @@ export default async function MachinesPage() {
 
         <div>
           <SectionTitle>Instructions de synchronisation</SectionTitle>
-          {agent && (
+          {agent && archive && (
             <div className="panel mb-3 flex flex-wrap items-center justify-between gap-4 p-5">
               <div className="min-w-0 text-sm">
                 <p className="font-semibold text-text">AltBoardSync{agentVersion ? ` ${agentVersion}` : ""}</p>
-                <p className="mt-0.5 text-xs text-muted">Windows 64 bits · {formatAgentSize(agent.size)}</p>
-                <p className="mt-1 break-all text-xs text-faint">SHA-256 {agent.sha256}</p>
+                <p className="mt-0.5 text-xs text-muted">
+                  Windows 64 bits · archive ZIP de {formatAgentSize(archive.size)}, instructions comprises ·{" "}
+                  {/* Liens de téléchargement : les routes d'API ne sont pas des pages, d'où les ancres simples. */}
+                  <a className="underline hover:text-text" href={`${basePath}/api/agent`} download>
+                    exécutable seul ({formatAgentSize(agent.size)})
+                  </a>
+                </p>
+                <p className="mt-1 break-all text-xs text-faint">SHA-256 de AltBoardSync.exe : {agent.sha256}</p>
               </div>
-              {/* Lien de téléchargement : la route d'API n'est pas une page, d'où l'ancre simple. */}
-              <a className="button" data-variant="primary" href={`${process.env.WOW_BASE_PATH ?? ""}/api/agent`} download>
+              <a className="button" data-variant="primary" href={`${basePath}/api/agent/zip`} download>
                 Télécharger l&apos;agent
               </a>
             </div>
@@ -169,8 +176,8 @@ export default async function MachinesPage() {
               <code className="text-text">World of Warcraft\_forever_\Interface\AddOns</code>.
             </li>
             <li>
-              {agent ? "Téléchargez" : "Copiez"} <code className="text-text">AltBoardSync.exe</code> sur le PC. Aucune installation, aucun
-              prérequis.
+              {agent ? "Téléchargez l'agent, extrayez" : "Copiez"} <code className="text-text">AltBoardSync.exe</code> sur le PC. Aucune
+              installation, aucun prérequis.
             </li>
             <li>
               Créez un jeton dans <strong className="font-semibold text-text">Ajouter un PC</strong> et copiez-le : il n&apos;est affiché qu&apos;une

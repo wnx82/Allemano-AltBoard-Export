@@ -1,4 +1,4 @@
-import { zip } from "./zip";
+import { zip } from "@/lib/zip";
 
 // Classeur XLSX (Office Open XML) : feuilles à ligne d'en-tête figée et filtrable. Chaque cellule
 // porte son type : un texte n'est jamais interprété comme une formule, même s'il commence par

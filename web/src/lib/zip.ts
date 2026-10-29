@@ -1,7 +1,7 @@
 import { crc32, deflateRawSync } from "node:zlib";
 
-// Archive ZIP minimale (méthode deflate), suffisante pour un classeur XLSX. Écrite ici plutôt que
-// tirée d'une dépendance : le format est stable et tient en quelques dizaines de lignes.
+// Archive ZIP minimale (méthode deflate) : classeur XLSX, agent à télécharger. Écrite ici plutôt
+// que tirée d'une dépendance : le format est stable et tient en quelques dizaines de lignes.
 
 export type ZipEntry = { name: string; data: Buffer | string };
 

@@ -135,7 +135,7 @@ très long, accentué, à apostrophes, hors alphabet latin ; base injoignable.
 | Comptes (noms d'affichage) | ✅ |
 | Machines (noms d'affichage, jetons) | ✅ |
 | Dernière synchronisation, journal | ✅ |
-| Agent téléchargeable depuis la page **Machines**, publié dans l'image du site | ✅ |
+| Agent téléchargeable depuis la page **Machines**, publié dans l'image du site, en archive ZIP ou exécutable seul | ✅ |
 
 ## P9 — Excel
 

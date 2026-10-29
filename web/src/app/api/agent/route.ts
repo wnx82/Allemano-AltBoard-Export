@@ -14,7 +14,7 @@ export async function GET(): Promise<Response> {
   if (!agent) return Response.json({ error: "Agent non disponible sur ce serveur." }, { status: 404, headers: { "Cache-Control": "no-store" } });
 
   const content = await readFile(agent.path);
-  console.log(JSON.stringify({ event: "agent.download", userId: session.userId, version: process.env.WOW_AGENT_VERSION || null, bytes: content.length }));
+  console.log(JSON.stringify({ event: "agent.download", format: "exe", userId: session.userId, version: process.env.WOW_AGENT_VERSION || null, bytes: content.length }));
   return new Response(new Uint8Array(content), {
     headers: {
       "Content-Type": "application/vnd.microsoft.portable-executable",
