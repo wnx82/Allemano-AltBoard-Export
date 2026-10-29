@@ -130,8 +130,9 @@ Chaque ligne demande une évolution de l'agent, du contrat de `POST /api/sync` e
   sans aucun cookie quand la requête porte l'en-tête `purpose: prefetch`, que le proxy laisse
   passer. Corrigé le 2026-10-11 : chaque page, et `generateMetadata` de la fiche, commence par
   `requireSession()` ; `web/src/lib/auth/pages.test.ts` refuse une page qui ne le fait pas. Les
-  mêmes 54 requêtes sur la construction corrigée ne renvoient plus aucun contenu. Reste à le
-  constater en production après déploiement.
+  mêmes 54 requêtes sur la construction corrigée ne renvoient plus aucun contenu. Constaté aussi en
+  production le 2026-10-11, par l'origine du réseau local : 45 réponses sur 54 avec contenu sous
+  `fcf3750`, aucune sous `5f0098e`.
 - [ ] **P1 · S** — Messages d'erreur journalisés avec les valeurs reçues. Une requête en échec
   lève une erreur dont le message contient le SQL et tous ses paramètres
   (`web/node_modules/drizzle-orm/errors.js:12`). Ce message part dans le journal
@@ -395,8 +396,9 @@ hors dépôt sur `AltBoardSync.Core` seul ; l'agent n'a pas été lancé.
 
 ## Ce qui n'a pas été vérifié
 
-- La production n'a pas été touchée : le défaut de session (§ 2) et sa correction sont constatés
-  sur une construction locale, pas sur `wow.ekreativ.be`.
+- En production, seul le défaut de session (§ 2) a été contrôlé, sans session valide et par
+  l'origine du réseau local, pas par `wow.ekreativ.be` ; l'affichage des pages avec une session
+  valide n'y a pas été revu après la correction.
 - Aucun `EXPLAIN` sur la base réelle : les constats de performance (§ 3) viennent du schéma et du
   code, pas d'une mesure.
 - Aucun contrôle d'accessibilité dans un navigateur ni avec un lecteur d'écran : contrastes
