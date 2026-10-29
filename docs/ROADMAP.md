@@ -219,7 +219,6 @@ Depuis l'agent 0.4.0 : saisie du jeton dans la fenêtre, sans ligne de commande.
 | Recette après une vraie modification en jeu | joueur |
 | Icônes, temps par niveau, sessions et courbe d'expérience en production : déployer le serveur (voir [DEPLOYMENT § Mettre à jour](DEPLOYMENT.md)), puis republier l'agent et synchroniser | joueur |
 | Agent sur les autres PC : copier `AltBoardSync.exe`, créer un jeton par PC | joueur |
-| Supprimer les anciennes branches (`feat/v1-pipeline`, `feat/agent-watch`…), `main` étant la branche de production depuis le 2026-10-06 | à décider |
 
 ## Suite
 
