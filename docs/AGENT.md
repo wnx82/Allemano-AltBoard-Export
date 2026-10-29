@@ -21,7 +21,7 @@ lance `.github/workflows/release-agent.yml` : tests, publication, puis GitHub Re
 sinon la release est refusée.
 
 ```bash
-git tag agent-v0.4.0 && git push origin agent-v0.4.0
+git tag agent-v0.4.1 && git push origin agent-v0.4.1
 ```
 
 ## Installer sur un PC
@@ -74,7 +74,7 @@ Codes de sortie : `0` réussite, `1` synchronisation échouée ou partielle, `2`
 ## Exemple
 
 ```text
-AltBoard Sync 0.4.0
+AltBoard Sync 0.4.1
 
 Machine : PC-GAMING
 
@@ -125,9 +125,24 @@ La variable `ALTBOARDSYNC_TOKEN` prime sur `token.dat` (tests, exécution ponctu
 
 ## Découverte
 
-`wowPath` désigne soit un client (`…\World of Warcraft\_classic_beta_`), soit la racine contenant
-plusieurs clients (`_retail_`, `_classic_`…). Chaque `WTF\Account\<COMPTE>\SavedVariables\AltBoard.lua`
-est un compte. Un compte sans AltBoard, le dossier technique `WTF\Account\SavedVariables` et les
+`wowPath` désigne soit un client (`…\World of Warcraft\_forever_`), soit la racine contenant
+plusieurs clients (`_forever_`, `_classic_beta_`, `_retail_`…). Chaque `WTF\Account\<COMPTE>\SavedVariables\AltBoard.lua`
+est un compte.
+
+Par défaut : la racine `C:\Program Files (x86)\World of Warcraft`. Jusqu'à la version 0.4.0, le
+défaut était le client de la bêta, `…\_classic_beta_`, et chaque `config.json` l'a enregistré.
+Depuis la 0.4.1, un `wowPath` qui désigne un dossier `_classic_beta_` passe, au démarrage, à la
+racine qui le contient : le client de la sortie officielle (`_forever_`) y est lu avec celui de la
+bêta. Les personnages de la bêta renvoyés ensuite sont ignorés par le serveur après la
+réinitialisation ([DATABASE](DATABASE.md#réinitialisation-des-personnages)). Avec l'agent 0.4.0 :
+
+```powershell
+AltBoardSync.exe config set wowPath "C:\Program Files (x86)\World of Warcraft\_forever_"
+```
+
+puis relancer l'agent : `watch` ne relit pas sa configuration en cours de route. Dans les deux cas,
+les addons AltBoard et Allemano Ledger doivent être installés dans ce client
+(`_forever_\Interface\AddOns`). Un compte sans AltBoard, le dossier technique `WTF\Account\SavedVariables` et les
 fichiers `.bak` sont ignorés. Zéro compte n'est pas une erreur.
 
 Si le même dossier contient `AllemanoLedger.lua` (addon Allemano Ledger), l'agent y lit le temps

@@ -219,6 +219,41 @@ public class AgentConfigStoreTests
         Assert.DoesNotContain("token", File.ReadAllText(temp.Combine("config.json")), StringComparison.OrdinalIgnoreCase);
     }
 
+    [Theory]
+    [InlineData(@"C:\Program Files (x86)\World of Warcraft\_classic_beta_", @"C:\Program Files (x86)\World of Warcraft")]
+    [InlineData(@"D:\Jeux\World of Warcraft\_CLASSIC_BETA_\", @"D:\Jeux\World of Warcraft")]
+    public void Beta_client_path_is_replaced_by_its_root(string saved, string expected)
+    {
+        using var temp = new TempDirectory();
+        var uuid = Guid.NewGuid();
+        new AgentConfigStore(temp.Path).Save(new AgentConfig { MachineUuid = uuid, MachineName = "Salon", WowPath = saved, ServerUrl = "https://exemple.test/api/sync" });
+
+        var loaded = new AgentConfigStore(temp.Path).LoadOrCreate();
+
+        Assert.Equal(expected, loaded.WowPath);
+        Assert.Equal(uuid, loaded.MachineUuid);
+        Assert.Equal("Salon", loaded.MachineName);
+        Assert.Equal("https://exemple.test/api/sync", loaded.ServerUrl);
+        // Enregistré, pas seulement appliqué : « config » montre le dossier réellement lu.
+        var onDisk = System.Text.Json.JsonSerializer.Deserialize(File.ReadAllText(temp.Combine("config.json")), AgentJsonContext.Default.AgentConfig);
+        Assert.Equal(expected, onDisk?.WowPath);
+    }
+
+    [Theory]
+    [InlineData(@"C:\Program Files (x86)\World of Warcraft\_forever_")]
+    [InlineData(@"C:\Program Files (x86)\World of Warcraft")]
+    [InlineData(@"D:\Sauvegardes\_classic_beta_copie")]
+    [InlineData("_classic_beta_")]
+    public void Other_paths_are_kept_as_written(string saved)
+    {
+        using var temp = new TempDirectory();
+        new AgentConfigStore(temp.Path).Save(new AgentConfig { MachineUuid = Guid.NewGuid(), WowPath = saved });
+        var written = File.ReadAllText(temp.Combine("config.json"));
+
+        Assert.Equal(saved, new AgentConfigStore(temp.Path).LoadOrCreate().WowPath);
+        Assert.Equal(written, File.ReadAllText(temp.Combine("config.json")));
+    }
+
     [Fact]
     public void Corrupted_configuration_never_regenerates_the_uuid_silently()
     {

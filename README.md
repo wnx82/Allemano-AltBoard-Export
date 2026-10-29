@@ -50,7 +50,7 @@ dotnet run --project src/AltBoardSync -- sync
 ## Vérifications
 
 ```bash
-cd agent && dotnet test                               # 143 tests
+cd agent && dotnet test                               # 158 tests
 cd web && npm run typecheck && npm run lint && npm test && npm run build   # 156 tests
 ```
 

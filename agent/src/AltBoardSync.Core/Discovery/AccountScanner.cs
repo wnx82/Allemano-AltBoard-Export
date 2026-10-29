@@ -13,11 +13,16 @@ public sealed record AccountSource(string AccountFolder, string Flavor, string F
 /// </summary>
 public static class AccountScanner
 {
-    public const string DefaultWowPath = @"C:\Program Files (x86)\World of Warcraft\_classic_beta_";
+    /// <summary>Racine de l'installation : chaque client qu'elle contient (<c>_forever_</c>, <c>_classic_beta_</c>…) est lu.</summary>
+    public const string DefaultWowPath = @"C:\Program Files (x86)\World of Warcraft";
+
+    /// <summary>Client de la bêta, défaut de l'agent jusqu'à la version 0.4.0.</summary>
+    public const string BetaFlavor = "_classic_beta_";
+
     public const string SavedVariablesFile = "AltBoard.lua";
     public const string LedgerFile = "AllemanoLedger.lua";
 
-    /// <param name="wowPath">Dossier d'un client (<c>…\_classic_beta_</c>) ou racine World of Warcraft contenant plusieurs clients.</param>
+    /// <param name="wowPath">Dossier d'un client (<c>…\_forever_</c>) ou racine World of Warcraft contenant plusieurs clients.</param>
     public static IReadOnlyList<AccountSource> Scan(string wowPath)
     {
         if (!Directory.Exists(wowPath))

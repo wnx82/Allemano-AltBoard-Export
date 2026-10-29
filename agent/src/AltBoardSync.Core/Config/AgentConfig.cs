@@ -58,13 +58,23 @@ public sealed class AgentConfigStore(string directory)
         }
 
         if (config is null) throw new InvalidDataException($"Configuration vide ({ConfigPath})");
-        if (config.MachineUuid == Guid.Empty)
-        {
-            config = config with { MachineUuid = Guid.NewGuid() };
-            Save(config);
-        }
+        var repaired = config;
+        if (repaired.MachineUuid == Guid.Empty) repaired = repaired with { MachineUuid = Guid.NewGuid() };
+        // Jusqu'à la version 0.4.0, le défaut désignait le client de la bêta et chaque configuration
+        // l'a enregistré tel quel : il ne verrait jamais celui de la sortie officielle. La racine qui
+        // le contient lit les deux.
+        if (BetaClientRoot(repaired.WowPath) is { } root) repaired = repaired with { WowPath = root };
+        if (repaired != config) Save(repaired);
+        return repaired;
+    }
 
-        return config;
+    /// <summary>Racine contenant <paramref name="wowPath"/> quand il désigne le client de la bêta ; sinon null.</summary>
+    private static string? BetaClientRoot(string wowPath)
+    {
+        var trimmed = wowPath.TrimEnd('\\', '/');
+        var separator = trimmed.LastIndexOfAny(['\\', '/']);
+        if (separator <= 0 || !trimmed[(separator + 1)..].Equals(AccountScanner.BetaFlavor, StringComparison.OrdinalIgnoreCase)) return null;
+        return trimmed[..separator];
     }
 
     public void Save(AgentConfig config)
