@@ -35,6 +35,25 @@ export default async function MachinesPage() {
         écriture du jeu ; arrêté, rien n&apos;est envoyé.
       </p>
 
+      {agent && archive && (
+        <section className="panel mt-6 flex flex-wrap items-center justify-between gap-4 p-5" aria-label="Télécharger l'agent">
+          <div className="min-w-0 text-sm">
+            <p className="font-semibold text-text">AltBoardSync{agentVersion ? ` ${agentVersion}` : ""}</p>
+            <p className="mt-0.5 text-xs text-muted">
+              Windows 64 bits · archive ZIP de {formatAgentSize(archive.size)}, instructions comprises ·{" "}
+              {/* Liens de téléchargement : les routes d'API ne sont pas des pages, d'où les ancres simples. */}
+              <a className="underline hover:text-text" href={`${basePath}/api/agent`} download>
+                exécutable seul ({formatAgentSize(agent.size)})
+              </a>
+            </p>
+            <p className="mt-1 break-all text-xs text-faint">SHA-256 de AltBoardSync.exe : {agent.sha256}</p>
+          </div>
+          <a className="button" data-variant="primary" href={`${basePath}/api/agent/zip`} download>
+            Télécharger l&apos;agent
+          </a>
+        </section>
+      )}
+
       <section className="mt-6" aria-label="Machines connues">
         {machines.length === 0 ? (
           <EmptyState title="Aucune machine n'a encore synchronisé">Créez un jeton ci-dessous, puis suivez les instructions.</EmptyState>
@@ -152,24 +171,6 @@ export default async function MachinesPage() {
 
         <div>
           <SectionTitle>Instructions de synchronisation</SectionTitle>
-          {agent && archive && (
-            <div className="panel mb-3 flex flex-wrap items-center justify-between gap-4 p-5">
-              <div className="min-w-0 text-sm">
-                <p className="font-semibold text-text">AltBoardSync{agentVersion ? ` ${agentVersion}` : ""}</p>
-                <p className="mt-0.5 text-xs text-muted">
-                  Windows 64 bits · archive ZIP de {formatAgentSize(archive.size)}, instructions comprises ·{" "}
-                  {/* Liens de téléchargement : les routes d'API ne sont pas des pages, d'où les ancres simples. */}
-                  <a className="underline hover:text-text" href={`${basePath}/api/agent`} download>
-                    exécutable seul ({formatAgentSize(agent.size)})
-                  </a>
-                </p>
-                <p className="mt-1 break-all text-xs text-faint">SHA-256 de AltBoardSync.exe : {agent.sha256}</p>
-              </div>
-              <a className="button" data-variant="primary" href={`${basePath}/api/agent/zip`} download>
-                Télécharger l&apos;agent
-              </a>
-            </div>
-          )}
           <ol className="panel list-decimal space-y-3 p-5 pl-9 text-sm marker:text-gold">
             <li>
               Installez les addons AltBoard et Allemano Ledger dans le jeu :{" "}

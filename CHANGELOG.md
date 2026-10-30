@@ -4,6 +4,13 @@ Deux versions, chacune en SemVer : le **site** (`web/package.json`) et l'**agent
 (`agent/Directory.Build.props`, étiquette `agent-vX.Y.Z` pour une release). Le pied de page du
 tableau de bord affiche les deux. Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
+## Site 0.2.1 — 2026-10-30
+
+### Corrigé
+
+- Page **Machines** : le bouton **Télécharger l'agent** passe en haut de la page. Il restait sous
+  les cartes des machines, invisible sans faire défiler.
+
 ## Site 0.2.0 — 2026-10-29
 
 ### Ajouté
