@@ -24,7 +24,7 @@ base et la page). Les étapes 6 à 10 — modifier une donnée en jeu, resynchro
 
 | Étape | Statut | Preuve |
 |---|---|---|
-| Dépôt | ✅ | [ARCHITECTURE-CURRENT](ARCHITECTURE-CURRENT.md) |
+| Dépôt | ✅ | audit initial du 2026-10-04 (document retiré à la publication du dépôt) |
 | Environnement | ✅ | idem |
 | `AltBoard.lua` | ✅ | 2 fichiers réels, 6 personnages |
 | `AltBoardDB` | ✅ | [ALTBOARD-DATA-MODEL](ALTBOARD-DATA-MODEL.md), source de l'addon lu |

@@ -76,7 +76,6 @@ pas par `wow_altboard` : voir `web/src/db/env.ts`.
 | [SERVER-STATUS](docs/SERVER-STATUS.md) | État des serveurs WoW Forever EU : sondes, configuration, limites, diagnostic |
 | [SECURITY](docs/SECURITY.md) | Authentification, validation, confidentialité |
 | [DEPLOYMENT](docs/DEPLOYMENT.md) | Mise en production, domaine, migrations |
-| [ARCHITECTURE-CURRENT](docs/ARCHITECTURE-CURRENT.md) | Audit initial de l'existant |
 
 ## Limites connues
 
