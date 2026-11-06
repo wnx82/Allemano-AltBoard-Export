@@ -25,11 +25,20 @@ public static class SavedVariablesParser
 
     public static IReadOnlyDictionary<string, LuaValue> Parse(ReadOnlySpan<byte> utf8) => Parse(LenientUtf8.GetString(utf8));
 
-    public static IReadOnlyDictionary<string, LuaValue> Parse(string source) => new Parser(source).ParseFile();
+    public static IReadOnlyDictionary<string, LuaValue> Parse(string source) => new Parser(source, binary: false).ParseFile();
 
-    private sealed class Parser(string source)
+    /// <summary>
+    /// Lit un fichier dont les chaînes portent des octets bruts, pas du texte (base de prix
+    /// d'Auctionator, sérialisée en CBOR). Chaque caractère des chaînes obtenues vaut un octet
+    /// (0 à 255) : <see cref="Encoding.Latin1"/> les restitue sans perte.
+    /// </summary>
+    public static IReadOnlyDictionary<string, LuaValue> ParseBinary(ReadOnlySpan<byte> content) =>
+        new Parser(Encoding.Latin1.GetString(content), binary: true).ParseFile();
+
+    private sealed class Parser(string source, bool binary)
     {
         private readonly string _s = source;
+        private readonly bool _binary = binary;
         private int _pos;
 
         public Dictionary<string, LuaValue> ParseFile()
@@ -271,6 +280,12 @@ public static class SavedVariablesParser
 
             void AppendByte(int value)
             {
+                if (_binary)
+                {
+                    chars.Append((char)value);
+                    return;
+                }
+
                 bytes ??= [];
                 FlushChars();
                 bytes.Add((byte)value);

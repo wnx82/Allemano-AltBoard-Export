@@ -174,6 +174,10 @@ public sealed class AgentApp(AgentEnvironment env)
             if (result.Payload is { } payload)
             {
                 env.Out.WriteLine($"{label} : {Plural(payload.Characters.Count, "personnage", "personnages")}");
+                foreach (var market in payload.Auctionator?.Markets ?? [])
+                    env.Out.WriteLine($"  Auctionator « {market.Key} » : {Plural(market.Items.Count, "objet", "objets")}");
+                if (payload.Recipes is { } recipes)
+                    env.Out.WriteLine($"  NaowhForever : {Plural(recipes.Characters.Sum(c => c.Recipes.Count), "recette", "recettes")}");
                 foreach (var warning in payload.Warnings) env.Out.WriteLine($"  avertissement : {warning}");
                 _log.Info($"compte {payload.FolderHint} lu : {payload.Characters.Count} personnages, {payload.Warnings.Count} avertissements, fichier {payload.File.Hash[..12]}");
             }

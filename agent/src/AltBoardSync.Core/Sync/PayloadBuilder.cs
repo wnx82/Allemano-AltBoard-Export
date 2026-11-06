@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using AltBoardSync.Core.AltBoard;
 using AltBoardSync.Core.Discovery;
+using AltBoardSync.Core.Economy;
 using AltBoardSync.Core.IO;
 using AltBoardSync.Core.Lua;
 
@@ -29,6 +30,9 @@ public sealed class PayloadBuilder(StableFileReader reader)
             var document = AltBoardReader.Read(SavedVariablesParser.Parse(snapshot.Content));
             var fileHash = Convert.ToHexStringLower(SHA256.HashData(snapshot.Content));
             var (characters, ledgerWarnings, ledgerHash) = await AttachLedgerAsync(source, document.Characters, cancellationToken).ConfigureAwait(false);
+            var economyWarnings = new List<string>();
+            var auctionator = await ReadAuctionatorAsync(source, economyWarnings, cancellationToken).ConfigureAwait(false);
+            var recipes = await ReadRecipesAsync(source, economyWarnings, cancellationToken).ConfigureAwait(false);
             var payload = new AccountPayload(
                 AccountKey.Compute(source.AccountFolder),
                 AccountKey.Hint(source.AccountFolder),
@@ -38,8 +42,15 @@ public sealed class PayloadBuilder(StableFileReader reader)
                 new SourceFilePayload(fileHash, snapshot.ModifiedAt, snapshot.Content.LongLength),
                 characters,
                 document.Items,
-                [.. document.Warnings, .. ledgerWarnings]);
-            return new AccountReadResult(source, payload, null) { Fingerprint = $"{fileHash}:{ledgerHash ?? "-"}" };
+                [.. document.Warnings, .. ledgerWarnings, .. economyWarnings.Take(MaxEconomyWarnings)])
+            {
+                Auctionator = auctionator,
+                Recipes = recipes,
+            };
+            return new AccountReadResult(source, payload, null)
+            {
+                Fingerprint = $"{fileHash}:{ledgerHash ?? "-"}:{auctionator?.File.Hash ?? "-"}:{recipes?.File.Hash ?? "-"}",
+            };
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException or LuaParseException or AltBoardFormatException)
         {
@@ -71,6 +82,53 @@ public sealed class PayloadBuilder(StableFileReader reader)
             return (characters, [message.Length > 300 ? message[..300] : message], null);
         }
     }
+
+    /// <summary>Avertissements Auctionator et NaowhForever retenus par compte : le serveur en accepte 50 au total.</summary>
+    private const int MaxEconomyWarnings = 10;
+
+    /// <summary>
+    /// Prix de l'hôtel des ventes relevés par Auctionator. Source facultative : illisible ou absente,
+    /// elle ne fait jamais échouer la synchronisation du compte.
+    /// </summary>
+    private async Task<AuctionatorPayload?> ReadAuctionatorAsync(AccountSource source, List<string> warnings, CancellationToken cancellationToken)
+    {
+        if (source.AuctionatorFilePath is null) return null;
+        try
+        {
+            var snapshot = await reader.ReadAsync(source.AuctionatorFilePath, cancellationToken).ConfigureAwait(false);
+            // La base de prix est du CBOR dans des chaînes Lua : lecture octet par octet.
+            var data = AuctionatorReader.Read(SavedVariablesParser.ParseBinary(snapshot.Content), warnings);
+            if (data is null) return null;
+            return new AuctionatorPayload(FileOf(snapshot), data.DbVersion, data.Markets, data.VendorPrices);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException or LuaParseException)
+        {
+            warnings.Add(Truncate($"Auctionator illisible, prix non transmis : {e.Message}"));
+            return null;
+        }
+    }
+
+    /// <summary>Recettes apprises relevées par NaowhForever. Source facultative, comme Auctionator.</summary>
+    private async Task<RecipesPayload?> ReadRecipesAsync(AccountSource source, List<string> warnings, CancellationToken cancellationToken)
+    {
+        if (source.RecipesFilePath is null) return null;
+        try
+        {
+            var snapshot = await reader.ReadAsync(source.RecipesFilePath, cancellationToken).ConfigureAwait(false);
+            var characters = RecipeReader.Read(SavedVariablesParser.Parse(snapshot.Content), warnings);
+            return characters.Count == 0 ? null : new RecipesPayload(FileOf(snapshot), characters);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidDataException or LuaParseException)
+        {
+            warnings.Add(Truncate($"NaowhForever illisible, recettes non transmises : {e.Message}"));
+            return null;
+        }
+    }
+
+    private static SourceFilePayload FileOf(FileSnapshot snapshot) =>
+        new(Convert.ToHexStringLower(SHA256.HashData(snapshot.Content)), snapshot.ModifiedAt, snapshot.Content.LongLength);
+
+    private static string Truncate(string message) => message.Length > 300 ? message[..300] : message;
 
     public static SyncPayload Build(MachinePayload machine, IEnumerable<AccountPayload> accounts, string agentVersion, DateTimeOffset now) =>
         new(SyncPayload.CurrentSchemaVersion, agentVersion, now, machine, accounts.ToList());

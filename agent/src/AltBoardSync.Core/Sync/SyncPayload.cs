@@ -26,9 +26,45 @@ public sealed record AccountPayload(
     SourceFilePayload File,
     IReadOnlyList<CharacterPayload> Characters,
     IReadOnlyList<ItemPayload> Items,
-    IReadOnlyList<string> Warnings);
+    IReadOnlyList<string> Warnings)
+{
+    /// <summary>Base de prix de l'addon Auctionator du même compte ; absente si l'addon n'est pas installé.</summary>
+    public AuctionatorPayload? Auctionator { get; init; }
+
+    /// <summary>Recettes apprises relevées par l'addon NaowhForever du même compte ; absentes si l'addon n'en a relevé aucune.</summary>
+    public RecipesPayload? Recipes { get; init; }
+}
 
 public sealed record SourceFilePayload(string Hash, DateTimeOffset ModifiedAt, long Size);
+
+/// <summary>Auctionator.lua : un relevé de prix par hôtel des ventes, et les prix marchands en cache.</summary>
+public sealed record AuctionatorPayload(SourceFilePayload File, int DbVersion, IReadOnlyList<MarketPayload> Markets, IReadOnlyList<VendorPricePayload> VendorPrices);
+
+/// <summary>
+/// Un hôtel des ventes, sous la clé qu'Auctionator lui donne (sur WoW Forever : la règle du royaume,
+/// « PvE »). ContentHash ne change que si les relevés changent.
+/// </summary>
+public sealed record MarketPayload(string Key, string ContentHash, IReadOnlyList<MarketItemPayload> Items);
+
+/// <summary>
+/// Un objet. LastMin : dernier prix minimum vu, à l'unité, en pièces de cuivre. Days : un tableau
+/// <c>[jour, plus bas, plus haut, quantité]</c> par jour Auctionator (0 = 2020-01-01), plus bas et
+/// plus haut étant ceux des prix minimums relevés ce jour-là ; quantité absente (null) si non relevée.
+/// </summary>
+public sealed record MarketItemPayload(string Key, long? LastMin, IReadOnlyList<long?[]> Days);
+
+/// <summary>Prix d'achat chez un marchand, à l'unité, en pièces de cuivre (pas toujours entier).</summary>
+public sealed record VendorPricePayload(string Key, double Price);
+
+/// <summary>NaowhForever.lua : recettes apprises, par personnage.</summary>
+public sealed record RecipesPayload(SourceFilePayload File, IReadOnlyList<CharacterRecipesPayload> Characters);
+
+public sealed record CharacterRecipesPayload(string Guid, IReadOnlyList<RecipePayload> Recipes);
+
+/// <summary>Une recette : sort de métier, ligne de métier, objet produit et quantité produite par fabrication.</summary>
+public sealed record RecipePayload(int SpellId, int? SkillLine, int OutputItemId, int OutputQuantity, bool Cooldown, IReadOnlyList<ReagentPayload> Reagents);
+
+public sealed record ReagentPayload(int ItemId, int Quantity);
 
 public sealed record CharacterPayload
 {

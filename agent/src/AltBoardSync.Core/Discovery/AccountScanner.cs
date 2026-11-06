@@ -5,6 +5,12 @@ public sealed record AccountSource(string AccountFolder, string Flavor, string F
 {
     /// <summary>Fichier de l'addon Allemano Ledger du même compte, s'il existe (temps de jeu par niveau).</summary>
     public string? LedgerFilePath { get; init; }
+
+    /// <summary>Fichier de l'addon Auctionator du même compte, s'il existe (prix de l'hôtel des ventes).</summary>
+    public string? AuctionatorFilePath { get; init; }
+
+    /// <summary>Fichier de l'addon NaowhForever du même compte, s'il existe (recettes apprises).</summary>
+    public string? RecipesFilePath { get; init; }
 }
 
 /// <summary>
@@ -21,6 +27,14 @@ public static class AccountScanner
 
     public const string SavedVariablesFile = "AltBoard.lua";
     public const string LedgerFile = "AllemanoLedger.lua";
+    public const string AuctionatorFile = "Auctionator.lua";
+    public const string RecipesFile = "NaowhForever.lua";
+
+    private static string? Sibling(string accountPath, string fileName)
+    {
+        var path = Path.Combine(accountPath, "SavedVariables", fileName);
+        return File.Exists(path) ? path : null;
+    }
 
     /// <param name="wowPath">Dossier d'un client (<c>…\_forever_</c>) ou racine World of Warcraft contenant plusieurs clients.</param>
     public static IReadOnlyList<AccountSource> Scan(string wowPath)
@@ -38,8 +52,12 @@ public static class AccountScanner
                 // dossiers techniques, et un compte peut ne pas utiliser AltBoard.
                 var file = Path.Combine(accountPath, "SavedVariables", SavedVariablesFile);
                 if (!File.Exists(file)) continue;
-                var ledger = Path.Combine(accountPath, "SavedVariables", LedgerFile);
-                sources.Add(new AccountSource(Path.GetFileName(accountPath), flavor, flavorPath, file) { LedgerFilePath = File.Exists(ledger) ? ledger : null });
+                sources.Add(new AccountSource(Path.GetFileName(accountPath), flavor, flavorPath, file)
+                {
+                    LedgerFilePath = Sibling(accountPath, LedgerFile),
+                    AuctionatorFilePath = Sibling(accountPath, AuctionatorFile),
+                    RecipesFilePath = Sibling(accountPath, RecipesFile),
+                });
             }
         }
 
