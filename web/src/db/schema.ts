@@ -3,6 +3,7 @@ import {
   bigint,
   boolean,
   check,
+  date,
   doublePrecision,
   index,
   integer,
@@ -407,6 +408,249 @@ export const characterSnapshots = pgTable(
 );
 
 // ---------------------------------------------------------------------------
+// Marché : prix relevés par l'addon Auctionator (voir docs/AUCTIONATOR-DATA-MODEL.md)
+// ---------------------------------------------------------------------------
+
+// Un hôtel des ventes : la clé qu'Auctionator lui donne, dans un client donné. Sur WoW Forever,
+// tous les royaumes d'une même règle partagent un hôtel des ventes (« PvE »). Le client fait partie
+// de l'identité : la bêta avait elle aussi un hôtel des ventes « PvE », sans rapport avec celui-ci.
+export const markets = pgTable(
+  "markets",
+  {
+    id: id(),
+    flavor: text("flavor").notNull(),
+    auctionKey: text("auction_key").notNull(),
+    firstSeenAt: ts("first_seen_at").notNull().defaultNow(),
+    lastSeenAt: ts("last_seen_at").notNull().defaultNow(),
+  },
+  (t) => [unique("markets_flavor_auction_key_key").on(t.flavor, t.auctionKey)],
+);
+
+const marketId = () =>
+  bigint("market_id", { mode: "number" })
+    .notNull()
+    .references(() => markets.id, { onDelete: "cascade" });
+
+// Une version d'un relevé reçue d'un compte. Un relevé identique renvoyé n'est pas réimporté.
+export const marketImports = pgTable(
+  "market_imports",
+  {
+    id: id(),
+    marketId: marketId(),
+    accountId: bigint("account_id", { mode: "number" })
+      .notNull()
+      .references(() => wowAccounts.id),
+    machineId: bigint("machine_id", { mode: "number" }).references(() => machines.id),
+    syncRunId: bigint("sync_run_id", { mode: "number" }).references(() => syncRuns.id, { onDelete: "set null" }),
+    contentHash: text("content_hash").notNull(),
+    fileHash: text("file_hash").notNull(),
+    fileModifiedAt: ts("file_modified_at").notNull(),
+    itemsCount: integer("items_count").notNull(),
+    observationsCount: integer("observations_count").notNull(),
+    firstDay: date("first_day", { mode: "string" }),
+    lastDay: date("last_day", { mode: "string" }),
+    receivedAt: ts("received_at").notNull().defaultNow(),
+  },
+  (t) => [
+    unique("market_imports_market_account_content_key").on(t.marketId, t.accountId, t.contentHash),
+    index("market_imports_market_received_idx").on(t.marketId, t.receivedAt),
+  ],
+);
+
+// Un objet, un jour : plus bas et plus haut des prix minimums vus ce jour-là, à l'unité, en pièces
+// de cuivre, et plus grande quantité en vente. Plusieurs comptes et PC relèvent le même jour :
+// les valeurs se fusionnent (plus bas des plus bas, plus haut des plus hauts, plus grande quantité),
+// ce qui rend l'import idempotent.
+export const marketItemDays = pgTable(
+  "market_item_days",
+  {
+    marketId: marketId(),
+    itemKey: text("item_key").notNull(),
+    day: date("day", { mode: "string" }).notNull(),
+    lowCopper: bigint("low_copper", { mode: "number" }).notNull(),
+    highCopper: bigint("high_copper", { mode: "number" }).notNull(),
+    available: integer("available"),
+    updatedAt: updatedAt(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.marketId, t.itemKey, t.day] }),
+    index("market_item_days_market_day_idx").on(t.marketId, t.day),
+    check("market_item_days_values_check", sql`${t.lowCopper} >= 0 and ${t.lowCopper} <= ${t.highCopper} and ${t.available} >= 0`),
+  ],
+);
+
+// Dernier prix minimum vu par objet (champ m d'Auctionator), daté du jour de son relevé.
+export const marketItemLatest = pgTable(
+  "market_item_latest",
+  {
+    marketId: marketId(),
+    itemKey: text("item_key").notNull(),
+    minCopper: bigint("min_copper", { mode: "number" }).notNull(),
+    day: date("day", { mode: "string" }).notNull(),
+    // Date du fichier qui l'a fourni : départage deux relevés du même jour.
+    observedAt: ts("observed_at").notNull(),
+    importId: bigint("import_id", { mode: "number" }).references(() => marketImports.id, { onDelete: "set null" }),
+  },
+  (t) => [primaryKey({ columns: [t.marketId, t.itemKey] }), check("market_item_latest_min_check", sql`${t.minCopper} > 0`)],
+);
+
+// Prix d'achat chez un marchand (stock illimité), à l'unité : prix de la pile divisé par sa taille,
+// donc pas toujours entier. Relevé par Auctionator à l'ouverture d'un marchand.
+export const vendorPrices = pgTable(
+  "vendor_prices",
+  {
+    itemKey: text("item_key").primaryKey(),
+    priceCopper: doublePrecision("price_copper").notNull(),
+    observedAt: ts("observed_at").notNull(),
+  },
+  (t) => [check("vendor_prices_price_check", sql`${t.priceCopper} > 0`)],
+);
+
+// ---------------------------------------------------------------------------
+// Recettes : relevées par l'addon NaowhForever (voir docs/PROFESSIONS-DATA-MODEL.md)
+// ---------------------------------------------------------------------------
+
+// Une recette, identifiée par son sort de métier. Données du jeu : objet produit, quantité produite.
+export const recipes = pgTable(
+  "recipes",
+  {
+    spellId: integer("spell_id").primaryKey(),
+    skillLine: integer("skill_line"),
+    outputItemId: integer("output_item_id").notNull(),
+    outputQuantity: integer("output_quantity").notNull(),
+    cooldown: boolean("cooldown").notNull().default(false),
+    firstSeenAt: ts("first_seen_at").notNull().defaultNow(),
+    updatedAt: updatedAt(),
+  },
+  (t) => [index("recipes_output_item_idx").on(t.outputItemId), check("recipes_output_quantity_check", sql`${t.outputQuantity} >= 1`)],
+);
+
+export const recipeReagents = pgTable(
+  "recipe_reagents",
+  {
+    spellId: integer("spell_id")
+      .notNull()
+      .references(() => recipes.spellId, { onDelete: "cascade" }),
+    itemId: integer("item_id").notNull(),
+    quantity: integer("quantity").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.spellId, t.itemId] }),
+    index("recipe_reagents_item_idx").on(t.itemId),
+    check("recipe_reagents_quantity_check", sql`${t.quantity} >= 1`),
+  ],
+);
+
+// Recettes apprises par un personnage, telles que le dernier fichier NaowhForever les décrit.
+export const characterRecipes = pgTable(
+  "character_recipes",
+  {
+    characterId: characterId(),
+    spellId: integer("spell_id")
+      .notNull()
+      .references(() => recipes.spellId),
+    firstSeenAt: ts("first_seen_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.characterId, t.spellId] }), index("character_recipes_spell_idx").on(t.spellId)],
+);
+
+// Fichier qui a fourni la liste d'un personnage : un PC au fichier plus ancien ne la remplace pas.
+export const characterRecipeSources = pgTable("character_recipe_sources", {
+  characterId: characterId().primaryKey(),
+  fileModifiedAt: ts("file_modified_at").notNull(),
+  contentHash: text("content_hash").notNull(),
+  updatedAt: updatedAt(),
+});
+
+// ---------------------------------------------------------------------------
+// Sessions de farm : inventaire relevé au début et à la fin, valorisé au marché
+// ---------------------------------------------------------------------------
+
+export const farmSessions = pgTable(
+  "farm_sessions",
+  {
+    id: id(),
+    characterId: characterId(),
+    label: text("label"),
+    startedAt: ts("started_at").notNull(),
+    endedAt: ts("ended_at"),
+    // Horodatage des sacs (bagsAt d'AltBoard) au début et à la fin : la durée mesurée en jeu.
+    startSourceAt: ts("start_source_at").notNull(),
+    endSourceAt: ts("end_source_at"),
+    startMoneyCopper: bigint("start_money_copper", { mode: "number" }),
+    endMoneyCopper: bigint("end_money_copper", { mode: "number" }),
+    createdAt: createdAt(),
+  },
+  (t) => [
+    index("farm_sessions_character_started_idx").on(t.characterId, t.startedAt),
+    check("farm_sessions_end_check", sql`${t.endSourceAt} is null or ${t.endSourceAt} > ${t.startSourceAt}`),
+  ],
+);
+
+export const farmSessionItems = pgTable(
+  "farm_session_items",
+  {
+    sessionId: bigint("session_id", { mode: "number" })
+      .notNull()
+      .references(() => farmSessions.id, { onDelete: "cascade" }),
+    phase: text("phase").notNull(),
+    location: text("location").notNull(),
+    itemKey: text("item_key").notNull(),
+    quantity: integer("quantity").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.sessionId, t.phase, t.location, t.itemKey] }),
+    check("farm_session_items_phase_check", sql`${t.phase} in ('start', 'end')`),
+    check("farm_session_items_location_check", sql`${t.location} in ('bags', 'bank')`),
+    check("farm_session_items_quantity_check", sql`${t.quantity} >= 0`),
+  ],
+);
+
+// ---------------------------------------------------------------------------
+// Recommandations : chaque calcul des opportunités est conservé, avec ses entrées
+// ---------------------------------------------------------------------------
+
+// Un calcul, fait sur l'état du marché après un import donné. Les paramètres et les entrées de
+// chaque recommandation y sont gardés tels qu'utilisés : on peut la refaire et la contester.
+export const opportunityRuns = pgTable(
+  "opportunity_runs",
+  {
+    id: id(),
+    marketId: marketId(),
+    computedAt: ts("computed_at").notNull(),
+    lastImportId: bigint("last_import_id", { mode: "number" }).references(() => marketImports.id, { onDelete: "set null" }),
+    dataThrough: date("data_through", { mode: "string" }),
+    engineVersion: text("engine_version").notNull(),
+    parameters: jsonb("parameters").notNull(),
+    opportunitiesCount: integer("opportunities_count").notNull(),
+  },
+  (t) => [index("opportunity_runs_market_computed_idx").on(t.marketId, t.computedAt)],
+);
+
+export const opportunities = pgTable(
+  "opportunities",
+  {
+    runId: bigint("run_id", { mode: "number" })
+      .notNull()
+      .references(() => opportunityRuns.id, { onDelete: "cascade" }),
+    rank: integer("rank").notNull(),
+    kind: text("kind").notNull(),
+    itemKey: text("item_key"),
+    spellId: integer("spell_id"),
+    valueCopper: bigint("value_copper", { mode: "number" }),
+    confidence: smallint("confidence").notNull(),
+    horizon: text("horizon").notNull(),
+    reasonCodes: text("reason_codes").array().notNull(),
+    inputs: jsonb("inputs").notNull(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.runId, t.rank] }),
+    check("opportunities_kind_check", sql`${t.kind} in ('CRAFT', 'PROCESS', 'DONT_CRAFT', 'SELL', 'KEEP', 'BUY', 'FARM')`),
+    check("opportunities_confidence_check", sql`${t.confidence} between 0 and 100`),
+  ],
+);
+
+// ---------------------------------------------------------------------------
 // Surveillance des serveurs de jeu
 // ---------------------------------------------------------------------------
 
@@ -456,6 +700,10 @@ export const appSettings = pgTable(
     // ignoré par les synchronisations tant qu'il est inconnu (voir docs/API.md).
     charactersCutoffAt: ts("characters_cutoff_at"),
     charactersResetAt: ts("characters_reset_at"),
+    // Prix ignorés avant cette date (économie de la bêta). Null : la date limite des personnages.
+    marketHistoryFrom: ts("market_history_from"),
+    // Commission de l'hôtel des ventes en pourcentage du prix de vente. Null : 5 %.
+    auctionCutPercent: doublePrecision("auction_cut_percent"),
     updatedAt: updatedAt(),
   },
   (t) => [check("app_settings_single_row_check", sql`${t.id} = 1`)],

@@ -3,6 +3,7 @@ import type { Database } from "@/db/client";
 import * as t from "@/db/schema";
 import { canonicalHash } from "@/lib/hash";
 import { readSettings } from "@/lib/settings/store";
+import { applyAuctionator, applyRecipes, emptyEconomyCounters, type EconomyCounters } from "./economy";
 import type { AccountPayload, CharacterPayload, SyncPayload } from "./schema";
 
 export type SyncResult = {
@@ -16,7 +17,7 @@ export type SyncResult = {
   charactersStale: number;
   snapshotsCreated: number;
   errors: { code: string; message: string }[];
-};
+} & EconomyCounters;
 
 export type SyncContext = { tokenId: number; requestId: string; now: Date };
 
@@ -142,8 +143,12 @@ export async function processSync(db: Database, payload: SyncPayload, context: S
 
     const { charactersCutoffAt: cutoff } = await readSettings(tx);
     const counters = { created: 0, updated: 0, unchanged: 0, stale: 0, snapshots: 0, characters: 0 };
+    const economy = emptyEconomyCounters();
     for (const account of payload.accounts) {
-      await applyAccount(tx, account, { machineId: machine.id, runId: run.id, now, cutoff }, counters);
+      const accountId = await applyAccount(tx, account, { machineId: machine.id, runId: run.id, now, cutoff }, counters);
+      // Après les personnages : les recettes se rattachent à des personnages déjà connus.
+      await applyAuctionator(tx, account, { accountId, machineId: machine.id, runId: run.id, now }, economy);
+      await applyRecipes(tx, account, now, economy);
     }
 
     const warnings = payload.accounts.flatMap((account) =>
@@ -177,6 +182,7 @@ export async function processSync(db: Database, payload: SyncPayload, context: S
       charactersStale: counters.stale,
       snapshotsCreated: counters.snapshots,
       errors: [],
+      ...economy,
     };
   });
 }
@@ -185,7 +191,7 @@ type Counters = { created: number; updated: number; unchanged: number; stale: nu
 /** cutoff : date limite posée par la dernière réinitialisation des personnages, s'il y en a eu une. */
 type Scope = { machineId: number; runId: number; now: Date; cutoff: Date | null };
 
-async function applyAccount(tx: Transaction, account: AccountPayload, scope: Scope, counters: Counters): Promise<void> {
+async function applyAccount(tx: Transaction, account: AccountPayload, scope: Scope, counters: Counters): Promise<number> {
   const { machineId, now } = scope;
 
   const [row] = await tx
@@ -240,7 +246,7 @@ async function applyAccount(tx: Transaction, account: AccountPayload, scope: Sco
 
   const received = uniqueBy(account.characters, (character) => character.guid);
   counters.characters += received.length;
-  if (received.length === 0) return;
+  if (received.length === 0) return accountId;
 
   const guids = received.map((character) => character.guid);
   const existingRows = await tx
@@ -262,7 +268,7 @@ async function applyAccount(tx: Transaction, account: AccountPayload, scope: Sco
   const cutoffMs = scope.cutoff?.getTime() ?? null;
   const characters = received.filter((character) => cutoffMs === null || existing.has(character.guid) || character.lastSeen * 1000 >= cutoffMs);
   counters.stale += received.length - characters.length;
-  if (characters.length === 0) return;
+  if (characters.length === 0) return accountId;
 
   const realmNames = [...new Set(characters.map((character) => character.realm))];
   await tx.insert(t.realms).values(realmNames.map((name) => ({ name }))).onConflictDoNothing({ target: t.realms.name });
@@ -357,6 +363,7 @@ async function applyAccount(tx: Transaction, account: AccountPayload, scope: Sco
   }
 
   if (touched.length > 0) await tx.update(t.characters).set({ lastSyncAt: now }).where(inArray(t.characters.id, touched));
+  return accountId;
 }
 
 function isFresh(incomingSeconds: number, storedAt: Date | null): boolean {

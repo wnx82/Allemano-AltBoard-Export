@@ -14,7 +14,8 @@ export type SyncDependencies = {
   trustedIpHeader?: string;
 };
 
-export const DEFAULT_MAX_BODY_BYTES = 8 * 1024 * 1024;
+// Les prix Auctionator pèsent l'essentiel du document : environ 500 Ko par compte et par mois de relevés.
+export const DEFAULT_MAX_BODY_BYTES = 24 * 1024 * 1024;
 const REQUESTS_PER_CLIENT = { max: 60, windowMs: 5 * 60_000 };
 const AUTH_FAILURES_PER_CLIENT = { max: 10, windowMs: 15 * 60_000 };
 

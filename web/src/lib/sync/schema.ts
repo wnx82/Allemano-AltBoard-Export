@@ -158,16 +158,66 @@ const item = z.strictObject({
   link: link.optional(),
 });
 
+const sourceFile = z.strictObject({ hash: sha256, modifiedAt: instant, size: nonNegativeInt });
+
+// Auctionator (voir docs/AUCTIONATOR-DATA-MODEL.md). Jour Auctionator : 0 = 2020-01-01.
+const auctionDay = z.int().min(0).max(40_000);
+const copper = z.int().min(0).max(10_000_000_000_000);
+const marketItemKey = z.string().regex(/^(\d{1,9}|g:\d{1,9}:\d{1,5}|p:\d{1,9})$/);
+const marketDay = z
+  .tuple([auctionDay, copper, copper, z.int().min(0).max(1_000_000_000).nullable()])
+  .refine(([, low, high]) => low <= high, { message: "low must not exceed high" });
+
+const marketItem = z.strictObject({
+  key: marketItemKey,
+  lastMin: copper.min(1).optional(),
+  days: z.array(marketDay).min(1).max(400),
+});
+
+const market = z.strictObject({
+  key: text(120),
+  contentHash: sha256,
+  items: z.array(marketItem).max(100_000),
+});
+
+const auctionator = z.strictObject({
+  file: sourceFile,
+  dbVersion: z.int().min(0).max(1_000),
+  markets: z.array(market).max(20),
+  vendorPrices: z.array(z.strictObject({ key: marketItemKey, price: z.number().positive().max(10_000_000_000_000) })).max(100_000),
+});
+
+// NaowhForever (voir docs/PROFESSIONS-DATA-MODEL.md).
+const positiveId = z.int().min(1).max(2_147_483_647);
+const recipe = z.strictObject({
+  spellId: positiveId,
+  skillLine: positiveId.optional(),
+  outputItemId: positiveId,
+  outputQuantity: z.int().min(1).max(10_000),
+  cooldown: z.boolean(),
+  reagents: z.array(z.strictObject({ itemId: positiveId, quantity: z.int().min(1).max(10_000) })).min(1).max(20),
+});
+
+const recipes = z.strictObject({
+  file: sourceFile,
+  characters: z
+    .array(z.strictObject({ guid: z.string().regex(/^[A-Za-z0-9-]{1,64}$/), recipes: z.array(recipe).max(2_000) }))
+    .max(200),
+});
+
 const account = z.strictObject({
   accountKey: sha256,
   folderHint: text(16),
   flavor: text(40),
   addonSchema: int.min(0).max(1_000_000).optional(),
   addonVersion: text(40).optional(),
-  file: z.strictObject({ hash: sha256, modifiedAt: instant, size: nonNegativeInt }),
+  file: sourceFile,
   characters: z.array(character).max(200),
   items: z.array(item).max(50_000),
   warnings: z.array(text(400)).max(50),
+  // Facultatifs : un agent antérieur à 0.5.0 ne les envoie pas.
+  auctionator: auctionator.optional(),
+  recipes: recipes.optional(),
 });
 
 export const syncPayloadSchema = z.strictObject({
@@ -186,3 +236,6 @@ export type SyncPayload = z.infer<typeof syncPayloadSchema>;
 export type AccountPayload = SyncPayload["accounts"][number];
 export type CharacterPayload = AccountPayload["characters"][number];
 export type ItemPayload = AccountPayload["items"][number];
+export type AuctionatorPayload = NonNullable<AccountPayload["auctionator"]>;
+export type MarketPayload = AuctionatorPayload["markets"][number];
+export type RecipesPayload = NonNullable<AccountPayload["recipes"]>;
