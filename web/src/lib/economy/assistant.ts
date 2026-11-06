@@ -8,6 +8,9 @@ import type { EconomyFacts } from "./facts";
 
 export type AssistantConfig = { url: string; model: string; apiKey: string | null; timeoutMs: number };
 
+/** Un modèle local de 14 milliards de paramètres, chargé à froid, a mis 51 s à répondre (Ollama, 2026-11-06). */
+const TIMEOUT_MS = 120_000;
+
 export function assistantConfig(env: Record<string, string | undefined> = process.env): AssistantConfig | null {
   const url = env.WOW_AI_URL?.trim();
   const model = env.WOW_AI_MODEL?.trim();
@@ -18,7 +21,7 @@ export function assistantConfig(env: Record<string, string | undefined> = proces
   } catch {
     return null;
   }
-  return { url: url.replace(/\/+$/, ""), model, apiKey: env.WOW_AI_API_KEY?.trim() || null, timeoutMs: 60_000 };
+  return { url: url.replace(/\/+$/, ""), model, apiKey: env.WOW_AI_API_KEY?.trim() || null, timeoutMs: TIMEOUT_MS };
 }
 
 export const MAX_QUESTION_LENGTH = 500;

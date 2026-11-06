@@ -4,6 +4,59 @@ Deux versions, chacune en SemVer : le **site** (`web/package.json`) et l'**agent
 (`agent/Directory.Build.props`, étiquette `agent-vX.Y.Z` pour une release). Le pied de page du
 tableau de bord affiche les deux. Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
+## Site 0.3.0 — 2026-11-06
+
+### Ajouté
+
+- Économie : import des prix de l'hôtel des ventes (addon **Auctionator**) et des recettes connues
+  de chaque personnage (addon **NaowhForever**), envoyés par l'agent 0.5.0. Un même fichier n'est
+  importé qu'une fois ; les relevés de plusieurs comptes et PC se fusionnent jour par jour.
+- Moteur économique déterministe ([ECONOMY-ENGINE](docs/ECONOMY-ENGINE.md)) :
+  - prix : valeur de marché, médianes, variations, volatilité, liquidité, prix anormaux et
+    confiance ;
+  - rentabilité des crafts : un composant possédé coûte ce qu'il rapporterait, profit au prix
+    prudent, commission réglable ;
+  - signal de farm ;
+  - opportunités classées (crafter, transformer, vendre, garder, acheter, farmer, ne pas crafter),
+    chacune avec les valeurs qui la fondent.
+
+  Aucune valeur n'est inventée : sans 3 jours de relevés, la décision est « attendre ».
+- Nouvelles pages :
+  - **Opportunités** et **Marché** ;
+  - fiche d'objet : courbe de prix, quantités en vente, profit passé des recettes ;
+  - **Craft** ;
+  - **Farm** : sessions mesurées entre deux relevés des sacs, po/h ;
+  - **Audit**.
+
+  Les meilleures opportunités s'affichent aussi sur l'accueil.
+- **Paramètres** : début de l'historique et commission de l'hôtel des ventes.
+- `GET /api/economy/facts` : faits structurés du moteur.
+- Assistant facultatif, désactivé par défaut (`WOW_AI_URL`, `WOW_AI_MODEL`, `WOW_AI_API_KEY`). Il
+  explique ces faits sans rien calculer ; une réponse qui cite un nombre absent des faits est
+  refusée.
+
+### Modifié
+
+- `POST /api/sync` : blocs `auctionator` et `recipes` facultatifs par compte ; taille maximale
+  du document portée à 24 Mio.
+- Un montant négatif s'affiche avec son signe ; il apparaissait à 0.
+
+### Production
+
+- Migrations `0005_economy` et `0006_farm_open_session`, appliquées au déploiement. Régler
+  ensuite **Début de l'historique** au 2026-11-04 dans **Paramètres** : les jours antérieurs
+  viennent de la bêta.
+
+## Agent 0.5.0 — 2026-11-06
+
+### Ajouté
+
+- Lit `Auctionator.lua` (prix, que le client sérialise en CBOR) et `NaowhForever.lua` (recettes),
+  à côté d'`AltBoard.lua`. Ces deux fichiers sont facultatifs : absents ou illisibles, ils ne
+  bloquent jamais la synchronisation.
+- `watch` synchronise aussi quand seul l'un de ces deux fichiers change.
+- `scan` et `sync` affichent le nombre d'objets relevés par hôtel des ventes et de recettes.
+
 ## Site 0.2.1 — 2026-10-30
 
 ### Corrigé

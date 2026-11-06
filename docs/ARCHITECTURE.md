@@ -5,6 +5,7 @@
 ```text
 ┌────────────────────────────── PC Windows (1 à n) ──────────────────────────────┐
 │  WTF\Account\<COMPTE>\SavedVariables\AltBoard.lua   (lecture seule)             │
+│    + AllemanoLedger.lua, Auctionator.lua, NaowhForever.lua (facultatifs)        │
 │                         │                                                       │
 │  AltBoardSync.exe  ─ découverte ─ lecture stable ─ parser ─ normalisation       │
 └─────────────────────────┬──────────────────────────────────────────────────────┘
@@ -13,7 +14,8 @@
 ┌───────────────────────── Application web (Next.js) ────────────────────────────┐
 │  POST /api/sync : jeton → limites → schéma strict → transaction d'upsert        │
 │  Pages : / · /characters/[id] · /accounts · /machines   (session requise)       │
-│  GET /api/export/xlsx · GET /api/health                                         │
+│  Économie : /opportunities · /market · /crafting · /farming · /audit            │
+│  GET /api/export/xlsx · GET /api/economy/facts · GET /api/health                │
 └─────────────────────────┬──────────────────────────────────────────────────────┘
                           ▼
                 PostgreSQL — base dédiée wow_altboard
@@ -31,6 +33,9 @@ Trois notions sont strictement séparées, du fichier jusqu'à la base : **machi
 |---|---|
 | `Lua/SavedVariablesParser` | Lit les littéraux Lua (nil, booléen, nombre, chaîne, table). N'exécute rien ; profondeur bornée ; erreurs localisées (ligne, colonne) |
 | `AltBoard/AltBoardReader` | Convertit `AltBoardDB` vers le modèle de synchronisation. Tolérant : champ absent, mal typé ou inconnu = avertissement |
+| `AltBoard/LedgerReader` | Temps de jeu et sessions d'Allemano Ledger ([LEDGER-DATA-MODEL](LEDGER-DATA-MODEL.md)) |
+| `Economy/AuctionatorReader`, `Lua/CborDecoder` | Prix d'Auctionator, sérialisés en CBOR dans une chaîne Lua ; décodage borné ([AUCTIONATOR-DATA-MODEL](AUCTIONATOR-DATA-MODEL.md)) |
+| `Economy/RecipeReader` | Recettes connues par personnage, relevées par NaowhForever ([PROFESSIONS-DATA-MODEL](PROFESSIONS-DATA-MODEL.md)) |
 | `Discovery/AccountScanner` | Trouve chaque `SavedVariables\AltBoard.lua` ; aucun nombre de comptes codé en dur |
 | `IO/StableFileReader` | Ne lit que si taille et date sont stables avant et après ; partage total, jamais d'écriture |
 | `Sync/PayloadBuilder`, `SyncClient` | Construit le document v1 et l'envoie ; HTTPS obligatoire hors localhost |
@@ -51,6 +56,7 @@ que le schéma du serveur. Toute décision métier (fraîcheur, historique) est 
 | `src/lib/xlsx` | Écriture XLSX sans dépendance |
 | `src/lib/status` | État des serveurs de jeu : sonde TCP, moniteur périodique, historique ([SERVER-STATUS](SERVER-STATUS.md)) |
 | `src/lib/settings` | Page **Paramètres** : réglages en base, validation des saisies, réinitialisation des personnages |
+| `src/lib/economy` | Import des prix et des recettes, moteur économique déterministe (prix, craft, farm, opportunités), faits structurés, assistant facultatif ([ECONOMY-ENGINE](ECONOMY-ENGINE.md)) |
 | `src/app` | Pages et routes ; `src/proxy.ts` pose la CSP et filtre les requêtes sans session |
 | `src/instrumentation.ts` | Lance le moniteur d'état au démarrage du serveur |
 
@@ -72,6 +78,10 @@ que le schéma du serveur. Toute décision métier (fraîcheur, historique) est 
 | XLSX écrit sans bibliothèque | La seule bibliothèque courante embarque une dépendance signalée ; elle ne sert qu'aux tests, pour relire |
 | État des serveurs par **sonde TCP du serveur web**, adresses en configuration ou réglées sur le site | Aucune API documentée pour WoW Forever ; un navigateur ne peut pas ouvrir de connexion TCP ; pas de dépendance à un site tiers ni de nouveau service à déployer |
 | Moniteur lancé par `instrumentation.ts`, état lu en base | Un seul processus web : pas d'ordonnanceur externe. La page ne dépend pas de la mémoire du moniteur |
+| Prix lus dans **Auctionator**, pas Auctioneer | Auctioneer, prévu par la roadmap de l'économie, n'est installé sur aucun compte ; Auctionator l'est et garde un relevé par jour |
+| Moteur économique **déterministe**, en fonctions pures | Mêmes relevés, mêmes résultats ; testable sans base. Aucune valeur inventée : une donnée absente donne « attendre » |
+| Calcul d'opportunités conservé et réutilisé tant que sa base ne change pas | Chaque opportunité garde ses entrées : on peut toujours dire d'où vient un chiffre |
+| Assistant IA **facultatif**, qui explique et ne calcule pas | Il ne reçoit que les faits du moteur ; une réponse qui cite un nombre absent des faits est refusée |
 
 ## Ce qui est prévu mais non activé
 

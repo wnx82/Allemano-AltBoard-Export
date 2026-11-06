@@ -2,6 +2,9 @@
 
 Centralise dans PostgreSQL les données de l'addon World of Warcraft **AltBoard** et les présente
 dans un tableau de bord web privé : tous les personnages de tous les comptes, depuis tous les PC.
+Les prix de l'hôtel des ventes (addon **Auctionator**) et les recettes connues (addon
+**NaowhForever**) alimentent un moteur économique : marché, rentabilité des crafts, farm et
+opportunités ([ECONOMY-ENGINE](docs/ECONOMY-ENGINE.md)).
 
 En production : **https://wow.ekreativ.be**
 
@@ -20,7 +23,7 @@ La synchronisation est **manuelle** : rien n'est lu ni envoyé tant que la comma
 | `web/` | API de synchronisation, tableau de bord, export Excel | Next.js 16, React 19, TypeScript, Drizzle, PostgreSQL |
 | `deploy/` | Composition Docker de production | Docker Compose |
 | `tests/fixtures/` | Fichiers AltBoard réels anonymisés et cas limites, partagés par les deux projets | |
-| `tools/` | Anonymisation de fichiers AltBoard.lua | Node.js |
+| `tools/` | Anonymisation de fichiers AltBoard.lua, génération des fixtures de l'économie | Node.js |
 | `docs/` | Documentation | |
 
 ## Démarrage local
@@ -50,8 +53,8 @@ dotnet run --project src/AltBoardSync -- sync
 ## Vérifications
 
 ```bash
-cd agent && dotnet test                               # 158 tests
-cd web && npm run typecheck && npm run lint && npm test && npm run build   # 226 tests
+cd agent && dotnet test                               # 180 tests
+cd web && npm run typecheck && npm run lint && npm test && npm run build   # 284 tests
 ```
 
 GitHub Actions relance ces contrôles à chaque push et à chaque pull request, construit l'image Docker
@@ -70,6 +73,9 @@ pas par `wow_altboard` : voir `web/src/db/env.ts`.
 | [ARCHITECTURE](docs/ARCHITECTURE.md) | Composants, flux, décisions |
 | [ALTBOARD-DATA-MODEL](docs/ALTBOARD-DATA-MODEL.md) | Structure réellement observée de `AltBoardDB` |
 | [LEDGER-DATA-MODEL](docs/LEDGER-DATA-MODEL.md) | Temps de jeu par niveau et sessions, issus de l'addon Allemano Ledger |
+| [AUCTIONATOR-DATA-MODEL](docs/AUCTIONATOR-DATA-MODEL.md) | Prix de l'hôtel des ventes relevés par l'addon Auctionator |
+| [PROFESSIONS-DATA-MODEL](docs/PROFESSIONS-DATA-MODEL.md) | Recettes connues par personnage, relevées par l'addon NaowhForever |
+| [ECONOMY-ENGINE](docs/ECONOMY-ENGINE.md) | Règles du moteur économique : prix, confiance, craft, farm, opportunités, assistant |
 | [DATABASE](docs/DATABASE.md) | Schéma PostgreSQL, identifiants, snapshots |
 | [API](docs/API.md) | Contrat de `POST /api/sync` et des autres routes |
 | [AGENT](docs/AGENT.md) | Installation, commandes, automatisation future |

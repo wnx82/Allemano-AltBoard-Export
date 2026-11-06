@@ -69,6 +69,8 @@ export function readme(agent: AgentFile, version: string | null): string {
     "",
     "1. Installez les addons AltBoard et Allemano Ledger dans le jeu :",
     "   World of Warcraft\\_forever_\\Interface\\AddOns",
+    "   Facultatifs, pour les pages de l'économie : Auctionator (prix, après un scan de l'hôtel",
+    "   des ventes) et NaowhForever (recettes, à l'ouverture de chaque métier).",
     `2. Copiez ${AGENT_FILE_NAME} où vous voulez sur le PC. Aucune installation, aucun prérequis.`,
     "3. Créez un jeton dans la page Machines du tableau de bord. Il n'est affiché qu'une fois.",
     "   Un jeton par PC.",

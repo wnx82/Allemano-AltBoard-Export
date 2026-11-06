@@ -170,6 +170,10 @@ describe("vues des pages", () => {
     assert.equal(result.facts.opportunities.length, Math.min(15, result.run.opportunities.length));
     assert.ok(result.facts.opportunities.every((o) => o.confidence >= 0 && o.confidence <= 100 && o.lastDay !== undefined));
     assert.ok(result.facts.rules.length > 0);
+    // Variations en pourcentage, prêtes à citer : 100 pc le 06/11 contre 700 pc le 22/10.
+    const fallen = result.facts.falling.find((f) => f.item === "2576");
+    assert.equal(fallen?.change7dPercent, -85.7);
+    assert.ok(result.facts.rising.every((f) => f.change7dPercent! > 0));
     // Aucun calcul de plus pour la même base : les faits citent le calcul déjà conservé.
     const again = (await loadFacts(database.db, { now: NOW }))!;
     assert.equal(again.run.id, result.run.id);

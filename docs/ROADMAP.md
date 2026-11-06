@@ -4,7 +4,7 @@ Statuts : ⬜ À faire · 🟡 En cours · ✅ Validé · 🔴 Bloqué
 
 Une étape n'est ✅ que si elle est implémentée, testée et vérifiée sur un résultat réel.
 
-Dernière mise à jour : 2026-10-08.
+Dernière mise à jour : 2026-11-06.
 
 ## Synthèse
 
@@ -14,7 +14,7 @@ Dernière mise à jour : 2026-10-08.
 | Chaîne complète PC → agent → HTTPS → PostgreSQL → tableau de bord | ✅ sur les fichiers réels (2 comptes, 6 personnages) |
 | Recette après une vraie modification en jeu | ⬜ à faire par le joueur : jouer, `/reload`, `AltBoardSync.exe sync` |
 | Compte personnel d'accès au tableau de bord | ⬜ à créer par le joueur (mot de passe saisi sur le serveur) |
-| Tests automatisés | 152 (agent) + 185 (web), tous verts |
+| Tests automatisés | 180 (agent) + 284 (web), tous verts (branche `feat/economy`) |
 
 Le critère de réussite de la V1 est rempli jusqu'à l'étape 5 (personnage vérifié dans le fichier, la
 base et la page). Les étapes 6 à 10 — modifier une donnée en jeu, resynchroniser, constater la mise
@@ -209,6 +209,25 @@ Depuis l'agent 0.4.0 : saisie du jeton dans la fenêtre, sans ligne de commande.
 | Réinitialisation des personnages | ✅ | pour la sortie officielle : suppression avec date limite, mot de passe redemandé ; les fichiers de la bêta renvoyés ensuite sont ignorés ([DATABASE](DATABASE.md)). Faite en production le 2026-10-29 à 19:53, après sauvegarde ([DEPLOYMENT § Sauvegarde](DEPLOYMENT.md#sauvegarde)) : 14 personnages supprimés ; un renvoi des fichiers de la bêta n'en a recréé aucun |
 | Tests | ✅ | 29 tests ajoutés ; parcours de la page vérifié dans un navigateur sur la base de test |
 
+## P16 — Économie
+
+Roadmap dédiée, phases P0 à P15 de l'économie : statuts détaillés dans
+`Roadmaps/AltBoard-WoW-Economy-Roadmaps/ROADMAP-PRINCIPALE.md`, non versionné. Règles du moteur :
+[ECONOMY-ENGINE](ECONOMY-ENGINE.md).
+Branche `feat/economy` (site 0.3.0, agent 0.5.0), **ni fusionnée ni déployée**.
+
+| Étape | Statut | Note |
+|---|---|---|
+| Source des prix | ✅ | Auctioneer absent de tous les comptes : **Auctionator** lu à sa place ([AUCTIONATOR-DATA-MODEL](AUCTIONATOR-DATA-MODEL.md)) |
+| Source des recettes | ✅ | addon NaowhForever, données du jeu ([PROFESSIONS-DATA-MODEL](PROFESSIONS-DATA-MODEL.md)) |
+| Lecture par l'agent | ✅ | CBOR décodé, fichiers facultatifs, `watch` réagit aussi à ces deux fichiers |
+| Import PostgreSQL | ✅ | scan réel chargé dans la base de test : 9 hôtels des ventes, 56 239 relevés en 3,5 s ; les 46 651 relevés journaliers fusionnés sont identiques au fichier ; second envoi sans effet |
+| Moteur de prix, craft, farm, opportunités | 🟡 | déterministe, testé ; sur les données réelles, deux jours de relevés seulement depuis la sortie officielle : tout est « attendre », aucune opportunité inventée |
+| Pages Opportunités, Marché, objet, Craft, Farm, Audit | ✅ | vérifiées dans un navigateur sur les données réelles, aucune erreur de console |
+| Sessions de farm (po/h mesuré) | 🟡 | testées ; aucune session réelle en jeu |
+| Faits structurés et assistant facultatif | 🟡 | `GET /api/economy/facts` vérifié sur les données réelles ; assistant essayé avec un modèle local réel, pas encore depuis la page en production |
+| Nombre d'enchères, prix « 24 h », prix moyen pondéré | 🔴 | absents d'Auctionator, qui ne garde qu'un relevé par jour |
+
 ## Reste à faire
 
 | Quoi | Qui |
@@ -219,6 +238,8 @@ Depuis l'agent 0.4.0 : saisie du jeton dans la fenêtre, sans ligne de commande.
 | Recette après une vraie modification en jeu | joueur |
 | Icônes, temps par niveau, sessions et courbe d'expérience en production : déployer le serveur (voir [DEPLOYMENT § Mettre à jour](DEPLOYMENT.md)), puis republier l'agent et synchroniser | joueur |
 | Agent sur les autres PC : copier `AltBoardSync.exe`, créer un jeton par PC | joueur |
+| Économie : fusionner `feat/economy` et déployer, publier l'agent 0.5.0, régler **Début de l'historique** au 2026-11-04 dans **Paramètres**, puis scanner l'hôtel des ventes chaque jour (Auctionator) et ouvrir chaque métier une fois (NaowhForever) | joueur |
+| Économie : comparer en jeu quelques prix et un craft avec les pages Marché et Craft, une fois trois jours de scans reçus ; mesurer une vraie session de farm | joueur |
 
 ## Suite
 
@@ -237,5 +258,6 @@ Depuis l'agent 0.4.0 : saisie du jeton dans la fenêtre, sans ligne de commande.
 | `.NET 10` au lieu de `.NET 8` | seul SDK installé ; exécutable autonome, donc sans effet sur les PC cibles |
 | Une table `character_items` au lieu de `character_inventory` + `character_bank` | même structure, un discriminant |
 | Un seul rôle PostgreSQL au lieu d'un rôle de migration et d'un rôle applicatif | convention de l'hôte : une base, un rôle par projet |
-| Pas de colonnes genre, région ; pas de tables quêtes, recettes | données absentes d'AltBoard |
+| Pas de colonnes genre, région ; pas de table quêtes | données absentes d'AltBoard ; les recettes viennent de NaowhForever |
 | Pas d'icônes d'objet | AltBoard ne fournit que des identifiants de fichier du jeu |
+| Prix lus dans Auctionator, pas Auctioneer | Auctioneer n'est installé sur aucun compte |

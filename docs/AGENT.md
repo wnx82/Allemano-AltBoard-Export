@@ -21,7 +21,7 @@ lance `.github/workflows/release-agent.yml` : tests, publication, puis GitHub Re
 sinon la release est refusée.
 
 ```bash
-git tag agent-v0.4.1 && git push origin agent-v0.4.1
+git tag agent-v0.5.0 && git push origin agent-v0.5.0
 ```
 
 ## Installer sur un PC
@@ -60,7 +60,7 @@ avant ne voit pas les derniers changements.
 | aucune, par double-clic | ouvre la fenêtre (comme `ui`) |
 | aucune, depuis un terminal | affiche l'aide |
 | `ui` | ouvre la fenêtre de l'agent ; celle de la surveillance en cours s'il y en a une |
-| `sync` | lit tous les `AltBoard.lua` (et `AllemanoLedger.lua` voisins) et envoie le document |
+| `sync` | lit tous les `AltBoard.lua` (et les `AllemanoLedger.lua`, `Auctionator.lua`, `NaowhForever.lua` voisins) et envoie le document |
 | `watch` | synchronise à chaque écriture du jeu, jusqu'à l'arrêt |
 | `autostart` / `autostart on` / `autostart off` | affiche, active ou désactive le lancement de `watch` à l'ouverture de session ; `on` le lance aussi tout de suite, `off` arrête celui qui tourne |
 | `scan` | lit et affiche, **sans rien envoyer** (équivaut à `sync --dry-run`) |
@@ -77,7 +77,7 @@ Codes de sortie : `0` réussite, `1` synchronisation échouée ou partielle, `2`
 ## Exemple
 
 ```text
-AltBoard Sync 0.4.1
+AltBoard Sync 0.5.0
 
 Machine : PC-GAMING
 
@@ -85,6 +85,8 @@ Machine : PC-GAMING
 6 personnages détectés
 
 Compte 1 (12…#1) : 4 personnages
+  Auctionator « PvE » : 2010 objets
+  NaowhForever : 45 recettes
 Compte 2 (34…#1) : 2 personnages
 
 Envoi vers le serveur...
@@ -154,6 +156,17 @@ terminés, et leurs sessions de jeu : dates, durée, expérience gagnée
 ([LEDGER-DATA-MODEL](LEDGER-DATA-MODEL.md)). Fichier facultatif : absent, rien ne change ;
 illisible, un avertissement est joint au document et la synchronisation continue.
 
+Deux autres fichiers voisins alimentent le moteur économique, avec la même règle (facultatifs,
+jamais bloquants) :
+
+- `Auctionator.lua` (addon Auctionator) : prix de l'hôtel des ventes, jour par jour, et prix des
+  marchands ([AUCTIONATOR-DATA-MODEL](AUCTIONATOR-DATA-MODEL.md)) ;
+- `NaowhForever.lua` (addon NaowhForever) : recettes connues de chaque personnage, relevées à
+  l'ouverture de la fenêtre d'un métier ([PROFESSIONS-DATA-MODEL](PROFESSIONS-DATA-MODEL.md)).
+
+Pour des prix à jour : scan à l'hôtel des ventes avec Auctionator, `/reload`, puis synchroniser.
+`scan --out <fichier>` montre ce qui serait envoyé, prix et recettes compris.
+
 ## Lecture pendant que le jeu écrit
 
 1. relever taille et date du fichier ;
@@ -191,13 +204,13 @@ ne s'ouvre que sur demande. Un double-clic sur l'exécutable lance la même surv
 ouverte.
 
 ```text
-AltBoard.lua ou AllemanoLedger.lua modifié (FileSystemWatcher sur WTF\Account)
+AltBoard.lua, AllemanoLedger.lua, Auctionator.lua ou NaowhForever.lua modifié (FileSystemWatcher sur WTF\Account)
         ↓
 anti-rebond : attendre 5 s sans nouvel événement (le jeu écrit en plusieurs fois)
         ↓
 lecture stable (StableFileReader)
         ↓
-empreinte SHA-256 des deux fichiers ≠ dernière empreinte envoyée ?   sinon : rien à faire
+empreinte SHA-256 des fichiers du compte ≠ dernière empreinte envoyée ?   sinon : rien à faire
         ↓
 parser → document → POST /api/sync (idempotent)
 ```

@@ -106,6 +106,20 @@ Chaque ligne demande une évolution de l'agent, du contrat de `POST /api/sync` e
   (enchantement dans le lien, fichier d'icône). Il faut une table de correspondance ; source à
   trouver pour WoW Forever.
 
+### 1.3 bis Économie (suite de la branche `feat/economy`)
+
+Ce qui reste après le moteur et les pages ([ECONOMY-ENGINE](ECONOMY-ENGINE.md)), constaté le
+2026-11-06.
+
+- [ ] **P2 · M** — Audit quotidien rédigé par l'assistant, à partir des seuls faits du moteur : le
+  seul usage autorisé de la roadmap de l'économie qui n'est pas fait.
+- [ ] **P2 · M** — Noms des objets jamais possédés : le moteur ne connaît que ceux vus dans un
+  inventaire (table `items`) et affiche les autres sous leur identifiant. Source à trouver ;
+  Auctionator ne garde pas les noms.
+- [ ] **P2 · S** — Revoir les index de `market_item_days` avec plusieurs semaines d'historique
+  réel (environ 2 000 lignes par jour de scan sur le marché « PvE »).
+- [ ] **P3 · M** — Agréger les relevés de plus d'un an, par semaine, si le volume le demande.
+
 ### 1.4 Notifications et rapports (V4 de la feuille de route)
 
 - [ ] **P2 · M** — Webhook sortant vers n8n, réglable dans **Paramètres**, sur quatre événements :

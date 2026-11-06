@@ -174,7 +174,9 @@ export default async function MachinesPage() {
           <ol className="panel list-decimal space-y-3 p-5 pl-9 text-sm marker:text-gold">
             <li>
               Installez les addons AltBoard et Allemano Ledger dans le jeu :{" "}
-              <code className="text-text">World of Warcraft\_forever_\Interface\AddOns</code>.
+              <code className="text-text">World of Warcraft\_forever_\Interface\AddOns</code>. Facultatifs, pour les pages de
+              l&apos;économie : Auctionator (prix, après un scan de l&apos;hôtel des ventes) et NaowhForever (recettes, à l&apos;ouverture de chaque
+              métier).
             </li>
             <li>
               {agent ? "Téléchargez l'agent, extrayez" : "Copiez"} <code className="text-text">AltBoardSync.exe</code> sur le PC. Aucune

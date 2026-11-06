@@ -210,7 +210,9 @@ internal sealed class WatchLoop(
     {
         var name = Path.GetFileName(e.Name);
         if (string.Equals(name, AccountScanner.SavedVariablesFile, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(name, AccountScanner.LedgerFile, StringComparison.OrdinalIgnoreCase))
+            || string.Equals(name, AccountScanner.LedgerFile, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(name, AccountScanner.AuctionatorFile, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(name, AccountScanner.RecipesFile, StringComparison.OrdinalIgnoreCase))
         {
             _signals.Writer.TryWrite(Signal.FileChanged);
         }

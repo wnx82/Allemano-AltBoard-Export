@@ -281,6 +281,24 @@ public class WatchTests
         await Eventually(() => server.Calls == 2, "l'envoi après la modification d'Allemano Ledger");
     }
 
+    [Theory]
+    [InlineData("Auctionator.lua", "auctionator-small.lua")]
+    [InlineData("NaowhForever.lua", "naowh-recipes.lua")]
+    public async Task Sends_again_when_only_an_economy_file_changes(string fileName, string fixture)
+    {
+        using var h = new Harness();
+        var file = h.Temp.AddAccount(h.Flavor, "111111111#1", "account-two-characters.lua");
+        var economy = Path.Combine(Path.GetDirectoryName(file)!, fileName);
+        File.Copy(Fixture.PathOf(fixture), economy);
+        var server = new FakeServer(HttpStatusCode.OK);
+        h.Start(server);
+        await Eventually(() => server.Calls == 1, "l'envoi du démarrage");
+
+        File.AppendAllText(economy, "\r\n-- réécrit par le jeu\r\n");
+
+        await Eventually(() => server.Calls == 2, $"l'envoi après la modification de {fileName}");
+    }
+
     [Fact]
     public async Task Sends_nothing_while_no_account_exists_then_picks_up_a_new_one()
     {

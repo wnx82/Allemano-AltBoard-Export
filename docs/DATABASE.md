@@ -2,14 +2,16 @@
 
 > Source unique du schéma : `web/src/db/schema.ts` (Drizzle). Migrations générées dans
 > `web/drizzle/`. Structure des données d'origine : [ALTBOARD-DATA-MODEL](ALTBOARD-DATA-MODEL.md),
-> [LEDGER-DATA-MODEL](LEDGER-DATA-MODEL.md) pour le temps de jeu.
+> [LEDGER-DATA-MODEL](LEDGER-DATA-MODEL.md) pour le temps de jeu,
+> [AUCTIONATOR-DATA-MODEL](AUCTIONATOR-DATA-MODEL.md) pour les prix,
+> [PROFESSIONS-DATA-MODEL](PROFESSIONS-DATA-MODEL.md) pour les recettes.
 
 ## État
 
 | Environnement | État |
 |---|---|
-| PostgreSQL 17 local (Docker, `127.0.0.1:35432`) | ✅ migration appliquée et vérifiée dans l'instance |
-| Production (PostgreSQL 17 de la pile, Proxmox) | ✅ base `wow_altboard` copiée de contabo le 2026-10-05 (22 tables), migrations à jour |
+| PostgreSQL 17 local (Docker, `127.0.0.1:35432`) | ✅ migrations appliquées et vérifiées dans la base de test (37 tables, 7 migrations, 2026-11-06) |
+| Production (PostgreSQL 17 de la pile, Proxmox) | ✅ base `wow_altboard` copiée de contabo le 2026-10-05 (22 tables), migrations jusqu'à `0004` ; `0005` et `0006` (économie) s'appliqueront au prochain déploiement de `main` |
 
 ## Isolation
 
@@ -24,7 +26,7 @@
 - Variables `WOW_DATABASE_URL`, `WOW_DATABASE_URL_DIRECT`, `WOW_TEST_DATABASE_URL` : jamais de nom
   générique, qui pourrait exister dans l'environnement pour un autre projet.
 
-## Tables (24)
+## Tables (37)
 
 Conventions : clés `bigint` générées, dates en `timestamptz`, argent en pièces de cuivre.
 
@@ -55,7 +57,8 @@ Conventions : clés `bigint` générées, dates en `timestamptz`, argent en piè
 | `character_level_times` | `(character_id, level)` | Un niveau terminé : temps de jeu, temps réel, date, zone (addon Allemano Ledger) |
 | `character_sessions` | `(character_id, started_at)` | Une session de jeu : fin, temps connecté, expérience gagnée, niveaux, zone, étiquette, session encore ouverte (addon Allemano Ledger) |
 
-Colonnes volontairement absentes, faute de donnée dans AltBoard : genre, région, quêtes, recettes.
+Colonnes volontairement absentes, faute de donnée dans AltBoard : genre, région, quêtes. Les
+recettes viennent de NaowhForever (tables de l'économie).
 
 ### Historique et journal
 
@@ -64,6 +67,26 @@ Colonnes volontairement absentes, faute de donnée dans AltBoard : genre, régio
 | `character_snapshots` | Un état daté par progression : niveau, expérience et expérience du niveau (`xp_max`), or, niveau d'objet + détail en `jsonb`. Unicité `(character_id, captured_at)` |
 | `sync_runs` | Une ligne par synchronisation : machine, statut, compteurs, durée, versions |
 | `sync_errors` | Erreurs et avertissements de l'agent rattachés à une synchronisation |
+
+### Économie
+
+Voir [ECONOMY-ENGINE](ECONOMY-ENGINE.md). Ajoutées par `0005_economy` et `0006_farm_open_session`.
+
+| Table | Clé | Contenu |
+|---|---|---|
+| `markets` | `(flavor, auction_key)` | Un hôtel des ventes : client (`_forever_`…) et clé Auctionator (« PvE ») |
+| `market_imports` | `(market_id, account_id, content_hash)` | Un relevé Auctionator reçu : compte, machine, synchronisation, date du fichier, objets, premier et dernier jour. Un même contenu n'est importé qu'une fois |
+| `market_item_days` | `(market_id, item_key, day)` | Un objet, un jour : plus bas et plus haut des prix minimums, plus grande quantité. Fusion de plusieurs relevés (plus bas des plus bas, plus haut des plus hauts) |
+| `market_item_latest` | `(market_id, item_key)` | Dernier prix minimum vu et son jour |
+| `vendor_prices` | `item_key` | Prix chez un marchand (`AUCTIONATOR_VENDOR_PRICE_CACHE`) |
+| `recipes` | `spell_id` | Recette : métier, objet produit, quantité, temps de recharge |
+| `recipe_reagents` | `(spell_id, item_id)` | Composants d'une recette |
+| `character_recipes` | `(character_id, spell_id)` | Recettes connues d'un personnage, remplacées à chaque fichier plus récent |
+| `character_recipe_sources` | `character_id` | Date et empreinte du dernier fichier NaowhForever appliqué |
+| `farm_sessions` | `id` | Session de farm : personnage, libellé, relevés des sacs de début et de fin (`start_source_at`, `end_source_at`), argent. Index unique partiel : une seule session ouverte par personnage |
+| `farm_session_items` | `(session_id, phase, location, item_key)` | Inventaire au début (`start`) et à la fin (`end`), sacs et banque |
+| `opportunity_runs` | `id` | Un calcul d'opportunités : marché, date, version du moteur, paramètres et base (`jsonb`), dernier import, jour des données |
+| `opportunities` | `(run_id, rank)` | Une recommandation : type, objet ou recette, valeur, confiance, horizon, raisons, entrées (`jsonb`) |
 
 ### Surveillance des serveurs de jeu
 
@@ -75,7 +98,7 @@ Colonnes volontairement absentes, faute de donnée dans AltBoard : genre, régio
 
 | Table | Contenu |
 |---|---|
-| `app_settings` | Réglages de la page **Paramètres**, sur une seule ligne (`id = 1`), créée à la première écriture. Adresses surveillées par service (vide : rien n'est surveillé ; absente : l'environnement du serveur s'applique) et libellé d'environnement ([SERVER-STATUS](SERVER-STATUS.md)) ; date limite et date de la dernière réinitialisation des personnages |
+| `app_settings` | Réglages de la page **Paramètres**, sur une seule ligne (`id = 1`), créée à la première écriture. Adresses surveillées par service (vide : rien n'est surveillé ; absente : l'environnement du serveur s'applique) et libellé d'environnement ([SERVER-STATUS](SERVER-STATUS.md)) ; date limite et date de la dernière réinitialisation des personnages ; début de l'historique des prix et commission de l'hôtel des ventes |
 
 ### Accès au tableau de bord
 
@@ -86,10 +109,12 @@ Colonnes volontairement absentes, faute de donnée dans AltBoard : genre, régio
 
 ## Contraintes
 
-24 clés primaires, 22 clés étrangères, 8 contraintes d'unicité, 11 contraintes de validation
+37 clés primaires, 38 clés étrangères, 10 contraintes d'unicité, 22 contraintes de validation
 (`slot` entre 1 et 19, `location` ∈ `bags`/`bank`, quantités, or et durées positifs, statut de
 synchronisation ; service, statut et nombre d'adresses jointes d'un contrôle de serveur ; ligne
-unique des réglages).
+unique des réglages ; plus bas ≤ plus haut, prix et quantités positifs, type d'opportunité, phase
+et fin d'une session de farm), plus l'index unique partiel des sessions de farm ouvertes. Comptés
+dans `pg_constraint` de la base de test le 2026-11-06.
 
 Suppression d'un personnage : ses tables filles et ses snapshots suivent (`ON DELETE CASCADE`).
 Un compte, un royaume ou une machine référencé ne peut pas être supprimé.
@@ -179,6 +204,8 @@ Derrière PgBouncer, les migrations passent en connexion directe. Le suivi est t
 | `0002_sessions` | `character_sessions`, colonne `character_snapshots.xp_max` (ajouts seuls). Les relevés antérieurs reçoivent le `xp_max` de leur personnage quand il est encore au même niveau ; les autres restent sans valeur |
 | `0003_server_status` | `server_status_checks` et son index (ajout seul) |
 | `0004_app_settings` | `app_settings` (ajout seul) |
+| `0005_economy` | 13 tables de l'économie, colonnes `app_settings.market_history_from` et `auction_cut_percent` (ajouts seuls) |
+| `0006_farm_open_session` | index unique partiel `farm_sessions_open_character_idx` (ajout seul) |
 
 ## Checkpoint B
 

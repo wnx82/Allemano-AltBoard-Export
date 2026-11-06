@@ -214,6 +214,29 @@ n'est à ouvrir. La table `server_status_checks` est créée par la migration `0
 Cette surveillance est celle des serveurs de Blizzard, vue depuis ce conteneur : elle ne remplace
 pas la surveillance du site ci-dessus, et n'envoie aucune alerte.
 
+## Économie
+
+Les pages **Opportunités**, **Marché**, **Craft**, **Farm** et **Audit** n'ont besoin d'aucune
+configuration. Elles se remplissent dès qu'un agent 0.5.0 ou plus récent envoie un
+`Auctionator.lua` (prix) et un `NaowhForever.lua` (recettes). Les migrations `0005_economy` et
+`0006_farm_open_session` créent leurs tables ([DATABASE](DATABASE.md)).
+
+- **Début de l'historique** (page **Paramètres**, section « Moteur économique ») : sans réglage,
+  le moteur part de la date limite de la réinitialisation des personnages. Les jours antérieurs au
+  2026-11-04, date de la sortie officielle, viennent de la bêta : régler le 2026-11-04 les écarte.
+- **Commission de l'hôtel des ventes** : 5 % par défaut, même section.
+- **Assistant** de la page Opportunités, facultatif : dans l'environnement de la pile, puis
+  **Deploy**. Vides, il est désactivé ; rien d'autre ne change.
+
+```text
+WOW_AI_URL = http://<hôte>:<port>/v1      # API « chat completions » compatible OpenAI
+WOW_AI_MODEL = <nom du modèle>
+WOW_AI_API_KEY = <clé>                     # facultatif ; secret Komodo si renseigné
+```
+
+Le conteneur `web` appelle cette adresse en sortie, avec les seuls faits du moteur
+([ECONOMY-ENGINE](ECONOMY-ENGINE.md#faits-et-assistant-p11)).
+
 ## Recréer la pile
 
 1. Dans Komodo, **Settings > Variables** : créer `WOW_ALTBOARD_DB_PASSWORD`, case « secret »

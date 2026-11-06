@@ -4,7 +4,7 @@ Trois versions évoluent séparément :
 
 | Version | Où | Valeur actuelle |
 |---|---|---|
-| `agentVersion` | version de l'exécutable (`agent/Directory.Build.props`) | `0.1.0` |
+| `agentVersion` | version de l'exécutable (`agent/Directory.Build.props`) | `0.5.0` |
 | `schemaVersion` | format du document envoyé par l'agent | `1` |
 | schéma AltBoard | `AltBoardDB.schema`, transmis dans `addonSchema` | `2` |
 
@@ -89,9 +89,41 @@ Compatibilité : `playtime` et `sessions` sont des ajouts facultatifs à la vers
 stricts, un serveur antérieur refuserait un document qui les contient : **le serveur se met à jour avant les
 agents**. Un agent antérieur reste accepté par le nouveau serveur.
 
+### Prix et recettes (facultatifs)
+
+Deux blocs facultatifs par compte, ajoutés par l'agent 0.5.0 quand les fichiers existent :
+
+```json
+"auctionator": {
+  "file": { "hash": "<SHA-256>", "modifiedAt": "2026-11-06T16:19:26.53+00:00", "size": 1843211 },
+  "dbVersion": 8,
+  "markets": [
+    { "key": "PvE", "contentHash": "<SHA-256 du contenu normalisé>",
+      "items": [{ "key": "2576", "lastMin": 100, "days": [[2500, 200, 1000, 34], [2501, 100, 100, 13]] }] }
+  ],
+  "vendorPrices": [{ "key": "159", "price": 5 }]
+},
+"recipes": {
+  "file": { "hash": "<SHA-256>", "modifiedAt": "2026-11-06T16:21:53.09+00:00", "size": 5202 },
+  "characters": [
+    { "guid": "Player-9999-00000001",
+      "recipes": [{ "spellId": 2963, "skillLine": 197, "outputItemId": 2996, "outputQuantity": 1, "cooldown": false,
+                    "reagents": [{ "itemId": 2589, "quantity": 2 }] }] }
+  ]
+}
+```
+
+- `days` : `[jour Auctionator, plus bas, plus haut, quantité ou null]`, prix en pièces de cuivre ;
+  plus bas ≤ plus haut, sinon le document est refusé. Formats et bornes :
+  [AUCTIONATOR-DATA-MODEL](AUCTIONATOR-DATA-MODEL.md), [PROFESSIONS-DATA-MODEL](PROFESSIONS-DATA-MODEL.md).
+- Un relevé déjà reçu (même marché, compte et `contentHash`) n'est pas réimporté ; la réponse
+  ajoute `marketsImported`, `marketsUnchanged`, `marketObservations` et `recipeCharacters`.
+- Compatibilité : comme `playtime`, ces blocs exigent un serveur à jour avant les agents.
+
 Le schéma complet, avec ses bornes, est `web/src/lib/sync/schema.ts` ; son miroir côté agent est
 `agent/src/AltBoardSync.Core/Sync/SyncPayload.cs`. Le fichier
-`tests/fixtures/payloads/two-accounts.json`, produit par l'agent réel, sert de contrat aux tests de l'API.
+`tests/fixtures/payloads/two-accounts.json`, produit par l'agent réel, sert de contrat aux tests de l'API ;
+`tests/fixtures/payloads/economy-account.json` fait de même pour les prix et les recettes.
 
 ### Réponse `200`
 
@@ -123,7 +155,7 @@ pas recréés.
 | 400 | `invalid_json` | corps illisible |
 | 401 | `unauthorized` | jeton absent, mal formé, inconnu ou révoqué |
 | 403 | `token_machine_mismatch` | jeton déjà lié à une autre machine |
-| 413 | `payload_too_large` | corps de plus de 8 Mio |
+| 413 | `payload_too_large` | corps de plus de 24 Mio |
 | 415 | `unsupported_media_type` | corps non JSON |
 | 422 | `unsupported_schema_version` | `schemaVersion` inconnu (`supported` liste les versions acceptées) |
 | 422 | `invalid_payload` | schéma non respecté (`issues` : chemins et codes, jamais les valeurs) |
@@ -150,6 +182,14 @@ pièce jointe, `Cache-Control: private, no-store`. 404 quand l'image n'en contie
 |---|---|
 | `/api/agent/zip` | `AltBoardSync.zip` : l'exécutable et `LISEZMOI.txt` (installation, empreinte SHA-256 de l'exécutable), environ 40 % plus léger. Construite au premier appel, puis gardée en mémoire |
 | `/api/agent` | `AltBoardSync.exe` seul |
+
+## `GET /api/economy/facts`
+
+Faits structurés du moteur économique, en JSON, pour une explication par IA
+([ECONOMY-ENGINE § Faits et assistant](ECONOMY-ENGINE.md)). Session du tableau de bord requise
+(`401` sinon) ; `?market=<id>` choisit l'hôtel des ventes ; `404` tant qu'aucun prix n'a été reçu.
+Réponse `Cache-Control: private, no-store`. Le calcul d'opportunités qu'il cite est conservé, ou
+réutilisé si sa base n'a pas changé.
 
 ## `GET /api/health`
 

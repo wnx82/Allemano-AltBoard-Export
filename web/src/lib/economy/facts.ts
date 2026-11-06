@@ -13,9 +13,13 @@ const TOP = 15;
 export const FACT_RULES = [
   "Ne cite que des valeurs présentes dans ces faits ; n'invente aucun prix, volume ni po/h.",
   "Montants en pièces de cuivre : 1 po = 100 pa = 10 000 pc.",
+  // Sans chiffre : tout nombre des règles serait admis dans une réponse.
+  "Les champs en …Percent sont déjà des pourcentages : ne les multiplie pas par cent.",
   "Cite la date du dernier relevé (market.lastScanDay) et la confiance (0 à 100) de chaque recommandation.",
   "Si les faits ne permettent pas de répondre, réponds « données insuffisantes ».",
   "Un po/h ne vient que de farmSessions ; farmSignals est un signal de marché, pas un rendement.",
+  // Essai réel : sans cette règle, une hausse de prix a été présentée comme « la meilleure opportunité ».
+  "Seules les entrées d'opportunities sont des recommandations ; rising, falling et anomalies sont des constats. opportunities vide : aucune opportunité n'est recommandée.",
 ];
 
 const round = (value: number | null) => (value === null ? null : Math.round(value));
@@ -29,7 +33,8 @@ export function buildFacts(context: EconomyContext, run: Omit<OpportunityRun, "r
     name: name(s.itemKey),
     currentCopper: s.current?.minCopper ?? null,
     marketValueCopper: round(s.marketValue),
-    change7d: s.change7d === null ? null : Math.round(s.change7d * 1000) / 1000,
+    // En pourcentage, prêt à citer : avec une fraction (-0,857), un modèle réel a écrit « -0,857 % ».
+    change7dPercent: s.change7d === null ? null : Math.round(s.change7d * 1000) / 10,
     available: s.lastAvailable,
     liquidity: s.liquidity,
     confidence: s.confidence,

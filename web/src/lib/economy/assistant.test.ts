@@ -24,7 +24,7 @@ describe("assistant", () => {
       url: "http://10.0.0.5:11434/v1",
       model: "qwen",
       apiKey: null,
-      timeoutMs: 60_000,
+      timeoutMs: 120_000,
     });
   });
 
