@@ -12,6 +12,10 @@ export type Settings = {
   /** Date limite posée par la dernière réinitialisation des personnages. */
   charactersCutoffAt: Date | null;
   charactersResetAt: Date | null;
+  /** Prix ignorés avant cette date. Null : la date limite des personnages s'applique. */
+  marketHistoryFrom: Date | null;
+  /** Commission de l'hôtel des ventes, en pourcentage. Null : 5 %. */
+  auctionCutPercent: number | null;
 };
 
 const DEFAULTS: Settings = {
@@ -20,6 +24,8 @@ const DEFAULTS: Settings = {
   statusLabel: null,
   charactersCutoffAt: null,
   charactersResetAt: null,
+  marketHistoryFrom: null,
+  auctionCutPercent: null,
 };
 
 export async function readSettings(db: DatabaseOrTransaction): Promise<Settings> {
@@ -30,6 +36,8 @@ export async function readSettings(db: DatabaseOrTransaction): Promise<Settings>
       statusLabel: appSettings.statusLabel,
       charactersCutoffAt: appSettings.charactersCutoffAt,
       charactersResetAt: appSettings.charactersResetAt,
+      marketHistoryFrom: appSettings.marketHistoryFrom,
+      auctionCutPercent: appSettings.auctionCutPercent,
     })
     .from(appSettings)
     .where(eq(appSettings.id, 1));

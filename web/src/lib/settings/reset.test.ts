@@ -53,6 +53,8 @@ describe("réglages", () => {
       statusLabel: null,
       charactersCutoffAt: null,
       charactersResetAt: null,
+      marketHistoryFrom: null,
+      auctionCutPercent: null,
     });
   });
 
@@ -67,6 +69,8 @@ describe("réglages", () => {
       statusLabel: "Bêta",
       charactersCutoffAt: RELEASE,
       charactersResetAt: RELEASE,
+      marketHistoryFrom: null,
+      auctionCutPercent: null,
     });
     assert.equal(await count(t.appSettings), 1);
   });
