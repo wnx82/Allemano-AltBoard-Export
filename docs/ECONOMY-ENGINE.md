@@ -115,7 +115,10 @@ paramètres (dont la date du jour).
     `medium`. Si les filtres de sécurité déclinent une question, l'API la repose au modèle de
     repli recommandé.
   - **API « chat completions » compatible OpenAI** (Ollama, LM Studio…) : `WOW_AI_URL` et
-    `WOW_AI_MODEL`, `WOW_AI_API_KEY` en option.
+    `WOW_AI_MODEL`, `WOW_AI_API_KEY` en option. `WOW_AI_REASONING_EFFORT` (`none`, `minimal`,
+    `low`, `medium` ou `high`) est transmis tel quel en `reasoning_effort` ; une autre valeur
+    désactive l'assistant. Une réponse coupée par le serveur (contexte plein) est refusée, avec
+    sa cause.
 
   Il ne reçoit que ces faits, jamais la base ni du SQL. Toute réponse qui cite un nombre absent des
   faits et de la question est **refusée** (petits entiers jusqu'à 10 exceptés). 10 questions par

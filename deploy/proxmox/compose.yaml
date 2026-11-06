@@ -36,6 +36,7 @@ x-app: &app
     WOW_AI_URL: ${WOW_AI_URL:-}
     WOW_AI_MODEL: ${WOW_AI_MODEL:-}
     WOW_AI_API_KEY: ${WOW_AI_API_KEY:-}
+    WOW_AI_REASONING_EFFORT: ${WOW_AI_REASONING_EFFORT:-}
   read_only: true
   tmpfs:
     - /tmp

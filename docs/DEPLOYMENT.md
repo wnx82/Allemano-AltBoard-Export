@@ -244,7 +244,16 @@ Avec une API « chat completions » compatible OpenAI, par exemple un Ollama loc
 WOW_AI_URL = http://<hôte>:<port>/v1
 WOW_AI_MODEL = <nom du modèle>
 WOW_AI_API_KEY = <clé>                     # facultatif ; secret Komodo si renseigné
+WOW_AI_REASONING_EFFORT = none             # facultatif : none, minimal, low, medium ou high
 ```
+
+Modèle local essayé le 2026-11-07 sur Ollama, aux faits d'un historique de plusieurs jours :
+`qwen3.5:9b` avec `WOW_AI_REASONING_EFFORT = none` répond en 2 à 4 s. Avec sa réflexion, il
+remplit le contexte de 4 096 tokens d'Ollama, ou dépasse les 120 s accordées à une réponse.
+Prévoir au moins 8 192 tokens de contexte (variable `OLLAMA_CONTEXT_LENGTH` du serveur Ollama, ou
+une variante du modèle à contexte plus grand) : les faits complets peuvent dépasser 4 096 tokens,
+et Ollama tronque alors le début du message sans erreur. Un modèle de cette taille peut attribuer
+un vrai nombre au mauvais objet ; le contrôle des nombres ne le détecte pas.
 
 Le conteneur `web` appelle cette adresse en sortie, avec les seuls faits du moteur
 ([ECONOMY-ENGINE](ECONOMY-ENGINE.md#faits-et-assistant-p11)). Avec Claude, ces faits sortent du

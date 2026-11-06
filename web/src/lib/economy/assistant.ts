@@ -10,16 +10,36 @@ import type { EconomyFacts } from "./facts";
 // - « anthropic » : Claude, par l'API Messages d'Anthropic, active quand WOW_AI_API_KEY est défini.
 
 export type AssistantProvider = "openai" | "anthropic";
-export type AssistantConfig = { provider: AssistantProvider; url: string; model: string; apiKey: string | null; timeoutMs: number };
+export type AssistantConfig = {
+  provider: AssistantProvider;
+  url: string;
+  model: string;
+  apiKey: string | null;
+  timeoutMs: number;
+  /** `reasoning_effort` envoyé à l'API compatible OpenAI ; null : non envoyé, le serveur décide. */
+  reasoningEffort: ReasoningEffort | null;
+};
 
 /** Un modèle local de 14 milliards de paramètres, chargé à froid, a mis 51 s à répondre (Ollama, 2026-11-06). */
 const TIMEOUT_MS = 120_000;
+
+/**
+ * Valeurs de `reasoning_effort` (WOW_AI_REASONING_EFFORT). Essai réel, qwen3.5:9b sur Ollama
+ * (2026-11-07) : avec sa réflexion, la réponse dépassait le contexte de 4 096 tokens ou 120 s ;
+ * avec « none », réponse en 2 à 4 s.
+ */
+const REASONING_EFFORTS = ["none", "minimal", "low", "medium", "high"] as const;
+type ReasoningEffort = (typeof REASONING_EFFORTS)[number];
+const isReasoningEffort = (value: string): value is ReasoningEffort => (REASONING_EFFORTS as readonly string[]).includes(value);
 
 export function assistantConfig(env: Record<string, string | undefined> = process.env): AssistantConfig | null {
   const provider = env.WOW_AI_PROVIDER?.trim().toLowerCase() || "openai";
   const apiKey = env.WOW_AI_API_KEY?.trim() || null;
   let url = env.WOW_AI_URL?.trim();
   let model = env.WOW_AI_MODEL?.trim();
+  const effort = env.WOW_AI_REASONING_EFFORT?.trim().toLowerCase() || null;
+  // Une valeur inconnue désactive l'assistant, comme un fournisseur inconnu : rien n'est deviné.
+  if (effort !== null && !isReasoningEffort(effort)) return null;
   if (provider === "anthropic") {
     if (!apiKey) return null;
     url ||= ANTHROPIC_URL;
@@ -34,7 +54,9 @@ export function assistantConfig(env: Record<string, string | undefined> = proces
   } catch {
     return null;
   }
-  return { provider, url: url.replace(/\/+$/, ""), model, apiKey, timeoutMs: TIMEOUT_MS };
+  // Claude règle sa réflexion lui-même (assistant-claude.ts) : la valeur ne sert qu'à l'API compatible OpenAI.
+  const reasoningEffort = provider === "openai" ? effort : null;
+  return { provider, url: url.replace(/\/+$/, ""), model, apiKey, timeoutMs: TIMEOUT_MS, reasoningEffort };
 }
 
 export const MAX_QUESTION_LENGTH = 500;
@@ -123,6 +145,7 @@ async function completeChat(config: AssistantConfig, system: string, user: strin
       body: JSON.stringify({
         model: config.model,
         temperature: 0,
+        ...(config.reasoningEffort ? { reasoning_effort: config.reasoningEffort } : {}),
         messages: [
           { role: "system", content: system },
           { role: "user", content: user },
@@ -134,8 +157,16 @@ async function completeChat(config: AssistantConfig, system: string, user: strin
     return { ok: false, error: "L'assistant ne répond pas." };
   }
   if (!response.ok) return { ok: false, error: `L'assistant a refusé la demande (HTTP ${response.status}).` };
-  const body = (await response.json().catch(() => null)) as { choices?: { message?: { content?: unknown } }[] } | null;
-  const content = body?.choices?.[0]?.message?.content;
+  const body = (await response.json().catch(() => null)) as { choices?: { message?: { content?: unknown }; finish_reason?: unknown }[] } | null;
+  const choice = body?.choices?.[0];
+  // Le serveur a coupé la réponse : contexte plein, souvent rempli par la réflexion du modèle.
+  if (choice?.finish_reason === "length") {
+    return {
+      ok: false,
+      error: "Réponse coupée : le contexte du modèle est plein. Agrandissez-le sur le serveur, ou réduisez sa réflexion (WOW_AI_REASONING_EFFORT=none).",
+    };
+  }
+  const content = choice?.message?.content;
   if (typeof content !== "string") return { ok: false, error: "Réponse de l'assistant illisible." };
   return { ok: true, text: content };
 }

@@ -10,8 +10,8 @@ const FACTS = {
   opportunities: [{ rank: 1, kind: "SELL", name: "Lingot de fer", valueCopper: 123_456, confidence: 82, change7d: 0.125 }],
 } as unknown as EconomyFacts;
 
-const CONFIG: AssistantConfig = { provider: "openai", url: "http://llm.test/v1", model: "test", apiKey: null, timeoutMs: 1_000 };
-const CLAUDE: AssistantConfig = { provider: "anthropic", url: "https://api.anthropic.test", model: "claude-opus-5-5", apiKey: "sk-ant-test", timeoutMs: 1_000 };
+const CONFIG: AssistantConfig = { provider: "openai", url: "http://llm.test/v1", model: "test", apiKey: null, timeoutMs: 1_000, reasoningEffort: null };
+const CLAUDE: AssistantConfig = { provider: "anthropic", url: "https://api.anthropic.test", model: "claude-opus-5-5", apiKey: "sk-ant-test", timeoutMs: 1_000, reasoningEffort: null };
 
 const reply = (content: string, status = 200): typeof fetch =>
   (async () => new Response(JSON.stringify({ choices: [{ message: { content } }] }), { status })) as unknown as typeof fetch;
@@ -41,6 +41,7 @@ describe("assistant", () => {
       model: "qwen",
       apiKey: null,
       timeoutMs: 120_000,
+      reasoningEffort: null,
     });
   });
 
@@ -53,6 +54,7 @@ describe("assistant", () => {
       model: "claude-opus-5-5",
       apiKey: "sk-ant-test",
       timeoutMs: 120_000,
+      reasoningEffort: null,
     });
     assert.equal(assistantConfig({ WOW_AI_PROVIDER: "anthropic", WOW_AI_API_KEY: "k", WOW_AI_MODEL: "claude-haiku-5-5" })?.model, "claude-haiku-5-5");
   });
@@ -141,5 +143,39 @@ describe("assistant", () => {
     const answer = await askAssistant(CONFIG, FACTS, "Ai-je 250 lingots ?", reply("Les faits ne montrent pas vos 250 lingots : données insuffisantes."));
 
     assert.equal(answer.ok, true);
+  });
+
+  test("effort de réflexion : lu pour l'API compatible OpenAI seulement ; valeur inconnue refusée", () => {
+    const local = { WOW_AI_URL: "http://10.0.0.5:11434/v1", WOW_AI_MODEL: "qwen3.5:9b" };
+
+    assert.equal(assistantConfig({ ...local, WOW_AI_REASONING_EFFORT: " None " })?.reasoningEffort, "none");
+    assert.equal(assistantConfig(local)?.reasoningEffort, null);
+    assert.equal(assistantConfig({ ...local, WOW_AI_REASONING_EFFORT: "off" }), null);
+    assert.equal(assistantConfig({ WOW_AI_PROVIDER: "anthropic", WOW_AI_API_KEY: "k", WOW_AI_REASONING_EFFORT: "none" })?.reasoningEffort, null);
+  });
+
+  test("effort de réflexion transmis tel quel ; absent sans réglage", async () => {
+    const bodies: Record<string, unknown>[] = [];
+    const capture = (async (_input: string | URL, init?: RequestInit) => {
+      bodies.push(JSON.parse(String(init?.body)));
+      return new Response(JSON.stringify({ choices: [{ message: { content: "Données insuffisantes." }, finish_reason: "stop" }] }));
+    }) as unknown as typeof fetch;
+
+    await askAssistant({ ...CONFIG, reasoningEffort: "none" }, FACTS, "?", capture);
+    await askAssistant(CONFIG, FACTS, "?", capture);
+
+    assert.equal(bodies[0].reasoning_effort, "none");
+    assert.equal("reasoning_effort" in bodies[1], false);
+  });
+
+  test("réponse coupée par le serveur (contexte plein) : cause signalée, même avec un début de texte", async () => {
+    const cut = (content: string) =>
+      (async () => new Response(JSON.stringify({ choices: [{ message: { content, reasoning: "…" }, finish_reason: "length" }] }))) as unknown as typeof fetch;
+
+    for (const content of ["", "Vendez le Lingot"]) {
+      const answer = await askAssistant(CONFIG, FACTS, "?", cut(content));
+      assert.equal(answer.ok, false);
+      assert.match(answer.ok ? "" : answer.error, /^Réponse coupée : le contexte du modèle est plein\..*WOW_AI_REASONING_EFFORT=none/);
+    }
   });
 });

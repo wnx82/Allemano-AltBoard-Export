@@ -4,6 +4,19 @@ Deux versions, chacune en SemVer : le **site** (`web/package.json`) et l'**agent
 (`agent/Directory.Build.props`, étiquette `agent-vX.Y.Z` pour une release). Le pied de page du
 tableau de bord affiche les deux. Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
+## Site 0.5.0 — 2026-11-07
+
+### Ajouté
+
+- `WOW_AI_REASONING_EFFORT` (`none`, `minimal`, `low`, `medium` ou `high`) : transmis en
+  `reasoning_effort` à l'API compatible OpenAI. Essai réel sur Ollama : avec `none`, `qwen3.5:9b`
+  répond en 2 à 4 s ; sans ce réglage, sa réflexion remplit le contexte ou dépasse le délai.
+
+### Corrigé
+
+- Une réponse coupée par le serveur (`finish_reason: "length"`, contexte plein) n'est plus
+  signalée « illisible » : le message donne la cause et les deux remèdes.
+
 ## Site 0.4.0 — 2026-11-06
 
 ### Ajouté

@@ -26,6 +26,7 @@ x-app: &app
     WOW_AI_URL: ${WOW_AI_URL:-}
     WOW_AI_MODEL: ${WOW_AI_MODEL:-}
     WOW_AI_API_KEY: ${WOW_AI_API_KEY:-}
+    WOW_AI_REASONING_EFFORT: ${WOW_AI_REASONING_EFFORT:-}
     # Exigé par PgBouncer sur cette instance (voir le README de shared-postgres).
     PGMAXPROTOCOLVERSION: "3.0"
   networks:
