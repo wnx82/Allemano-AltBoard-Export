@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, sql } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import * as t from "@/db/schema";
 import { readSettings } from "@/lib/settings/store";
@@ -33,14 +33,21 @@ export type EconomyContext = {
   historyFrom: string | null;
   auctionCut: number;
   stats: Map<string, ItemStats>;
+  /** Relevés journaliers de la fenêtre lue, du plus ancien au plus récent. */
+  days: Map<string, DayObservation[]>;
   names: Map<string, ItemName>;
   vendor: Map<string, number>;
   stock: Map<string, number>;
   holdings: Map<string, Holding[]>;
   recipes: KnownRecipe[];
   crafts: CraftEvaluation[];
+  /** Nom de chaque métier (ligne de compétence), tel que le jeu le donne. */
+  professions: Map<number, string>;
   farmSignals: FarmSignal[];
+  /** Relevé le plus frais du marché (dernier jour, puis fichier le plus récent). */
   lastImport: { id: number; receivedAt: Date; fileModifiedAt: Date; lastDay: string | null } | null;
+  /** Dernier relevé reçu, quel qu'il soit : tout nouvel import change la base des calculs. */
+  newestImportId: number | null;
   lastSyncRunId: number | null;
 };
 
@@ -102,7 +109,7 @@ export async function loadEconomy(db: Database, options: { marketId?: number; no
   const windowStart = addDays(today, -WINDOW_DAYS);
   const from = historyFrom && historyFrom > windowStart ? historyFrom : windowStart;
 
-  const [dayRows, latestRows, vendorRows, itemRows, holdingRows, recipeRows, reagentRows, knownRows, lastImportRows, lastRun] = await Promise.all([
+  const [dayRows, latestRows, vendorRows, itemRows, holdingRows, recipeRows, reagentRows, knownRows, lastImportRows, lastRun, professionRows, newestImport] = await Promise.all([
     db
       .select({ itemKey: t.marketItemDays.itemKey, day: t.marketItemDays.day, low: t.marketItemDays.lowCopper, high: t.marketItemDays.highCopper, available: t.marketItemDays.available })
       .from(t.marketItemDays)
@@ -135,9 +142,12 @@ export async function loadEconomy(db: Database, options: { marketId?: number; no
       .select({ id: t.marketImports.id, receivedAt: t.marketImports.receivedAt, fileModifiedAt: t.marketImports.fileModifiedAt, lastDay: t.marketImports.lastDay })
       .from(t.marketImports)
       .where(eq(t.marketImports.marketId, market.id))
-      .orderBy(desc(t.marketImports.id))
+      // Le relevé le plus frais, pas le dernier reçu : un PC peut envoyer après un autre un fichier plus ancien.
+      .orderBy(sql`${t.marketImports.lastDay} desc nulls last`, desc(t.marketImports.fileModifiedAt), desc(t.marketImports.id))
       .limit(1),
     db.select({ id: t.syncRuns.id }).from(t.syncRuns).orderBy(desc(t.syncRuns.id)).limit(1),
+    db.selectDistinct({ skillLine: t.characterProfessions.skillLine, name: t.characterProfessions.name }).from(t.characterProfessions),
+    db.select({ id: t.marketImports.id }).from(t.marketImports).where(eq(t.marketImports.marketId, market.id)).orderBy(desc(t.marketImports.id)).limit(1),
   ]);
 
   const daysByItem = new Map<string, DayObservation[]>();
@@ -146,6 +156,7 @@ export async function loadEconomy(db: Database, options: { marketId?: number; no
     list.push({ day: row.day, low: row.low, high: row.high, available: row.available });
     daysByItem.set(row.itemKey, list);
   }
+  for (const list of daysByItem.values()) list.sort((a, b) => (a.day < b.day ? -1 : 1));
   const latestByItem = new Map(latestRows.map((row) => [row.itemKey, { minCopper: row.minCopper, day: row.day }]));
   const stats = new Map<string, ItemStats>();
   for (const itemKey of new Set([...daysByItem.keys(), ...latestByItem.keys()])) {
@@ -208,14 +219,17 @@ export async function loadEconomy(db: Database, options: { marketId?: number; no
     historyFrom,
     auctionCut,
     stats,
+    days: daysByItem,
     names,
     vendor,
     stock,
     holdings,
     recipes,
     crafts,
+    professions: new Map(professionRows.map((row) => [row.skillLine, row.name])),
     farmSignals,
     lastImport: lastImportRows[0] ?? null,
+    newestImportId: newestImport[0]?.id ?? null,
     lastSyncRunId: lastRun[0]?.id ?? null,
   };
 }
@@ -230,6 +244,19 @@ export async function loadItemHistory(db: Database, marketId: number, itemKey: s
   return rows;
 }
 
+/** Historique complet de plusieurs objets (produit et composants d'une recette), par objet. */
+export async function loadItemsHistory(db: Database, marketId: number, itemKeys: readonly string[]): Promise<Map<string, DayObservation[]>> {
+  const result = new Map<string, DayObservation[]>(itemKeys.map((key) => [key, []]));
+  if (itemKeys.length === 0) return result;
+  const rows = await db
+    .select({ itemKey: t.marketItemDays.itemKey, day: t.marketItemDays.day, low: t.marketItemDays.lowCopper, high: t.marketItemDays.highCopper, available: t.marketItemDays.available })
+    .from(t.marketItemDays)
+    .where(and(eq(t.marketItemDays.marketId, marketId), inArray(t.marketItemDays.itemKey, [...itemKeys])))
+    .orderBy(asc(t.marketItemDays.day));
+  for (const { itemKey, ...day } of rows) result.get(itemKey)?.push(day);
+  return result;
+}
+
 /** Nombre d'objets relevés par jour : un jour très en dessous des autres est un relevé partiel. */
 export async function loadCoverage(db: Database, marketId: number, from: string | null): Promise<{ day: string; items: number }[]> {
   const rows = await db
@@ -239,4 +266,12 @@ export async function loadCoverage(db: Database, marketId: number, from: string 
     .groupBy(t.marketItemDays.day)
     .orderBy(asc(t.marketItemDays.day));
   return rows;
+}
+
+/** Valeur réalisable d'une unité : valeur de marché, commission déduite ; null sans prix. */
+export function realizableValueOf(context: EconomyContext | null): (itemKey: string) => number | null {
+  return (itemKey) => {
+    const value = context?.stats.get(itemKey)?.marketValue;
+    return value === null || value === undefined ? null : value * (1 - context!.auctionCut);
+  };
 }

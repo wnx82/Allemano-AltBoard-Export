@@ -1,0 +1,233 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { Confidence, ItemName, MarketSelector, MarketSource, Reasons } from "@/components/economy";
+import { EmptyState, Money, ProfessionIcon, SectionTitle, StatTile } from "@/components/ui";
+import { getDatabase } from "@/db/client";
+import { requireSession } from "@/lib/auth/session";
+import { DECISION_LABELS, type CraftDecision } from "@/lib/economy/craft";
+import { DECISION_ORDER, sortCrafts, summarizeProfessions } from "@/lib/economy/craft-view";
+import { loadEconomy } from "@/lib/economy/load";
+import { formatDay, formatPercent, marketParam, marketQuery } from "@/lib/economy/view";
+import { classKey, formatInteger } from "@/lib/wow/format";
+
+export const metadata: Metadata = { title: "Craft" };
+
+const DECISION_TONES: Record<CraftDecision, "ok" | "warn" | "danger" | undefined> = {
+  CRAFT: "ok",
+  SELL_REAGENTS: "warn",
+  WAIT: undefined,
+  DONT_CRAFT: "danger",
+};
+
+export default async function CraftingPage({ searchParams }: PageProps<"/crafting">) {
+  await requireSession();
+  const params = await searchParams;
+  const context = await loadEconomy(getDatabase(), { marketId: marketParam(params.market), now: new Date() });
+
+  if (!context || context.recipes.length === 0) {
+    return (
+      <>
+        <Header />
+        <div className="mt-6">
+          <EmptyState title={context ? "Aucune recette connue" : "Aucun prix reçu"}>
+            {context
+              ? "Les recettes viennent de l'addon NaowhForever : ouvrez la fenêtre de chaque métier en jeu, /reload, puis lancez l'agent."
+              : "Les prix viennent de l'addon Auctionator : faites un scan à l'hôtel des ventes, /reload, puis lancez l'agent."}
+          </EmptyState>
+        </div>
+      </>
+    );
+  }
+
+  const decision = DECISION_ORDER.find((entry) => entry === params.decision) ?? null;
+  const bySpell = new Map(context.recipes.map((recipe) => [recipe.spellId, recipe]));
+  const all = sortCrafts(context.crafts.map((craft) => ({ craft, recipe: bySpell.get(craft.spellId)! })));
+  const rows = decision ? all.filter((row) => row.craft.decision === decision) : all;
+  const counts = Object.fromEntries(DECISION_ORDER.map((entry) => [entry, all.filter((row) => row.craft.decision === entry).length])) as Record<CraftDecision, number>;
+  const professionName = (skillLine: number | null) => (skillLine === null ? "Métier inconnu" : (context.professions.get(skillLine) ?? `Métier ${skillLine}`));
+  const professions = summarizeProfessions(all, professionName);
+  const itemQuery = marketQuery(context.market, context.markets);
+  const suffix = marketQuery(context.market, context.markets, "&");
+
+  return (
+    <>
+      <Header />
+      <p className="mt-2 max-w-3xl text-sm text-muted">
+        Rentabilité des recettes connues de vos personnages, au prix du marché. Un composant déjà possédé est compté à ce qu&apos;il rapporterait
+        vendu : il n&apos;est jamais gratuit. Commission de l&apos;hôtel des ventes : {formatPercent(context.auctionCut)}.{" "}
+        <MarketSource lastImport={context.lastImport} lastDay={formatDay(context.lastImport?.lastDay ?? null)} />
+      </p>
+      <MarketSelector path="/crafting" market={context.market} markets={context.markets} />
+
+      <section aria-label="Décisions" className="mt-6 grid grid-cols-2 gap-3 xl:grid-cols-4">
+        {DECISION_ORDER.map((entry) => (
+          <StatTile key={entry} label={DECISION_LABELS[entry]} value={formatInteger(counts[entry])} hint={`recette${counts[entry] > 1 ? "s" : ""}`} />
+        ))}
+      </section>
+
+      <section aria-label="Par métier" className="mt-8">
+        <SectionTitle aside="lots faisables avec vos stocks">Par métier</SectionTitle>
+        <div className="panel overflow-x-auto">
+          <table className="data-table min-w-[640px]">
+            <thead>
+              <tr>
+                <th scope="col">Métier</th>
+                <th scope="col" className="num">
+                  Recettes
+                </th>
+                <th scope="col" className="num">
+                  À crafter
+                </th>
+                <th scope="col" className="num">
+                  Meilleur profit
+                </th>
+                <th scope="col" className="num">
+                  Profit des lots
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {professions.map((profession) => (
+                <tr key={profession.skillLine ?? "none"}>
+                  <td className="font-semibold">
+                    <ProfessionIcon skillLine={profession.skillLine} size={18} /> {profession.name}
+                  </td>
+                  <td className="num">{profession.recipes}</td>
+                  <td className="num">{profession.profitable}</td>
+                  <td className="num">
+                    <Money copper={profession.bestProfit === null ? null : Math.round(profession.bestProfit)} />
+                  </td>
+                  <td className="num">
+                    <Money copper={profession.profitable === 0 ? null : Math.round(profession.batchProfit)} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section aria-label="Recettes" className="mt-8">
+        <SectionTitle aside={`${rows.length} recette${rows.length > 1 ? "s" : ""}`}>Recettes</SectionTitle>
+        <nav aria-label="Décision" className="mb-3 flex flex-wrap gap-2">
+          <Link href={`/crafting${itemQuery}`} prefetch={false} className="button" aria-current={decision === null ? "true" : undefined}>
+            Toutes
+          </Link>
+          {DECISION_ORDER.map((entry) => (
+            <Link key={entry} href={`/crafting?decision=${entry}${suffix}`} prefetch={false} className="button" aria-current={decision === entry ? "true" : undefined}>
+              {DECISION_LABELS[entry]} ({counts[entry]})
+            </Link>
+          ))}
+        </nav>
+        {rows.length === 0 ? (
+          <div className="panel p-5 text-sm text-muted">Aucune recette dans cette catégorie.</div>
+        ) : (
+          <div className="panel overflow-x-auto">
+            <table className="data-table min-w-[1100px]">
+              <thead>
+                <tr>
+                  <th scope="col">Produit</th>
+                  <th scope="col">Décision</th>
+                  <th scope="col" className="num">
+                    Coût
+                  </th>
+                  <th scope="col" className="num">
+                    Produit net
+                  </th>
+                  <th scope="col" className="num">
+                    Profit
+                  </th>
+                  <th scope="col" className="num">
+                    ROI
+                  </th>
+                  <th scope="col" className="num">
+                    Faisable
+                  </th>
+                  <th scope="col" className="num">
+                    Confiance
+                  </th>
+                  <th scope="col">Raisons</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(({ craft, recipe }) => (
+                  <tr key={craft.spellId}>
+                    <td>
+                      <ItemName itemKey={craft.outputKey} names={context.names} query={itemQuery} />
+                      {craft.outputQuantity > 1 && <span className="text-muted"> × {craft.outputQuantity}</span>}
+                      <div className="mt-0.5 text-xs text-muted">
+                        <ProfessionIcon skillLine={recipe.skillLine} size={14} /> {professionName(recipe.skillLine)} ·{" "}
+                        {recipe.characters.map((character, index) => (
+                          <span key={character.id} data-class={classKey(character.class)}>
+                            {index > 0 && ", "}
+                            <Link href={`/characters/${character.id}`} prefetch={false} className="class-text hover:underline">
+                              {character.name}
+                            </Link>
+                          </span>
+                        ))}
+                      </div>
+                      <details className="mt-1 text-xs text-muted">
+                        <summary className="cursor-pointer">Composants</summary>
+                        <ul className="mt-1 space-y-0.5">
+                          {craft.reagents.map((reagent) => (
+                            <li key={reagent.itemKey}>
+                              {reagent.quantity} × <ItemName itemKey={reagent.itemKey} names={context.names} query={itemQuery} /> ({reagent.source}
+                              {reagent.owned > 0 && `, ${formatInteger(reagent.owned)} en stock`})
+                            </li>
+                          ))}
+                        </ul>
+                      </details>
+                    </td>
+                    <td>
+                      <span className="badge" data-tone={DECISION_TONES[craft.decision]}>
+                        {DECISION_LABELS[craft.decision]}
+                      </span>
+                    </td>
+                    <td className="num">
+                      <Money copper={craft.costMarket === null ? null : Math.round(craft.costMarket)} />
+                    </td>
+                    <td className="num">
+                      <Money copper={craft.outputNet === null ? null : Math.round(craft.outputNet)} />
+                    </td>
+                    <td className="num">
+                      <Money copper={craft.profit === null ? null : Math.round(craft.profit)} />
+                      {craft.profitPrudent !== null && craft.profit !== null && craft.profitPrudent !== craft.profit && (
+                        <div className="text-xs text-muted" title="Au plus cher du prix de marché et du dernier prix vu">
+                          prudent <Money copper={Math.round(craft.profitPrudent)} />
+                        </div>
+                      )}
+                    </td>
+                    <td className="num">{formatPercent(craft.roi)}</td>
+                    <td className="num" title="Fabrications possibles avec les stocks, composants de marchand achetés">
+                      {formatInteger(craft.craftableWithVendor)}
+                    </td>
+                    <td className="num">
+                      <Confidence value={craft.confidence} />
+                    </td>
+                    <td className="max-w-[22rem]">
+                      <Reasons codes={craft.reasons} />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        <p className="mt-3 text-xs text-faint">
+          Crafter : profit positif au prix de marché et au prix prudent, ROI d&apos;au moins 10 %, confiance d&apos;au moins 35. Vendre les compos :
+          les composants possédés rapportent plus vendus que le produit. Attendre : prix inconnu, confiance ou marge insuffisante. Les noms
+          d&apos;objets viennent des inventaires relevés par AltBoard ; un objet jamais possédé apparaît sous son identifiant.
+        </p>
+      </section>
+    </>
+  );
+}
+
+function Header() {
+  return (
+    <>
+      <p className="eyebrow text-gold">Économie</p>
+      <h1 className="display mt-1 text-3xl font-bold sm:text-4xl">Craft</h1>
+    </>
+  );
+}

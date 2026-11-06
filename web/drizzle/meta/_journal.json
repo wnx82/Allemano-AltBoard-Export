@@ -43,6 +43,13 @@
       "when": 1793981971454,
       "tag": "0005_economy",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793982957883,
+      "tag": "0006_farm_open_session",
+      "breakpoints": true
     }
   ]
 }

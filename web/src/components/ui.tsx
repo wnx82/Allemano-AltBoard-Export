@@ -64,10 +64,13 @@ export function ClassAvatar({
 
 export function Money({ copper }: { copper: number | null }) {
   if (copper === null) return <span className="text-faint">—</span>;
-  const money = splitMoney(copper);
+  // Une perte (profit négatif) garde son signe : la valeur absolue est découpée en pièces.
+  const negative = copper < 0;
+  const money = splitMoney(Math.abs(copper));
   return (
     // Trop large pour sa place (tuile sur téléphone), la somme passe à la ligne entre deux pièces au lieu d'être coupée.
-    <span className="inline-flex flex-wrap items-baseline gap-x-1.5 tabular-nums" title={formatMoney(copper)}>
+    <span className="inline-flex flex-wrap items-baseline gap-x-1.5 tabular-nums" title={`${negative ? "−" : ""}${formatMoney(Math.abs(copper))}`}>
+      {negative && <span className="text-danger">−</span>}
       {money.gold > 0 && (
         <span className="coin-gold font-semibold">
           {new Intl.NumberFormat("fr-FR").format(money.gold)}

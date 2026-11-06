@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { MAX_TARGETS } from "@/lib/status/config";
-import { parseCutoffInput, parseLabelInput, parseTargetsInput } from "./input";
+import { parseAuctionCutInput, parseCutoffInput, parseHistoryDayInput, parseLabelInput, parseTargetsInput } from "./input";
 
 const NOW = new Date("2026-11-04T18:00:00Z");
 
@@ -61,4 +61,25 @@ test("la date limite est un instant avec fuseau, jamais dans le futur", () => {
   for (const value of ["2026-11-04T17:00", "04/11/2026", "demain", "2026-13-45T99:99:00Z"]) {
     assert.deepEqual(parseCutoffInput(value, NOW), { ok: false, error: "Date invalide." }, value);
   }
+});
+
+test("début de l'historique des prix : jour valide, passé ou présent, vide pour revenir à la date limite", () => {
+  const now = new Date("2026-11-06T10:00:00Z");
+
+  assert.deepEqual(parseHistoryDayInput("", now), { ok: true, value: null });
+  assert.deepEqual(parseHistoryDayInput(" 2026-11-04 ", now), { ok: true, value: new Date("2026-11-04T12:00:00Z") });
+  assert.equal(parseHistoryDayInput("2026-11-06", now).ok, true);
+  assert.equal(parseHistoryDayInput("2026-11-07", now).ok, false);
+  assert.equal(parseHistoryDayInput("2026-02-30", now).ok, false);
+  assert.equal(parseHistoryDayInput("04/11/2026", now).ok, false);
+});
+
+test("commission de l'hôtel des ventes : pourcentage de 0 à 50", () => {
+  assert.deepEqual(parseAuctionCutInput(""), { ok: true, value: null });
+  assert.deepEqual(parseAuctionCutInput("5"), { ok: true, value: 5 });
+  assert.deepEqual(parseAuctionCutInput("7,5"), { ok: true, value: 7.5 });
+  assert.deepEqual(parseAuctionCutInput("0"), { ok: true, value: 0 });
+  assert.equal(parseAuctionCutInput("51").ok, false);
+  assert.equal(parseAuctionCutInput("-1").ok, false);
+  assert.equal(parseAuctionCutInput("5%").ok, false);
 });

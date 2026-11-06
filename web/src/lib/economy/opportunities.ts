@@ -61,6 +61,8 @@ export const REASON_LABELS: Record<string, string> = {
   LOW_CONFIDENCE: "confiance insuffisante",
   OUTPUT_PRICE_UNKNOWN: "prix du produit inconnu",
   REAGENT_PRICE_UNKNOWN: "prix d'un composant inconnu",
+  OUTPUT_HISTORY_SHORT: "produit relevé moins de 3 jours",
+  REAGENT_HISTORY_SHORT: "composant relevé moins de 3 jours",
   THIN_OUTPUT_MARKET: "produit peu offert (1 ou 2 en vente)",
   OUTPUT_PRICE_OUTLIER: "prix du produit anormal",
   VENDOR_REAGENT: "composant acheté chez un marchand",
@@ -105,6 +107,8 @@ export function buildOpportunities(
 
   const craftInputs = (c: CraftEvaluation) => ({
     output: c.outputKey,
+    // Dernier jour relevé du produit : la fraîcheur du prix qui porte la décision.
+    lastDay: stats.get(c.outputKey)?.lastDay ?? null,
     outputQuantity: c.outputQuantity,
     outputUnitValue: c.outputUnitValue,
     outputNet: c.outputNet,
@@ -148,7 +152,8 @@ export function buildOpportunities(
 
   for (const [itemKey, owned] of stock) {
     const s = stats.get(itemKey);
-    if (!s || owned <= 0 || s.current === null || s.median30 === null || s.confidence < parameters.minConfidence) continue;
+    // Sans valeur de marché (moins de trois jours relevés), l'écart à la médiane ne veut rien dire.
+    if (!s || owned <= 0 || s.current === null || s.median30 === null || s.marketValue === null || s.confidence < parameters.minConfidence) continue;
     const ratio = s.current.minCopper / s.median30;
     if (ratio >= 1 + parameters.sellPremium && liquid(s) && !s.outlier) {
       result.push({
@@ -177,7 +182,7 @@ export function buildOpportunities(
 
   for (const itemKey of profitableReagents) {
     const s = stats.get(itemKey);
-    if (!s || s.current === null || s.median30 === null || s.confidence < parameters.minConfidence || !liquid(s)) continue;
+    if (!s || s.current === null || s.median30 === null || s.marketValue === null || s.confidence < parameters.minConfidence || !liquid(s)) continue;
     const ratio = s.current.minCopper / s.median30;
     if (ratio <= 1 - parameters.buyDiscount) {
       result.push({

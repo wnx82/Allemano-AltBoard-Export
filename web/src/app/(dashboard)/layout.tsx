@@ -31,9 +31,14 @@ export default async function DashboardLayout({ children }: LayoutProps<"/">) {
             <NavLink href="/professions">Métiers</NavLink>
             <NavLink href="/levels">Niveaux</NavLink>
             <NavLink href="/activity">Activité</NavLink>
+            <NavLink href="/opportunities">Opportunités</NavLink>
+            <NavLink href="/market">Marché</NavLink>
+            <NavLink href="/crafting">Craft</NavLink>
+            <NavLink href="/farming">Farm</NavLink>
             <NavLink href="/accounts">Comptes</NavLink>
             <NavLink href="/machines">Machines</NavLink>
             <NavLink href="/servers">Serveurs</NavLink>
+            <NavLink href="/audit">Audit</NavLink>
             <NavLink href="/settings">Paramètres</NavLink>
           </nav>
           <form action={logoutAction} className="flex flex-none items-center gap-3">
@@ -62,7 +67,7 @@ export default async function DashboardLayout({ children }: LayoutProps<"/">) {
       </header>
       <main className="mx-auto w-full max-w-[1500px] flex-1 px-4 py-8 sm:px-6">{children}</main>
       <footer className="mx-auto w-full max-w-[1500px] px-4 pb-8 text-xs text-faint sm:px-6">
-        Données issues de l&apos;addon AltBoard, telles qu&apos;écrites par le jeu à la dernière déconnexion ou au dernier /reload. Ce
+        Données issues des addons AltBoard, Auctionator et NaowhForever, telles qu&apos;écrites par le jeu à la dernière déconnexion ou au dernier /reload. Ce
         n&apos;est pas du temps réel. World of Warcraft et ses icônes sont la propriété de Blizzard Entertainment.
         {versions.length > 0 && <p className="mt-2 tabular-nums">{versions.join(" · ")}</p>}
       </footer>

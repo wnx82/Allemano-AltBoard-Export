@@ -45,7 +45,10 @@ export type ItemStats = {
 
 export const MIN_DAYS_FOR_VALUE = 3;
 const OUTLIER_THRESHOLD = 3.5;
-/** Plafond de confiance d'un marché à une ou deux unités en vente : jamais assez pour décider seul. */
+/**
+ * Plafond de confiance d'un marché à une ou deux unités en vente, ou relevé moins de trois jours :
+ * jamais assez pour décider seul.
+ */
 export const THIN_MARKET_CONFIDENCE_CAP = 30;
 
 export function median(values: readonly number[]): number | null {
@@ -175,7 +178,8 @@ export function computeItemStats(
     outlier: outlierScore !== null && outlierScore > OUTLIER_THRESHOLD,
     // 1 ou 2 objets en vente : un seul vendeur fixe le prix, la valeur n'est pas fiable.
     thinMarket,
-    confidence: thinMarket ? Math.min(THIN_MARKET_CONFIDENCE_CAP, confidenceScore(factors)) : confidenceScore(factors),
+    confidence:
+      thinMarket || last30.length < MIN_DAYS_FOR_VALUE ? Math.min(THIN_MARKET_CONFIDENCE_CAP, confidenceScore(factors)) : confidenceScore(factors),
     confidenceFactors: factors,
   };
 }

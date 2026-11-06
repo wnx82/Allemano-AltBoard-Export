@@ -1,4 +1,4 @@
-import { and, asc, desc, eq } from "drizzle-orm";
+import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import type { Database } from "@/db/client";
 import { canonicalJson } from "@/lib/hash";
 import * as t from "@/db/schema";
@@ -26,7 +26,7 @@ function parametersOf(context: EconomyContext) {
 
 export async function ensureOpportunityRun(db: Database, context: EconomyContext, now: Date): Promise<OpportunityRun> {
   const parameters = parametersOf(context);
-  const basis: Basis = { lastImportId: context.lastImport?.id ?? null, lastSyncRunId: context.lastSyncRunId };
+  const basis: Basis = { lastImportId: context.newestImportId, lastSyncRunId: context.lastSyncRunId };
 
   const [previous] = await db
     .select()
@@ -116,4 +116,15 @@ export async function listRuns(db: Database, marketId: number, limit = 20) {
     .where(and(eq(t.opportunityRuns.marketId, marketId)))
     .orderBy(desc(t.opportunityRuns.id))
     .limit(limit);
+}
+
+/** Dernier calcul conservé, tous marchés confondus, et ses premières opportunités de gain. Rien n'est recalculé. */
+export async function latestOpportunities(db: Database, limit = 3) {
+  const [last] = await db.select({ id: t.opportunityRuns.id }).from(t.opportunityRuns).orderBy(desc(t.opportunityRuns.id)).limit(1);
+  if (!last) return null;
+  const run = (await readRun(db, last.id))!;
+  const top = run.opportunities.filter((o) => o.kind !== "DONT_CRAFT").slice(0, limit);
+  const keys = top.flatMap((o) => (o.itemKey ? [o.itemKey] : []));
+  const names = keys.length === 0 ? [] : await db.select({ itemKey: t.items.itemKey, name: t.items.name, quality: t.items.quality }).from(t.items).where(inArray(t.items.itemKey, keys));
+  return { run, top, names: new Map(names.map((row) => [row.itemKey, { name: row.name, quality: row.quality }])) };
 }

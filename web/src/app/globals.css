@@ -339,6 +339,11 @@ body {
   .trend-tooltip rect { fill: #0a0f1b; stroke: var(--line-strong); }
   .trend-tooltip-value { fill: var(--text); font-size: 12.5px; font-weight: 600; }
   .trend-tooltip-date { fill: var(--muted); font-size: 11px; }
+  /* Prix d'un objet : bande plus bas / plus haut du jour, dans la teinte de la série. */
+  .price-band { fill: var(--series); fill-opacity: 0.18; stroke: none; }
+  .sparkline { display: block; overflow: visible; }
+  .sparkline polyline { fill: none; stroke: var(--series); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
+  .sparkline circle { fill: var(--series); }
 
   /* Courbes de plusieurs personnages : une seule en couleur, les autres en contexte. Le gris de
      contexte et le bleu de série dépassent 3:1 sur la surface (3,8:1 et 4,8:1). */

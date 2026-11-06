@@ -122,8 +122,11 @@ export function evaluateRecipe(
   let decision: CraftDecision;
   if (missing) {
     decision = "WAIT";
-    if (outputUnitValue === null) reasons.push("OUTPUT_PRICE_UNKNOWN");
-    if (reagents.some((r) => r.unitMarket === null)) reasons.push("REAGENT_PRICE_UNKNOWN");
+    // Prix vu mais trop peu de jours pour une valeur de marché : l'historique manque, pas le prix.
+    if (outputUnitValue === null) reasons.push(output?.current ? "OUTPUT_HISTORY_SHORT" : "OUTPUT_PRICE_UNKNOWN");
+    const missingReagents = reagents.filter((r) => r.unitMarket === null);
+    if (missingReagents.some((r) => !statsOf(r.itemKey)?.current)) reasons.push("REAGENT_PRICE_UNKNOWN");
+    if (missingReagents.some((r) => statsOf(r.itemKey)?.current)) reasons.push("REAGENT_HISTORY_SHORT");
   } else if (confidence < options.minConfidence) {
     decision = "WAIT";
     reasons.push("LOW_CONFIDENCE");

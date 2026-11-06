@@ -14,6 +14,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 
@@ -583,6 +584,8 @@ export const farmSessions = pgTable(
   },
   (t) => [
     index("farm_sessions_character_started_idx").on(t.characterId, t.startedAt),
+    // Une seule session ouverte par personnage, garanti par la base même sous requêtes concurrentes.
+    uniqueIndex("farm_sessions_open_character_idx").on(t.characterId).where(sql`${t.endedAt} is null`),
     check("farm_sessions_end_check", sql`${t.endSourceAt} is null or ${t.endSourceAt} > ${t.startSourceAt}`),
   ],
 );

@@ -1,10 +1,15 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { CharacterBrowser } from "@/components/character-browser";
+import { Confidence, ItemName } from "@/components/economy";
 import { ServerStatusTiles } from "@/components/server-status";
 import { Money, StatTile } from "@/components/ui";
 import { getDatabase } from "@/db/client";
 import { requireSession } from "@/lib/auth/session";
 import { getOverview, listCharacters } from "@/lib/dashboard/queries";
+import { KIND_LABELS } from "@/lib/economy/opportunities";
+import { latestOpportunities } from "@/lib/economy/runs";
+import { formatDay } from "@/lib/economy/view";
 import { isConfigured } from "@/lib/status/config";
 import { syncStatusRuntime } from "@/lib/status/runtime";
 import { getServiceSummaries } from "@/lib/status/view";
@@ -17,11 +22,12 @@ export default async function CharactersPage() {
   const db = getDatabase();
   const now = new Date();
   const { config } = await syncStatusRuntime();
-  const [characters, overview, servers] = await Promise.all([
+  const [characters, overview, servers, opportunities] = await Promise.all([
     listCharacters(db),
     getOverview(db),
     // Sans serveur surveillé, ni requête ni miniature : il n'y aurait que de l'« Inconnu » à montrer.
     isConfigured(config) ? getServiceSummaries(db, config, now) : null,
+    latestOpportunities(db),
   ]);
 
   const levels = characters.map((character) => character.level).filter((level): level is number => level !== null);
@@ -82,6 +88,33 @@ export default async function CharactersPage() {
           hint={professions > 0 ? `${distinctProfessions} différent${distinctProfessions > 1 ? "s" : ""}` : undefined}
         />
       </div>
+
+      {opportunities && opportunities.top.length > 0 && (
+        <section className="mb-8" aria-labelledby="opportunities-title">
+          <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+            <p id="opportunities-title" className="eyebrow">
+              Meilleures opportunités
+            </p>
+            <Link href="/opportunities" prefetch={false} className="text-xs text-gold hover:underline">
+              Calcul du {formatDateTime(opportunities.run.computedAt)}, données au {formatDay(opportunities.run.dataThrough)} · tout voir
+            </Link>
+          </div>
+          <ul className="grid grid-cols-1 gap-3 md:grid-cols-3">
+            {opportunities.top.map((opportunity, index) => (
+              <li key={index} className="panel flex items-center justify-between gap-3 px-4 py-3 text-sm">
+                <span className="min-w-0">
+                  <span className="badge mr-2">{KIND_LABELS[opportunity.kind]}</span>
+                  {opportunity.itemKey && <ItemName itemKey={opportunity.itemKey} names={opportunities.names} />}
+                </span>
+                <span className="flex flex-none items-center gap-2">
+                  <Money copper={opportunity.valueCopper} />
+                  <Confidence value={opportunity.confidence} />
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <CharacterBrowser characters={characters} now={now.toISOString()} />
     </>

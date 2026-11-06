@@ -1,8 +1,11 @@
 import type { Metadata } from "next";
+import { EconomySettingsForm } from "@/components/economy-forms";
 import { ResetCharactersForm, StatusSettingsForm } from "@/components/settings-forms";
 import { SectionTitle } from "@/components/ui";
 import { getDatabase } from "@/db/client";
 import { requireSession } from "@/lib/auth/session";
+import { todayInBrussels } from "@/lib/economy/days";
+import { saveEconomySettingsAction } from "@/lib/economy/actions";
 import { resetCharactersAction, saveStatusSettingsAction } from "@/lib/settings/actions";
 import { characterSummary } from "@/lib/settings/reset";
 import { readSettings } from "@/lib/settings/store";
@@ -99,6 +102,23 @@ export default async function SettingsPage() {
             <div className="mt-5 border-t border-line pt-4">
               <ResetCharactersForm action={resetCharactersAction} />
             </div>
+          </div>
+        </section>
+
+        <section aria-label="Moteur économique">
+          <SectionTitle aside="pages Marché, Craft, Farm et Opportunités">Moteur économique</SectionTitle>
+          <div className="panel p-5">
+            <p className="mb-4 text-sm text-muted">
+              Les prix de la bêta faussent médianes et tendances : le moteur ignore les relevés antérieurs au début de l&apos;historique. La
+              commission de l&apos;hôtel des ventes est déduite de chaque vente estimée.
+            </p>
+            <EconomySettingsForm
+              action={saveEconomySettingsAction}
+              historyFrom={settings.marketHistoryFrom ? todayInBrussels(settings.marketHistoryFrom) : ""}
+              auctionCut={settings.auctionCutPercent === null ? "" : String(settings.auctionCutPercent).replace(".", ",")}
+              cutoffDay={settings.charactersCutoffAt ? todayInBrussels(settings.charactersCutoffAt) : null}
+              today={todayInBrussels(new Date())}
+            />
           </div>
         </section>
       </div>

@@ -57,7 +57,8 @@ describe("moteur de prix", () => {
 
     assert.equal(s.current?.minCopper, 500);
     assert.equal(s.marketValue, null);
-    assert.ok(s.confidence < 60);
+    // Prix vu, mais trop peu de jours pour décider : confiance plafonnée.
+    assert.ok(s.confidence <= 30);
   });
 
   test("un prix isolé est signalé et n'entre pas dans sa propre référence", () => {
@@ -179,6 +180,15 @@ describe("moteur de craft", () => {
     assert.deepEqual(e.reasons, ["OUTPUT_PRICE_UNKNOWN"]);
   });
 
+  test("prix vu depuis moins de trois jours : attendre, faute d'historique", () => {
+    prices.set("23", computeItemStats("23", series(2, 900), { minCopper: 900, day: TODAY }, TODAY, null));
+    prices.set("12", computeItemStats("12", series(1, 40), { minCopper: 40, day: TODAY }, TODAY, null));
+    const e = run(recipe(23, [[10, 1], [12, 2]]));
+
+    assert.equal(e.decision, "WAIT");
+    assert.deepEqual(e.reasons, ["OUTPUT_HISTORY_SHORT", "REAGENT_HISTORY_SHORT"]);
+  });
+
   test("produit sur un marché illiquide : confiance faible, attendre", () => {
     prices.set("22", stable("22", 5_000, 1, 3));
     const e = run(recipe(22, [[10, 1]]));
@@ -234,6 +244,11 @@ describe("opportunités", () => {
     const kinds = list.map((o) => `${o.kind}:${o.itemKey}`);
     assert.equal(craft.decision, "CRAFT");
     assert.deepEqual(kinds.toSorted(), ["BUY:51", "KEEP:51", "PROCESS:20", "SELL:50"]);
+    // Deux jours relevés seulement : aucune valeur de marché, donc ni vente ni conservation conseillée.
+    const young = computeItemStats("52", series(2, (i) => (i === 1 ? 2_000 : 1_000), 60), { minCopper: 2_000, day: TODAY }, TODAY, null);
+    assert.equal(young.marketValue, null);
+    assert.ok(young.confidence <= 30);
+    assert.deepEqual(buildOpportunities(new Map([["52", young]]), [], new Map([["52", 10]]), []), []);
     const sell = list.find((o) => o.kind === "SELL")!;
     assert.equal(sell.valueCopper, Math.round(10 * 1_300 * 0.95));
     assert.ok(sell.inputs.lastDay);

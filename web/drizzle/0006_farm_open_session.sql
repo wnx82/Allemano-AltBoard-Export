@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "farm_sessions_open_character_idx" ON "farm_sessions" USING btree ("character_id") WHERE "farm_sessions"."ended_at" is null;
