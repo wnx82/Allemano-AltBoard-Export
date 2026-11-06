@@ -54,7 +54,7 @@ dotnet run --project src/AltBoardSync -- sync
 
 ```bash
 cd agent && dotnet test                               # 180 tests
-cd web && npm run typecheck && npm run lint && npm test && npm run build   # 284 tests
+cd web && npm run typecheck && npm run lint && npm test && npm run build   # 288 tests
 ```
 
 GitHub Actions relance ces contrôles à chaque push et à chaque pull request, construit l'image Docker

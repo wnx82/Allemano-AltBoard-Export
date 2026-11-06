@@ -102,8 +102,10 @@ export default async function OpportunitiesPage({ searchParams }: PageProps<"/op
               <AssistantForm action={askAssistantAction} marketId={context.market.id} maxLength={MAX_QUESTION_LENGTH} />
             ) : (
               <p>
-                Désactivé : définissez <code className="text-text">WOW_AI_URL</code> (API compatible OpenAI, par exemple un Ollama local) et{" "}
-                <code className="text-text">WOW_AI_MODEL</code> sur le serveur pour l&apos;activer.
+                Désactivé. Pour Claude, définissez <code className="text-text">WOW_AI_PROVIDER=anthropic</code> et{" "}
+                <code className="text-text">WOW_AI_API_KEY</code> (clé d&apos;API Anthropic) sur le serveur. Pour une API compatible OpenAI,
+                par exemple un Ollama local, définissez <code className="text-text">WOW_AI_URL</code> et{" "}
+                <code className="text-text">WOW_AI_MODEL</code>.
               </p>
             )}
           </div>

@@ -22,6 +22,7 @@ x-app: &app
     WOW_STATUS_TIMEOUT_MS: ${WOW_STATUS_TIMEOUT_MS:-}
     WOW_STATUS_DEGRADED_MS: ${WOW_STATUS_DEGRADED_MS:-}
     # Assistant de la page Opportunités, facultatif : vides, il est désactivé (docs/ECONOMY-ENGINE.md).
+    WOW_AI_PROVIDER: ${WOW_AI_PROVIDER:-}
     WOW_AI_URL: ${WOW_AI_URL:-}
     WOW_AI_MODEL: ${WOW_AI_MODEL:-}
     WOW_AI_API_KEY: ${WOW_AI_API_KEY:-}

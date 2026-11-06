@@ -14,7 +14,7 @@ Dernière mise à jour : 2026-11-06.
 | Chaîne complète PC → agent → HTTPS → PostgreSQL → tableau de bord | ✅ sur les fichiers réels (2 comptes, 6 personnages) |
 | Recette après une vraie modification en jeu | ⬜ à faire par le joueur : jouer, `/reload`, `AltBoardSync.exe sync` |
 | Compte personnel d'accès au tableau de bord | ⬜ à créer par le joueur (mot de passe saisi sur le serveur) |
-| Tests automatisés | 180 (agent) + 284 (web), tous verts (branche `feat/economy`) |
+| Tests automatisés | 180 (agent) + 288 (web), tous verts |
 
 Le critère de réussite de la V1 est rempli jusqu'à l'étape 5 (personnage vérifié dans le fichier, la
 base et la page). Les étapes 6 à 10 — modifier une donnée en jeu, resynchroniser, constater la mise

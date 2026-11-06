@@ -109,10 +109,16 @@ paramètres (dont la date du jour).
 - `GET /api/economy/facts` (session requise) : faits structurés du moteur — marché et date du
   dernier relevé, calcul d'opportunités, meilleurs crafts, hausses, baisses, prix anormaux,
   signaux et sessions de farm — avec les règles que toute explication doit suivre.
-- Assistant **facultatif, désactivé par défaut** : `WOW_AI_URL` (API « chat completions »
-  compatible OpenAI : Ollama, LM Studio…) et `WOW_AI_MODEL`, `WOW_AI_API_KEY` en option. Il ne
-  reçoit que ces faits, jamais la base ni du SQL. Toute réponse qui cite un nombre absent des faits
-  et de la question est **refusée** (petits entiers jusqu'à 10 exceptés). 10 questions par
+- Assistant **facultatif, désactivé par défaut**. Deux fournisseurs :
+  - **Claude** : `WOW_AI_PROVIDER=anthropic` et `WOW_AI_API_KEY`. Il passe par l'API Messages
+    d'Anthropic, avec le SDK officiel. Le modèle par défaut est `claude-opus-5-5`, avec un effort
+    `medium`. Si les filtres de sécurité déclinent une question, l'API la repose au modèle de
+    repli recommandé.
+  - **API « chat completions » compatible OpenAI** (Ollama, LM Studio…) : `WOW_AI_URL` et
+    `WOW_AI_MODEL`, `WOW_AI_API_KEY` en option.
+
+  Il ne reçoit que ces faits, jamais la base ni du SQL. Toute réponse qui cite un nombre absent des
+  faits et de la question est **refusée** (petits entiers jusqu'à 10 exceptés). 10 questions par
   10 minutes et par utilisateur.
 
 ## Limites connues

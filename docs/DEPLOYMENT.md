@@ -228,14 +228,27 @@ configuration. Elles se remplissent dès qu'un agent 0.5.0 ou plus récent envoi
 - **Assistant** de la page Opportunités, facultatif : dans l'environnement de la pile, puis
   **Deploy**. Vides, il est désactivé ; rien d'autre ne change.
 
+Avec Claude, il faut une clé d'API Anthropic, créée sur
+[platform.claude.com](https://platform.claude.com) et facturée à l'usage. Un abonnement claude.ai
+ne donne pas de clé d'API.
+
 ```text
-WOW_AI_URL = http://<hôte>:<port>/v1      # API « chat completions » compatible OpenAI
+WOW_AI_PROVIDER = anthropic
+WOW_AI_API_KEY = <clé d'API Anthropic>     # secret Komodo
+WOW_AI_MODEL = claude-opus-5-5             # facultatif : c'est le modèle par défaut
+```
+
+Avec une API « chat completions » compatible OpenAI, par exemple un Ollama local :
+
+```text
+WOW_AI_URL = http://<hôte>:<port>/v1
 WOW_AI_MODEL = <nom du modèle>
 WOW_AI_API_KEY = <clé>                     # facultatif ; secret Komodo si renseigné
 ```
 
 Le conteneur `web` appelle cette adresse en sortie, avec les seuls faits du moteur
-([ECONOMY-ENGINE](ECONOMY-ENGINE.md#faits-et-assistant-p11)).
+([ECONOMY-ENGINE](ECONOMY-ENGINE.md#faits-et-assistant-p11)). Avec Claude, ces faits sortent du
+réseau local vers l'API Anthropic : prix, crafts, noms d'objets et libellés des sessions de farm.
 
 ## Recréer la pile
 

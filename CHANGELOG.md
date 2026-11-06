@@ -4,6 +4,21 @@ Deux versions, chacune en SemVer : le **site** (`web/package.json`) et l'**agent
 (`agent/Directory.Build.props`, étiquette `agent-vX.Y.Z` pour une release). Le pied de page du
 tableau de bord affiche les deux. Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 
+## Site 0.4.0 — 2026-11-06
+
+### Ajouté
+
+- L'assistant de la page Opportunités peut utiliser **Claude** : `WOW_AI_PROVIDER=anthropic` et
+  `WOW_AI_API_KEY`, une clé d'API Anthropic. Il passe par l'API Messages, avec le SDK officiel
+  `@anthropic-ai/sdk`. Le modèle par défaut est `claude-opus-5-5` ; `WOW_AI_MODEL` en choisit un
+  autre. Si les filtres de sécurité déclinent une question, l'API la repose au modèle de repli
+  recommandé. La vérification des nombres de la réponse ne change pas.
+
+### Modifié
+
+- Sans `WOW_AI_PROVIDER`, l'assistant utilise toujours l'API compatible OpenAI (`WOW_AI_URL`,
+  `WOW_AI_MODEL`). Un fournisseur inconnu désactive l'assistant.
+
 ## Site 0.3.0 — 2026-11-06
 
 ### Ajouté

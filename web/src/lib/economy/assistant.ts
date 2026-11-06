@@ -1,19 +1,32 @@
+import { ANTHROPIC_MODEL, ANTHROPIC_URL, completeWithClaude, type Completion } from "./assistant-claude";
 import { formatCopperShort } from "./view";
 import type { EconomyFacts } from "./facts";
 
-// Assistant facultatif (P11) : explique les faits du moteur en langage naturel. Désactivé tant que
-// WOW_AI_URL et WOW_AI_MODEL ne sont pas définis. Il ne reçoit que les faits structurés, ne lance
-// aucune requête, et toute réponse qui cite un nombre absent des faits est refusée.
-// Protocole : API « chat completions » compatible OpenAI (Ollama, LM Studio, vLLM…).
+// Assistant facultatif (P11) : explique les faits du moteur en langage naturel. Il ne reçoit que les
+// faits structurés, ne lance aucune requête, et toute réponse qui cite un nombre absent des faits est
+// refusée. Deux fournisseurs, selon WOW_AI_PROVIDER :
+// - « openai » (défaut) : API « chat completions » compatible OpenAI (Ollama, LM Studio, vLLM…),
+//   active quand WOW_AI_URL et WOW_AI_MODEL sont définis ;
+// - « anthropic » : Claude, par l'API Messages d'Anthropic, active quand WOW_AI_API_KEY est défini.
 
-export type AssistantConfig = { url: string; model: string; apiKey: string | null; timeoutMs: number };
+export type AssistantProvider = "openai" | "anthropic";
+export type AssistantConfig = { provider: AssistantProvider; url: string; model: string; apiKey: string | null; timeoutMs: number };
 
 /** Un modèle local de 14 milliards de paramètres, chargé à froid, a mis 51 s à répondre (Ollama, 2026-11-06). */
 const TIMEOUT_MS = 120_000;
 
 export function assistantConfig(env: Record<string, string | undefined> = process.env): AssistantConfig | null {
-  const url = env.WOW_AI_URL?.trim();
-  const model = env.WOW_AI_MODEL?.trim();
+  const provider = env.WOW_AI_PROVIDER?.trim().toLowerCase() || "openai";
+  const apiKey = env.WOW_AI_API_KEY?.trim() || null;
+  let url = env.WOW_AI_URL?.trim();
+  let model = env.WOW_AI_MODEL?.trim();
+  if (provider === "anthropic") {
+    if (!apiKey) return null;
+    url ||= ANTHROPIC_URL;
+    model ||= ANTHROPIC_MODEL;
+  } else if (provider !== "openai") {
+    return null;
+  }
   if (!url || !model) return null;
   try {
     const parsed = new URL(url);
@@ -21,7 +34,7 @@ export function assistantConfig(env: Record<string, string | undefined> = proces
   } catch {
     return null;
   }
-  return { url: url.replace(/\/+$/, ""), model, apiKey: env.WOW_AI_API_KEY?.trim() || null, timeoutMs: TIMEOUT_MS };
+  return { provider, url: url.replace(/\/+$/, ""), model, apiKey, timeoutMs: TIMEOUT_MS };
 }
 
 export const MAX_QUESTION_LENGTH = 500;
@@ -87,6 +100,21 @@ export async function askAssistant(
     "Tu ne calcules rien : tu cites et reformules uniquement les faits JSON fournis.",
     ...facts.rules,
   ].join("\n");
+  const user = `Faits :\n${JSON.stringify(facts)}\n\nQuestion : ${question}`;
+  const completion =
+    config.provider === "anthropic" ? await completeWithClaude(config, system, user, fetchImpl) : await completeChat(config, system, user, fetchImpl);
+  if (!completion.ok) return completion;
+  const answer = completion.text.trim().slice(0, MAX_ANSWER_LENGTH);
+  if (answer === "") return { ok: false, error: "Réponse de l'assistant illisible." };
+  const unknown = ungroundedNumbers(answer, { facts, question });
+  if (unknown.length > 0) {
+    return { ok: false, error: `Réponse refusée : elle cite des valeurs absentes des faits du moteur (${unknown.slice(0, 5).join(", ")}).` };
+  }
+  return { ok: true, answer };
+}
+
+/** API « chat completions » compatible OpenAI. */
+async function completeChat(config: AssistantConfig, system: string, user: string, fetchImpl: typeof fetch): Promise<Completion> {
   let response: Response;
   try {
     response = await fetchImpl(`${config.url}/chat/completions`, {
@@ -97,7 +125,7 @@ export async function askAssistant(
         temperature: 0,
         messages: [
           { role: "system", content: system },
-          { role: "user", content: `Faits :\n${JSON.stringify(facts)}\n\nQuestion : ${question}` },
+          { role: "user", content: user },
         ],
       }),
       signal: AbortSignal.timeout(config.timeoutMs),
@@ -108,11 +136,6 @@ export async function askAssistant(
   if (!response.ok) return { ok: false, error: `L'assistant a refusé la demande (HTTP ${response.status}).` };
   const body = (await response.json().catch(() => null)) as { choices?: { message?: { content?: unknown } }[] } | null;
   const content = body?.choices?.[0]?.message?.content;
-  if (typeof content !== "string" || content.trim() === "") return { ok: false, error: "Réponse de l'assistant illisible." };
-  const answer = content.trim().slice(0, MAX_ANSWER_LENGTH);
-  const unknown = ungroundedNumbers(answer, { facts, question });
-  if (unknown.length > 0) {
-    return { ok: false, error: `Réponse refusée : elle cite des valeurs absentes des faits du moteur (${unknown.slice(0, 5).join(", ")}).` };
-  }
-  return { ok: true, answer };
+  if (typeof content !== "string") return { ok: false, error: "Réponse de l'assistant illisible." };
+  return { ok: true, text: content };
 }
